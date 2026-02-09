@@ -732,7 +732,7 @@ def สร้าง_excel_template() -> io.BytesIO:
     # สร้าง workbook
     wb = Workbook()
     ws = wb.active
-    ws.title = "ข้อมูล LCCA"
+    ws.title = "Sheet1"  # ✅ เปลี่ยนเป็น Sheet1 เพื่อให้ตรงกับโค้ดอ่าน
     
     # === ส่วนที่ 1: Header หลัก ===
     ws['A1'] = 'ข้อมูลสำหรับวิเคราะห์ LCCA (Life-Cycle Cost Analysis)'
