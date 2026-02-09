@@ -1,31 +1,6 @@
-# Core Framework
 streamlit>=1.28.0
-
-# Data Processing
 numpy>=1.24.0
 pandas>=2.0.0
-
-# Visualization
 plotly>=5.14.0
-
-# Excel Support (สำหรับ Upload/Download Excel)
 openpyxl>=3.1.0
-
-# Word Document Export (สำหรับส่งออกรายงาน)
 python-docx>=1.0.0
-
-# ========================================
-# Optional Dependencies
-# ========================================
-# ถ้าต้องการความเร็วในการประมวลผลเพิ่มเติม
-# xlsxwriter>=3.1.0
-
-# ========================================
-# Installation Instructions
-# ========================================
-# วิธีติดตั้ง:
-# pip install -r requirements.txt
-#
-# หรือติดตั้งทีละตัว:
-# pip install streamlit numpy pandas plotly openpyxl python-docx
-# ========================================
