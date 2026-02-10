@@ -2,13 +2,25 @@ import streamlit as st
 from docx import Document
 from io import BytesIO
 
-st.set_page_config(page_title="Word Merger 10 Files", layout="centered")
+st.set_page_config(
+    page_title="Word Merger 10 Files",
+    layout="centered",
+    page_icon="📄"
+)
 
-st.title("📄 โปรแกรมรวมไฟล์ Word (10 ไฟล์ตามรายการ)")
+# ---------------- HEADER ----------------
+st.markdown("""
+<div style="text-align:center;">
+    <h1>📄 Word Merger – Civil Engineering</h1>
+    <h3 style="color:#555;">รวมไฟล์ Word ตามหมวดงานทางวิศวกรรมโยธา</h3>
+</div>
+""", unsafe_allow_html=True)
 
-st.write("อัปโหลดไฟล์ให้ครบทั้ง 10 ไฟล์ แล้วกดปุ่มรวมไฟล์")
+st.write("---")
 
-# ลำดับไฟล์ใหม่ตามที่อาจารย์ต้องการ
+st.markdown("### 📁 อัปโหลดไฟล์ (ไม่จำเป็นต้องครบ 10 ไฟล์)")
+
+# ---------------- FILE ORDER ----------------
 file_labels = [
     "1. Truck Factor",
     "2.1 ESALs (Flexible)",
@@ -24,11 +36,26 @@ file_labels = [
 
 uploaded_files = {}
 
-# UI อัปโหลดไฟล์ทีละรายการ
+# ---------------- UPLOAD AREA ----------------
 for label in file_labels:
-    uploaded_files[label] = st.file_uploader(f"{label}", type=["docx"])
+    with st.container():
+        st.markdown(f"**📄 {label}**")
+        uploaded_files[label] = st.file_uploader("", type=["docx"], key=label)
 
-# ฟังก์ชันรวมไฟล์
+# ---------------- COUNT ----------------
+uploaded_count = sum(1 for f in uploaded_files.values() if f is not None)
+
+st.write("---")
+st.markdown(f"### 📊 สถานะการอัปโหลด: **{uploaded_count} / 10 ไฟล์**")
+
+st.progress(uploaded_count / 10)
+
+if uploaded_count == 0:
+    st.warning("⚠️ กรุณาอัปโหลดอย่างน้อย 1 ไฟล์ก่อน")
+elif uploaded_count < 10:
+    st.info("ℹ️ จะรวมเฉพาะไฟล์ที่อัปโหลดเท่านั้น (ยังไม่ครบ 10 ไฟล์)")
+
+# ---------------- MERGE FUNCTION ----------------
 def merge_word_files(files_dict):
     merged_doc = Document()
     first = True
@@ -52,20 +79,19 @@ def merge_word_files(files_dict):
     output.seek(0)
     return output
 
-# ตรวจสอบจำนวนไฟล์ที่อัปโหลดแล้ว
-uploaded_count = sum(1 for f in uploaded_files.values() if f is not None)
-st.write(f"📌 อัปโหลดแล้ว: {uploaded_count} จาก 10 ไฟล์")
+# ---------------- MERGE BUTTON ----------------
+st.write("---")
+st.markdown("### 🛠️ รวมไฟล์ Word")
 
-# ปุ่มรวมไฟล์
-if uploaded_count == 10:
-    if st.button("รวมไฟล์ Word ทั้ง 10 ไฟล์"):
+if uploaded_count > 0:
+    if st.button("📎 รวมไฟล์ทั้งหมดที่อัปโหลด"):
         merged_output = merge_word_files(uploaded_files)
+
+        st.success("🎉 รวมไฟล์สำเร็จ! พร้อมดาวน์โหลด")
 
         st.download_button(
             label="⬇️ ดาวน์โหลดไฟล์ที่รวมแล้ว (.docx)",
             data=merged_output,
-            file_name="merged_10_files.docx",
+            file_name="merged_files.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         )
-else:
-    st.warning("กรุณาอัปโหลดไฟล์ให้ครบทั้ง 10 ไฟล์ก่อนจึงจะรวมได้")
