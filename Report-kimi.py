@@ -1,15 +1,15 @@
- # -*- coding: utf-8 -*-
+# -*- coding: utf-8 -*-
 """
-โปรแกรมรวมรายงานออกแบบโครงสร้างชั้นทาง v3.0
-Pavement Design Report Merger - Refactored Version
+โปรแกรมรวมรายงานออกแบบโครงสร้างชั้นทาง v3.1
+Pavement Design Report Merger - Fixed Version
 """
 
 import streamlit as st
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt, Cm, Inches
+from docx.shared import Pt, Cm
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.section import WD_ORIENT
 from docx.oxml.ns import qn
@@ -44,7 +44,7 @@ DEFAULT_SECTIONS = [
 # UI SETUP
 # ═══════════════════════════════════════════════════════════════
 
-st.set_page_config(page_title="รวมรายงานโครงสร้างชั้นทาง v3.0", page_icon="🛣️", layout="wide")
+st.set_page_config(page_title="รวมรายงานโครงสร้างชั้นทาง v3.1", page_icon="🛣️", layout="wide")
 
 st.markdown("""
 <style>
@@ -53,13 +53,10 @@ st.markdown("""
                    -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
     .section-card { background: #f8fafc; border-radius: 12px; padding: 16px; 
                     border-left: 4px solid #667eea; margin: 8px 0; }
-    .file-item { background: white; border-radius: 8px; padding: 12px; 
-                 box-shadow: 0 2px 4px rgba(0,0,0,0.1); margin: 4px 0;
-                 display: flex; align-items: center; gap: 12px; }
-    .drag-handle { cursor: grab; color: #94a3b8; font-size: 20px; }
-    .status-badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: bold; }
-    .status-ready { background: #dcfce7; color: #166534; }
-    .status-pending { background: #fee2e2; color: #991b1b; }
+    .status-ready { background: #dcfce7; color: #166534; padding: 4px 12px; 
+                    border-radius: 20px; font-size: 12px; font-weight: bold; }
+    .status-pending { background: #fee2e2; color: #991b1b; padding: 4px 12px; 
+                      border-radius: 20px; font-size: 12px; font-weight: bold; }
     .merge-btn { background: linear-gradient(90deg, #667eea, #764ba2) !important; 
                  color: white !important; font-weight: bold !important; 
                  border-radius: 25px !important; padding: 12px 32px !important; }
@@ -109,7 +106,6 @@ def copy_element(source, target_doc):
             for j, cell in enumerate(row.cells):
                 new_cell = new_table.rows[i].cells[j]
                 new_cell.text = cell.text
-                # Copy cell formatting
                 if cell.paragraphs:
                     new_cell.paragraphs[0].alignment = cell.paragraphs[0].alignment
 
@@ -135,7 +131,7 @@ def create_cover_page(doc, project, date_str):
     
     doc.add_page_break()
 
-def create_toc(doc, sections_with_files):
+def create_toc(doc, sections_list):
     """สร้างสารบัญ"""
     title = doc.add_paragraph()
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -143,14 +139,14 @@ def create_toc(doc, sections_with_files):
     set_thai_font(run, size=20, bold=True)
     doc.add_paragraph()
     
-    for i, (section, _) in enumerate(sections_with_files, 1):
+    for i, section in enumerate(sections_list, 1):
         p = doc.add_paragraph()
         run = p.add_run(f"{i}. {section.title}")
         set_thai_font(run, size=16)
     
     doc.add_page_break()
 
-def merge_documents(sections_with_files, project, date_str):
+def merge_documents(sections_list, files_dict, project, date_str):
     """รวมเอกสารทั้งหมด"""
     merged = Document()
     set_a4_margins(merged.sections[0])
@@ -159,10 +155,10 @@ def merge_documents(sections_with_files, project, date_str):
     create_cover_page(merged, project, date_str)
     
     # สารบัญ
-    create_toc(merged, sections_with_files)
+    create_toc(merged, sections_list)
     
     # เนื้อหาแต่ละส่วน
-    for i, (section, file_bytes) in enumerate(sections_with_files, 1):
+    for i, section in enumerate(sections_list, 1):
         # หัวข้อส่วน
         header = merged.add_paragraph()
         run = header.add_run(f"{i}. {section.title}")
@@ -170,15 +166,17 @@ def merge_documents(sections_with_files, project, date_str):
         merged.add_paragraph()
         
         # เนื้อหาจากไฟล์
-        try:
-            source = Document(io.BytesIO(file_bytes))
-            for element in source.element.body:
-                copy_element(element, merged)
-            merged.add_page_break()
-        except Exception as e:
-            p = merged.add_paragraph()
-            run = p.add_run(f"[Error loading file: {str(e)}]")
-            set_thai_font(run, size=12)
+        file_bytes = files_dict.get(section.id)
+        if file_bytes:
+            try:
+                source = Document(io.BytesIO(file_bytes))
+                for element in source.element.body:
+                    copy_element(element, merged)
+                merged.add_page_break()
+            except Exception as e:
+                p = merged.add_paragraph()
+                run = p.add_run(f"[Error loading file: {str(e)}]")
+                set_thai_font(run, size=12)
     
     return merged
 
@@ -186,7 +184,7 @@ def merge_documents(sections_with_files, project, date_str):
 # MAIN UI
 # ═══════════════════════════════════════════════════════════════
 
-st.markdown('<h1 class="main-header">🛣️ โปรแกรมรวมรายงานโครงสร้างชั้นทาง v3.0</h1>', unsafe_allow_html=True)
+st.markdown('<h1 class="main-header">🛣️ โปรแกรมรวมรายงานโครงสร้างชั้นทาง v3.1</h1>', unsafe_allow_html=True)
 
 # Sidebar: ตั้งค่าโครงการ
 with st.sidebar:
@@ -195,22 +193,18 @@ with st.sidebar:
     report_date = st.date_input("วันที่รายงาน", datetime.now())
     
     st.markdown("---")
-    st.header("📋 รูปแบบเลขหัวข้อ")
-    numbering = st.radio("รูปแบบ", ["1, 2, 3...", "1.1, 1.2...", "A, B, C..."], horizontal=True)
-    
-    st.markdown("---")
     st.caption("พัฒนาโดย ภาควิชาครุศาสตร์โยธา มจพ. © 2025")
 
 # Main: อัปโหลดและจัดการไฟล์
 st.subheader("📤 อัปโหลดไฟล์รายงาน")
 
 # จัดกลุ่มตาม category
-categories = {}
+categories: Dict[str, List[ReportSection]] = {}
 for s in DEFAULT_SECTIONS:
     categories.setdefault(s.category, []).append(s)
 
-uploaded_files = {}
-files_order = []
+# เก็บไฟล์ที่อัปโหลด (ใช้ section.id เป็น key)
+uploaded_files: Dict[str, bytes] = {}
 
 # แสดงเป็นกลุ่ม
 for cat_name, sections in categories.items():
@@ -220,7 +214,7 @@ for cat_name, sections in categories.items():
             
             with col1:
                 file = st.file_uploader(
-                    f"**{section.title}**" + (f" *" if section.required else ""),
+                    f"**{section.title}**" + (" *" if section.required else ""),
                     type=["docx"],
                     key=f"up_{section.id}",
                     help=section.description
@@ -228,13 +222,12 @@ for cat_name, sections in categories.items():
             
             with col2:
                 if file:
-                    st.markdown('<span class="status-badge status-ready">✅ พร้อม</span>', 
+                    st.markdown('<span class="status-ready">✅ พร้อม</span>', 
                                unsafe_allow_html=True)
-                    uploaded_files[section] = file.getvalue()
-                    files_order.append(section)
+                    uploaded_files[section.id] = file.getvalue()
                 else:
-                    st.markdown('<span class="status-badge status-pending">⏳ รอไฟล์</span>' 
-                               + (' *' if section.required else ''), 
+                    st.markdown('<span class="status-pending">⏳ รอไฟล์' + 
+                               (' *' if section.required else '') + '</span>', 
                                unsafe_allow_html=True)
 
 # แสดงสรุปและปุ่มดำเนินการ
@@ -242,7 +235,7 @@ st.markdown("---")
 
 ready_count = len(uploaded_files)
 required_count = sum(1 for s in DEFAULT_SECTIONS if s.required)
-required_ready = sum(1 for s in uploaded_files if s.required)
+required_ready = sum(1 for s in DEFAULT_SECTIONS if s.required and s.id in uploaded_files)
 
 col1, col2, col3 = st.columns([2, 2, 2])
 
@@ -256,42 +249,48 @@ with col2:
         st.warning(f"⚠️ ขาดบังคับอีก {required_count - required_ready} ไฟล์")
 
 with col3:
-    if ready_count > 0 and required_ready >= required_count:
-        if st.button("🔄 รวมไฟล์และดาวน์โหลด", type="primary", use_container_width=True):
-            with st.spinner("กำลังรวมเอกสาร..."):
-                try:
-                    # เรียงตามลำดับใน DEFAULT_SECTIONS
-                    ordered = [(s, uploaded_files[s]) for s in DEFAULT_SECTIONS if s in uploaded_files]
-                    
-                    merged = merge_documents(
-                        ordered, 
-                        project_name, 
-                        report_date.strftime("%d/%m/%Y")
-                    )
-                    
-                    # Export
-                    output = io.BytesIO()
-                    merged.save(output)
-                    output.seek(0)
-                    
-                    filename = f"รายงานออกแบบ_{project_name or 'โครงสร้างชั้นทาง'}_{report_date:%Y%m%d}.docx"
-                    
-                    st.download_button(
-                        "📥 ดาวน์โหลดรายงาน (.docx)",
-                        data=output.getvalue(),
-                        file_name=filename,
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                        use_container_width=True
-                    )
-                    
-                    st.balloons()
-                    st.success(f"✅ รวมสำเร็จ! ({ready_count} ไฟล์)")
-                    
-                except Exception as e:
-                    st.error(f"❌ เกิดข้อผิดพลาด: {str(e)}")
-                    st.exception(e)
-    else:
-        st.button("🔄 รวมไฟล์และดาวน์โหลด", disabled=True, use_container_width=True)
+    can_merge = ready_count > 0 and required_ready >= required_count
+    
+    if st.button("🔄 รวมไฟล์และดาวน์โหลด", 
+                 type="primary", 
+                 use_container_width=True,
+                 disabled=not can_merge):
+        
+        with st.spinner("กำลังรวมเอกสาร..."):
+            try:
+                # สร้าง list ของ sections ที่มีไฟล์ เรียงตามลำดับเดิม
+                sections_with_files = [s for s in DEFAULT_SECTIONS if s.id in uploaded_files]
+                
+                merged = merge_documents(
+                    sections_with_files, 
+                    uploaded_files,
+                    project_name, 
+                    report_date.strftime("%d/%m/%Y")
+                )
+                
+                # Export
+                output = io.BytesIO()
+                merged.save(output)
+                output.seek(0)
+                
+                filename = f"รายงานออกแบบ_{project_name or 'โครงสร้างชั้นทาง'}_{report_date:%Y%m%d}.docx"
+                
+                st.download_button(
+                    "📥 ดาวน์โหลดรายงาน (.docx)",
+                    data=output.getvalue(),
+                    file_name=filename,
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    use_container_width=True
+                )
+                
+                st.balloons()
+                st.success(f"✅ รวมสำเร็จ! ({ready_count} ไฟล์)")
+                
+            except Exception as e:
+                st.error(f"❌ เกิดข้อผิดพลาด: {str(e)}")
+                st.exception(e)
+
+    if not can_merge:
         if ready_count == 0:
             st.error("กรุณาอัปโหลดไฟล์อย่างน้อย 1 ไฟล์")
         elif required_ready < required_count:
