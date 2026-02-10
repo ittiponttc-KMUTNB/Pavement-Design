@@ -867,26 +867,6 @@ def สร้าง_excel_template() -> io.BytesIO:
     ws.add_data_validation(dv_cost)
     dv_cost.add('D4:D7')
     
-    # === ส่วนที่ 6: ตัวอย่างข้อมูล ===
-    ws['A9'] = '📌 ตัวอย่างการกรอกข้อมูล:'
-    ws['A9'].font = Font(bold=True, color="C00000")
-    ws.merge_cells('A9:D9')
-    
-    example_data = [
-        ['AC', 'ลาดยาง', 15, 1800],
-        ['JPCP', 'คอนกรีต', 30, 1660]
-    ]
-    
-    for row_idx, row_data in enumerate(example_data, start=10):
-        for col_idx, value in enumerate(row_data, start=1):
-            cell = ws.cell(row=row_idx, column=col_idx)
-            cell.value = value
-            cell.font = Font(italic=True, color="808080")
-            cell.alignment = Alignment(horizontal='center')
-            
-            if col_idx == 4:  # ต้นทุน
-                cell.number_format = '#,##0'
-    
     # === ส่วนที่ 7: ปรับขนาดคอลัมน์ ===
     ws.column_dimensions['A'].width = 15
     ws.column_dimensions['B'].width = 22
