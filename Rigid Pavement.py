@@ -341,8 +341,8 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
             run = p.add_run(text)
             run.bold = bold
             run.italic = italic
-            run.font.name = 'Courier New'
-            run.font.size = Pt(12)
+            run.font.name = 'Times New Roman'
+            run.font.size = Pt(11)
             if is_sub or is_sup:
                 rPr = run._r.get_or_add_rPr()
                 vertAlign = OxmlElement('w:vertAlign')
@@ -358,7 +358,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
 
     # คำอธิบาย
     p_desc = doc.add_paragraph('สมการหลักที่ใช้ในการออกแบบความหนาถนนคอนกรีตตาม AASHTO 1993 มีดังนี้:')
-    p_desc.runs[0].font.name = 'TH Sarabun New'
+    p_desc.runs[0].font.name = 'TH SarabunPSK'
     p_desc.runs[0].font.size = Pt(14)
 
     # บรรทัดที่ 1: log10(W18) = ZR x So + 7.35 x log10(D+1) - 0.06
@@ -417,7 +417,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
     # ตารางสัญลักษณ์
     doc.add_paragraph()
     p_sym = doc.add_paragraph('โดยที่:')
-    p_sym.runs[0].font.name = 'TH Sarabun New'
+    p_sym.runs[0].font.name = 'TH SarabunPSK'
     p_sym.runs[0].font.size = Pt(14)
 
     tbl_sym = doc.add_table(rows=1, cols=3)
@@ -427,7 +427,10 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
     hdr_sym[1].text = 'ความหมาย'
     hdr_sym[2].text = 'หน่วย'
     for cell in hdr_sym:
-        cell.paragraphs[0].runs[0].bold = True
+        run = cell.paragraphs[0].runs[0]
+        run.bold = True
+        run.font.name = 'TH SarabunPSK'
+        run.font.size = Pt(14)
 
     symbol_data = [
         ('W\u2081\u2088',        'จำนวนแกนเดี่ยว 18 kip ที่รองรับได้',     'ESALs'),
@@ -447,6 +450,10 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
         row_s[0].text = sym
         row_s[1].text = meaning
         row_s[2].text = unit
+        for cell in row_s:
+            run = cell.paragraphs[0].runs[0]
+            run.font.name = 'TH SarabunPSK'
+            run.font.size = Pt(14)
 
     doc.add_paragraph()
 
