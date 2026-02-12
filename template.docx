@@ -1,0 +1,11 @@
+หน้า 1: Title Page
+หน้า 2: สารบัญ (TOC)
+หน้า 3: ว่าง (เริ่มเนื้อหาที่โปรแกรม append)
+Header/Footer ตั้งค่าแล้ว
+Styles:
+  - Normal
+  - Heading 1
+  - Heading 2
+  - Heading 3
+  - ConsultantTable
+  - ConsultantCaption
