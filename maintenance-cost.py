@@ -325,3 +325,11 @@ elif surface == "ลูกรัง":
 
         st.session_state["records"].append({
             "สายทาง": route_id,
+            "ผิวทาง": "ลูกรัง",
+            "ระยะทาง กม.": distance,
+            "K": round(K, 3),
+            "ปริมาณงานหน่วย": round(workload, 3),
+            "Km": Km,
+            "Na/Ns/Nc": Na,
+            "งบประมาณบาท": round(budget, 2),
+        })
