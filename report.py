@@ -365,69 +365,88 @@ with tab1:
     )
     
     if uploaded_files:
-        # Store uploaded files
-        new_sections = []
+        # Build a set of currently uploaded file names
+        uploaded_names = {uf.name for uf in uploaded_files}
+        existing_names = {s["name"] for s in st.session_state.sections}
+        
+        # Only add NEW files (preserve existing order)
         for uf in uploaded_files:
-            file_bytes = uf.read()
-            uf.seek(0)
-            
-            # Check if already in session
-            existing = [s for s in st.session_state.sections if s["name"] == uf.name]
-            if existing:
-                existing[0]["file_bytes"] = file_bytes
-                new_sections.append(existing[0])
-            else:
+            if uf.name not in existing_names:
+                file_bytes = uf.read()
+                uf.seek(0)
                 info = extract_docx_content(uf)
                 uf.seek(0)
-                new_sections.append({
+                st.session_state.sections.append({
                     "name": uf.name,
                     "file_bytes": file_bytes,
                     "info": info,
-                    "order": len(new_sections),
+                    "order": len(st.session_state.sections),
                     "enabled": True,
                     "custom_section_num": None
                 })
+            else:
+                # Update file bytes for existing files
+                for s in st.session_state.sections:
+                    if s["name"] == uf.name:
+                        file_bytes = uf.read()
+                        uf.seek(0)
+                        s["file_bytes"] = file_bytes
+                        break
         
-        st.session_state.sections = new_sections
+        # Remove sections whose files were removed from uploader
+        st.session_state.sections = [
+            s for s in st.session_state.sections if s["name"] in uploaded_names
+        ]
     
     if st.session_state.sections:
         st.subheader(f"📋 ไฟล์ที่ Upload แล้ว ({len(st.session_state.sections)} ไฟล์)")
         
         for i, section in enumerate(st.session_state.sections):
-            with st.expander(f"{'✅' if section['enabled'] else '⬜'} {i+1}. {section['name']}", expanded=False):
-                col1, col2, col3 = st.columns([3, 1, 1])
+            # ── Row: order buttons + filename + checkbox (always visible) ──
+            col_up, col_down, col_name, col_check = st.columns([0.5, 0.5, 6, 1.5])
+            
+            with col_up:
+                if i > 0:
+                    if st.button("⬆️", key=f"up_{i}", help="เลื่อนขึ้น"):
+                        lst = st.session_state.sections
+                        lst[i], lst[i-1] = lst[i-1], lst[i]
+                        st.rerun()
+                else:
+                    st.write("")  # placeholder
+            
+            with col_down:
+                if i < len(st.session_state.sections) - 1:
+                    if st.button("⬇️", key=f"down_{i}", help="เลื่อนลง"):
+                        lst = st.session_state.sections
+                        lst[i], lst[i+1] = lst[i+1], lst[i]
+                        st.rerun()
+                else:
+                    st.write("")  # placeholder
+            
+            with col_name:
+                icon = "✅" if section.get("enabled", True) else "⬜"
+                st.markdown(f"**{icon} {i+1}. {section['name']}**")
+            
+            with col_check:
+                section["enabled"] = st.checkbox(
+                    "รวม",
+                    value=section.get("enabled", True),
+                    key=f"enable_{i}",
+                    label_visibility="collapsed"
+                )
+            
+            # ── Expandable details ──
+            with st.expander(f"ℹ️ รายละเอียด: {section['name']}", expanded=False):
+                info = section.get("info", {})
+                st.write(f"**ย่อหน้า:** {info.get('para_count', 'N/A')} | "
+                        f"**ตาราง:** {info.get('table_count', 'N/A')} | "
+                        f"**รูปภาพ:** {info.get('image_count', 'N/A')}")
                 
-                with col1:
-                    info = section.get("info", {})
-                    st.write(f"**ย่อหน้า:** {info.get('para_count', 'N/A')} | "
-                            f"**ตาราง:** {info.get('table_count', 'N/A')} | "
-                            f"**รูปภาพ:** {info.get('image_count', 'N/A')}")
-                    
-                    if info.get("headings"):
-                        st.write("**หัวข้อที่พบ:**")
-                        for h in info["headings"][:10]:
-                            level = h["level"].replace("Heading ", "H")
-                            st.write(f"  - [{level}] {h['text']}")
-                
-                with col2:
-                    section["enabled"] = st.checkbox(
-                        "รวมไฟล์นี้",
-                        value=section.get("enabled", True),
-                        key=f"enable_{i}"
-                    )
-                
-                with col3:
-                    # Move up/down buttons
-                    if i > 0:
-                        if st.button("⬆️ ขึ้น", key=f"up_{i}"):
-                            sections = st.session_state.sections
-                            sections[i], sections[i-1] = sections[i-1], sections[i]
-                            st.rerun()
-                    if i < len(st.session_state.sections) - 1:
-                        if st.button("⬇️ ลง", key=f"down_{i}"):
-                            sections = st.session_state.sections
-                            sections[i], sections[i+1] = sections[i+1], sections[i]
-                            st.rerun()
+                if info.get("headings"):
+                    st.write("**หัวข้อที่พบ:**")
+                    for h in info["headings"][:10]:
+                        level = h["level"].replace("Heading ", "H")
+                        st.write(f"  - [{level}] {h['text']}")
     else:
         st.warning("ยังไม่ได้ Upload ไฟล์ Word")
 
