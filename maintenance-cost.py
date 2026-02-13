@@ -340,6 +340,9 @@ elif surface == "ลูกรัง":
 elif surface == "คอนกรีต":
     st.subheader("ผิวทางคอนกรีต")
 
+    # ⭐ เพิ่มอินพุตระยะทางตรงนี้ ⭐
+    distance = st.number_input("ระยะทางของสายทาง (กม.)", min_value=0.0, step=0.001, value=1.000)
+
     col1, col2 = st.columns(2)
 
     with col1:
@@ -378,6 +381,31 @@ elif surface == "คอนกรีต":
             Y5 = 0.06
 
         Y6 = Y6_MAP[st.selectbox("Y6 ทำความสะอาดทางระบายน้ำ", list(Y6_MAP.keys()))]
+
+    if st.button("คำนวณผิวคอนกรีต"):
+        f = dict(
+            Z1=Z1, Z2=Z2, Z3=Z3, Z4=Z4,
+            Y1=Y1, Y2=Y2, Y3=Y3, Y4=Y4, Y5=Y5, Y6=Y6
+        )
+
+        K = calc_concrete(f)
+        workload, budget = calc_budget(K, distance, Km, Na)
+
+        st.success(f"K = {K:.3f}")
+        st.info(f"ปริมาณงาน = {workload:.3f} หน่วย")
+        st.warning(f"งบประมาณ = {budget:,.2f} บาท")
+
+        st.session_state["records"].append({
+            "สายทาง": route_id,
+            "ผิวทาง": "คอนกรีต",
+            "ระยะทาง กม.": distance,
+            "K": round(K, 3),
+            "ปริมาณงานหน่วย": round(workload, 3),
+            "Km": Km,
+            "Na/Ns/Nc": Na,
+            "งบประมาณบาท": round(budget, 2),
+        })
+
 
     # ปุ่มคำนวณคอนกรีต
     if st.button("คำนวณผิวคอนกรีต"):
