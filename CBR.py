@@ -82,6 +82,8 @@ with st.sidebar:
                         st.session_state['input_table_caption'] = rs['table_caption']
                     if 'figure_caption' in rs:
                         st.session_state['input_figure_caption'] = rs['figure_caption']
+                    if 'design_cbr' in rs:
+                        st.session_state['input_design_cbr'] = rs['design_cbr']
                 
                 st.success("✅ โหลดการตั้งค่าสำเร็จ!")
                 st.rerun()
@@ -262,6 +264,16 @@ if cbr_values is not None and len(cbr_values) > 0:
             help="คำบรรยายใต้รูป"
         )
     
+    design_cbr = st.number_input(
+        "ค่า CBR ที่ใช้ในการออกแบบ (%)",
+        min_value=0.0,
+        max_value=100.0,
+        value=st.session_state.get('input_design_cbr', 4.0),
+        step=1.0,
+        key="input_design_cbr",
+        help="ค่า CBR ที่ที่ปรึกษาเลือกใช้ในการออกแบบโครงสร้างชั้นทาง"
+    )
+    
     # =====================================================================
     # Preview introduction paragraph
     # =====================================================================
@@ -270,20 +282,24 @@ if cbr_values is not None and len(cbr_values) > 0:
     
     # Build preview - สีม่วงดึงจากข้อมูล, สีเหลืองผู้ใช้กรอก
     intro_preview = (
-        f'<div style="font-family: TH SarabunPSK, Tahoma, sans-serif; font-size: 16px; line-height: 1.8; '
+        f'<div style="font-family: TH SarabunPSK, Tahoma, sans-serif; font-size: 15px; line-height: 1.8; '
         f'background-color: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">'
         f'<p style="margin-bottom: 5px;"><b>{section_number} &nbsp;&nbsp;&nbsp; {section_title}</b></p>'
         f'<p style="text-indent: 40px; text-align: justify;">'
         f'ความแข็งแรงของดินฐานรากบริเวณโดยรอบพื้นที่โครงการ หรือกำลังรับน้ำหนักของดินพื้นทางเดิม '
-        f'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น Plate Bearing Test '
-        f'CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR ซึ่งนิยมใช้กันแพร่หลาย '
-        f'เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของ'
-        f'ห้องปฏิบัติการ เพื่อหาค่า CBR ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของ'
-        f'ดินฐานรากตามแนวสายทาง จำนวน <span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{n}</span> ตัวอย่าง '
-        f'พบว่าที่เปอร์เซ็นต์ไทล์ ร้อยละ <span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{target_percentile:.0f}</span> ของค่ากำลังที่พบเท่ากับ CBR '
-        f'เท่ากับ <span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{cbr_at_percentile:.1f}</span> % '
-        f'ของจำนวนตัวอย่างทั้งหมด ที่มีกำลังรับแรงดันหรือค่า CBR เท่ากับ <span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{int(cbr_at_percentile)}</span> % '
-        f'นำไปใช้ในการออกแบบโครงสร้างถนน '
+        f'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น '
+        f'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR '
+        f'ซึ่งนิยมใช้กันแพร่หลาย เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม '
+        f'โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของห้องปฏิบัติการ เพื่อหาค่า CBR '
+        f'ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของดินฐานรากตามแนวสายทาง จำนวน '
+        f'<span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{n}</span> ตัวอย่าง '
+        f'พบว่าที่เปอร์เซ็นต์ไทล์ ร้อยละ '
+        f'<span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{target_percentile:.0f}</span> '
+        f'ของค่ากำลังที่พบเท่ากับ CBR เท่ากับ '
+        f'<span style="background-color: #D8B4FE; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{cbr_at_percentile:.1f}</span> % '
+        f'อย่างไรก็ตาม ที่ปรึกษาเลือกค่า CBR เท่ากับ '
+        f'<span style="background-color: #FDE68A; padding: 1px 4px; border-radius: 3px; font-weight: bold;">{int(design_cbr)}</span> % '
+        f'มาใช้ในการออกแบบโครงสร้างชั้นทาง '
         f'ดังแสดงผลการวิเคราะห์ใน'
         f'<span style="background-color: #FDE68A; padding: 1px 4px; border-radius: 3px; font-weight: bold;">ตารางที่ {table_number}</span> '
         f'และ<span style="background-color: #FDE68A; padding: 1px 4px; border-radius: 3px; font-weight: bold;">รูปที่ {figure_number}</span></p>'
@@ -458,6 +474,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                 'section_title': section_title,
                 'table_caption': table_caption,
                 'figure_caption': figure_caption,
+                'design_cbr': design_cbr,
             },
             'use_sample': st.session_state.get('input_use_sample', True)
         }
@@ -483,7 +500,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     # Set Thai font style
                     style = doc.styles['Normal']
                     style.font.name = 'TH SarabunPSK'
-                    style.font.size = Pt(16)
+                    style.font.size = Pt(15)
                     style._element.rPr.rFonts.set(qn('w:eastAsia'), 'TH SarabunPSK')
                     
                     # Helper function to set cell background color
@@ -503,40 +520,41 @@ if cbr_values is not None and len(cbr_values) > 0:
                     heading_para = doc.add_paragraph()
                     heading_run = heading_para.add_run(f'{section_number}\t{section_title}')
                     heading_run.font.name = 'TH SarabunPSK'
-                    heading_run.font.size = Pt(16)
+                    heading_run.font.size = Pt(15)
                     heading_run.font.bold = True
                     
                     # =========================================================
-                    # 2) Introduction paragraph (เกริ่นนำ)
+                    # 2) Introduction paragraph (เกริ่นนำ) - justified, 15pt
                     # =========================================================
                     intro_para = doc.add_paragraph()
                     intro_para.paragraph_format.first_line_indent = Cm(1.25)
+                    intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
                     
                     # Build intro text with mixed formatting
                     intro_parts = [
                         ('ความแข็งแรงของดินฐานรากบริเวณโดยรอบพื้นที่โครงการ หรือกำลังรับน้ำหนักของดินพื้นทางเดิม '
-                         'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น Plate Bearing Test '
-                         'CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR ซึ่งนิยมใช้กันแพร่หลาย '
-                         'เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของ'
-                         'ห้องปฏิบัติการ เพื่อหาค่า CBR ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของ'
-                         'ดินฐานรากตามแนวสายทาง จำนวน ', False),
-                        (f'{n}', True),  # จำนวนตัวอย่าง - bold (ดึงจากข้อมูล)
+                         'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น '
+                         'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR '
+                         'ซึ่งนิยมใช้กันแพร่หลาย เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม '
+                         'โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของห้องปฏิบัติการ เพื่อหาค่า CBR '
+                         'ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของดินฐานรากตามแนวสายทาง จำนวน ', False),
+                        (f'{n}', True),
                         (' ตัวอย่าง พบว่าที่เปอร์เซ็นต์ไทล์ ร้อยละ ', False),
-                        (f'{target_percentile:.0f}', True),  # Percentile - bold (ดึงจากข้อมูล)
+                        (f'{target_percentile:.0f}', True),
                         (' ของค่ากำลังที่พบเท่ากับ CBR เท่ากับ ', False),
-                        (f'{cbr_at_percentile:.1f}', True),  # CBR value - bold (ดึงจากข้อมูล)
-                        (' % ของจำนวนตัวอย่างทั้งหมด ที่มีกำลังรับแรงดันหรือค่า CBR เท่ากับ ', False),
-                        (f'{int(cbr_at_percentile)}', True),  # CBR int - bold (ดึงจากข้อมูล)
-                        (' % นำไปใช้ในการออกแบบโครงสร้างถนน ดังแสดงผลการวิเคราะห์ใน', False),
-                        (f'ตารางที่ {table_number}', True),  # เลขตาราง - bold
+                        (f'{cbr_at_percentile:.1f}', True),
+                        (' % อย่างไรก็ตาม ที่ปรึกษาเลือกค่า CBR เท่ากับ ', False),
+                        (f'{int(design_cbr)}', True),
+                        (' % มาใช้ในการออกแบบโครงสร้างชั้นทาง ดังแสดงผลการวิเคราะห์ใน', False),
+                        (f'ตารางที่ {table_number}', True),
                         (' และ', False),
-                        (f'รูปที่ {figure_number}', True),  # เลขรูป - bold
+                        (f'รูปที่ {figure_number}', True),
                     ]
                     
                     for text, is_bold in intro_parts:
                         run = intro_para.add_run(text)
                         run.font.name = 'TH SarabunPSK'
-                        run.font.size = Pt(16)
+                        run.font.size = Pt(15)
                         run.font.bold = is_bold
                     
                     doc.add_paragraph()  # spacing
@@ -548,7 +566,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     table_cap_para = doc.add_paragraph()
                     table_cap_run = table_cap_para.add_run(f'ตารางที่ {table_number} {table_caption}')
                     table_cap_run.font.name = 'TH SarabunPSK'
-                    table_cap_run.font.size = Pt(16)
+                    table_cap_run.font.size = Pt(15)
                     table_cap_run.font.bold = True
                     table_cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
@@ -627,7 +645,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     h_stat = doc.add_paragraph()
                     h_stat_run = h_stat.add_run('ผลการวิเคราะห์')
                     h_stat_run.font.name = 'TH SarabunPSK'
-                    h_stat_run.font.size = Pt(16)
+                    h_stat_run.font.size = Pt(15)
                     h_stat_run.font.bold = True
                     
                     # Create statistics table
@@ -732,7 +750,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     caption = doc.add_paragraph()
                     caption_run = caption.add_run(f'รูปที่ {figure_number} {figure_caption}')
                     caption_run.font.name = 'TH SarabunPSK'
-                    caption_run.font.size = Pt(16)
+                    caption_run.font.size = Pt(15)
                     caption_run.font.bold = True
                     caption.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
