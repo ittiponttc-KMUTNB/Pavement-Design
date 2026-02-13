@@ -135,15 +135,12 @@ Z3_OPTIONS = {
 
 Z4_MAP = {6.0: 0.00, 6.5: 0.08, 7.0: 0.17}
 
+# ใช้ตาราง Y2″ สำหรับคอนกรีต (ตามไหล่ทางเป็นเมตร)
 Y2_CONCRETE = {
-    1: 0.00,
-    2: 0.20,
-    3: 0.40,
-    4: 0.60,
-    5: 1.10,
-    6: 1.20,
-    7: 1.30,
-    8: 1.40,
+    1.75: 0.00,
+    2.00: 0.10,
+    2.25: 0.15,
+    2.50: 0.20,
 }
 
 # ============================================================
@@ -329,8 +326,11 @@ elif surface == "ลูกรัง":
             "ระยะทาง กม.": distance,
             "K": round(K, 3),
             "ปริมาณงานหน่วย": round(workload, 3),
-            "Km": Km
-    })
+            "Km": Km,
+            "Na/Ns/Nc": Na,
+            "งบประมาณบาท": round(budget, 2),
+        })
+
 # ============================================================
 #  CONCRETE UI
 # ============================================================
@@ -338,7 +338,6 @@ elif surface == "ลูกรัง":
 elif surface == "คอนกรีต":
     st.subheader("ผิวทางคอนกรีต")
 
-    # ⭐ ระยะทางของสายทาง ⭐
     distance = st.number_input("ระยะทางของสายทาง (กม.)", min_value=0.0, step=0.001, value=1.000)
 
     col1, col2 = st.columns(2)
@@ -362,8 +361,8 @@ elif surface == "คอนกรีต":
         else:
             Y1 = 0.30
 
-        y2_index = st.selectbox("Y2 ดรรชนีไหล่ทางคอนกรีต", list(Y2_CONCRETE.keys()))
-        Y2 = Y2_CONCRETE[y2_index]
+        y2_width = st.select_slider("Y2 ความกว้างไหล่ทางคอนกรีต (เมตร)", options=[1.75, 2.00, 2.25, 2.50], value=1.75)
+        Y2 = Y2_CONCRETE[y2_width]
 
         Y3 = Y3_MAP[st.selectbox("Y3 งานจราจรสงเคราะห์", list(Y3_MAP.keys()))]
         Y4 = Y4_MAP[st.selectbox("Y4 งานท่อระบายน้ำ", list(Y4_MAP.keys()))]
@@ -380,7 +379,6 @@ elif surface == "คอนกรีต":
 
         Y6 = Y6_MAP[st.selectbox("Y6 ทำความสะอาดทางระบายน้ำ", list(Y6_MAP.keys()))]
 
-    # ⭐ ปุ่มคำนวณคอนกรีต ⭐
     if st.button("คำนวณผิวคอนกรีต"):
         f = dict(
             Z1=Z1, Z2=Z2, Z3=Z3, Z4=Z4,
@@ -404,3 +402,26 @@ elif surface == "คอนกรีต":
             "Na/Ns/Nc": Na,
             "งบประมาณบาท": round(budget, 2),
         })
+
+# ============================================================
+#  SUMMARY TABLE
+# ============================================================
+
+st.markdown("---")
+st.subheader("สรุปผลการคำนวณทุกสายทาง")
+
+if st.session_state["records"]:
+    df = pd.DataFrame(st.session_state["records"])
+    st.dataframe(df, use_container_width=True)
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Summary")
+    st.download_button(
+        label="ดาวน์โหลดผลเป็น Excel",
+        data=buffer.getvalue(),
+        file_name="maintenance_summary.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    )
+else:
+    st.info("ยังไม่มีข้อมูลการคำนวณ")
