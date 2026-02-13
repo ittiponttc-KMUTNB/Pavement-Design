@@ -333,3 +333,73 @@ elif surface == "ลูกรัง":
             "Na/Ns/Nc": Na,
             "งบประมาณบาท": round(budget, 2),
         })
+# ============================================================
+#  CONCRETE UI
+# ============================================================
+
+elif surface == "คอนกรีต":
+    st.subheader("ผิวทางคอนกรีต")
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        Z1 = Z1_OPTIONS[st.selectbox("Z1 สภาพผิวทาง", list(Z1_OPTIONS.keys()))]
+        Z2 = Z2_OPTIONS[st.selectbox("Z2 ลักษณะดินคันทาง (CBR)", list(Z2_OPTIONS.keys()))]
+        Z3 = Z3_OPTIONS[st.selectbox("Z3 ปริมาณจราจร (ต่อ 2 ช่องจราจร)", list(Z3_OPTIONS.keys()))]
+
+        z4_w = st.select_slider("Z4 ความกว้างผิวทาง (เมตร)", options=[6.0, 6.5, 7.0], value=7.0)
+        Z4 = Z4_MAP[z4_w]
+
+    with col2:
+        ROW = st.number_input("Y1 ความกว้างเขตทาง (เมตร)", value=40.0)
+        if ROW <= 40:
+            Y1 = 0.0
+        elif ROW <= 60:
+            Y1 = 0.10
+        elif ROW <= 80:
+            Y1 = 0.20
+        else:
+            Y1 = 0.30
+
+        y2_index = st.selectbox("Y2 ดรรชนีไหล่ทางคอนกรีต", list(Y2_CONCRETE.keys()))
+        Y2 = Y2_CONCRETE[y2_index]
+
+        Y3 = Y3_MAP[st.selectbox("Y3 งานจราจรสงเคราะห์", list(Y3_MAP.keys()))]
+        Y4 = Y4_MAP[st.selectbox("Y4 งานท่อระบายน้ำ", list(Y4_MAP.keys()))]
+
+        bridge = st.number_input("Y5 ความยาวสะพาน (ม./กม.)", value=0.0)
+        if bridge <= 20:
+            Y5 = 0.0
+        elif bridge <= 25:
+            Y5 = 0.02
+        elif bridge <= 30:
+            Y5 = 0.04
+        else:
+            Y5 = 0.06
+
+        Y6 = Y6_MAP[st.selectbox("Y6 ทำความสะอาดทางระบายน้ำ", list(Y6_MAP.keys()))]
+
+    # ปุ่มคำนวณคอนกรีต
+    if st.button("คำนวณผิวคอนกรีต"):
+        f = dict(
+            Z1=Z1, Z2=Z2, Z3=Z3, Z4=Z4,
+            Y1=Y1, Y2=Y2, Y3=Y3, Y4=Y4, Y5=Y5, Y6=Y6
+        )
+
+        K = calc_concrete(f)
+        workload, budget = calc_budget(K, distance, Km, Na)
+
+        st.success(f"K = {K:.3f}")
+        st.info(f"ปริมาณงาน = {workload:.3f} หน่วย")
+        st.warning(f"งบประมาณ = {budget:,.2f} บาท")
+
+        st.session_state["records"].append({
+            "สายทาง": route_id,
+            "ผิวทาง": "คอนกรีต",
+            "ระยะทาง กม.": distance,
+            "K": round(K, 3),
+            "ปริมาณงานหน่วย": round(workload, 3),
+            "Km": Km,
+            "Na/Ns/Nc": Na,
+            "งบประมาณบาท": round(budget, 2),
+        })
