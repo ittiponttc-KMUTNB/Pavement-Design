@@ -5,7 +5,6 @@ import plotly.graph_objects as go
 import matplotlib.pyplot as plt
 import matplotlib
 matplotlib.use('Agg')
-from scipy import interpolate
 import json
 import base64
 import io
@@ -176,13 +175,9 @@ if cbr_values is not None and len(cbr_values) > 0:
         'Cumulative_Percentile': cumulative_percentile
     })
     
-    # Create interpolation function
-    f_interp = interpolate.interp1d(
-        cumulative_percentile, 
-        cbr_sorted,
-        kind='linear',
-        fill_value='extrapolate'
-    )
+    # Create interpolation function using numpy
+    def f_interp(x):
+        return np.interp(x, cumulative_percentile, cbr_sorted)
     
     # Input percentile at the top
     st.markdown("### 🎯 กำหนดค่า Percentile")
