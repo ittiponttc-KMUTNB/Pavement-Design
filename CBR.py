@@ -285,10 +285,10 @@ if cbr_values is not None and len(cbr_values) > 0:
         f'<div style="font-family: TH SarabunPSK, Tahoma, sans-serif; font-size: 15px; line-height: 1.8; '
         f'background-color: #f9f9f9; padding: 15px; border-radius: 8px; border: 1px solid #ddd;">'
         f'<p style="margin-bottom: 5px;"><b>{section_number} &nbsp;&nbsp;&nbsp; {section_title}</b></p>'
-        f'<p style="text-indent: 40px; text-align: justify;">'
+        f'<p style="text-indent: 40px; text-align: justify; text-justify: inter-character;">'
         f'ความแข็งแรงของดินฐานรากบริเวณโดยรอบพื้นที่โครงการ หรือกำลังรับน้ำหนักของดินพื้นทางเดิม '
         f'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น '
-        f'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR '
+        f'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนลาดยางและคอนกรีตนั้นใช้ค่า CBR '
         f'ซึ่งนิยมใช้กันแพร่หลาย เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม '
         f'โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของห้องปฏิบัติการ เพื่อหาค่า CBR '
         f'ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของดินฐานรากตามแนวสายทาง จำนวน '
@@ -524,17 +524,21 @@ if cbr_values is not None and len(cbr_values) > 0:
                     heading_run.font.bold = True
                     
                     # =========================================================
-                    # 2) Introduction paragraph (เกริ่นนำ) - justified, 15pt
+                    # 2) Introduction paragraph (เกริ่นนำ) - Thai Distributed, 15pt
                     # =========================================================
                     intro_para = doc.add_paragraph()
                     intro_para.paragraph_format.first_line_indent = Cm(1.25)
-                    intro_para.alignment = WD_ALIGN_PARAGRAPH.JUSTIFY
+                    # Thai Distributed alignment via XML (thaiDistribute)
+                    pPr = intro_para._element.get_or_add_pPr()
+                    jc = OxmlElement('w:jc')
+                    jc.set(qn('w:val'), 'thaiDistribute')
+                    pPr.append(jc)
                     
                     # Build intro text with mixed formatting
                     intro_parts = [
                         ('ความแข็งแรงของดินฐานรากบริเวณโดยรอบพื้นที่โครงการ หรือกำลังรับน้ำหนักของดินพื้นทางเดิม '
                          'หรือพื้นทางเดิมสามารถประเมินจากรายงานสำรวจภูมิประเทศของดิน ซึ่งสามารถทำการทดสอบได้หลากหลายวิธี เช่น '
-                         'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนคอนกรีตนั้นใช้ค่า CBR '
+                         'Plate Bearing Test CBR Test หรือ Modulus of Subgrade Reaction สำหรับการออกแบบถนนลาดยางและคอนกรีตนั้นใช้ค่า CBR '
                          'ซึ่งนิยมใช้กันแพร่หลาย เมื่อกำหนดกำลังรับน้ำหนักของดินพื้นทางเดิม '
                          'โดยการเจาะสำรวจดินในสนามตามรายงานการสอบดินของห้องปฏิบัติการ เพื่อหาค่า CBR '
                          'ของดินพื้นทางเดินเพื่อเป็นข้อมูลในการออกแบบ ซึ่งผลการทดสอบค่า CBR ของดินฐานรากตามแนวสายทาง จำนวน ', False),
