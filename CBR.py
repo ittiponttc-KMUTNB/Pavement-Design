@@ -21,6 +21,14 @@ try:
 except ImportError:
     DOCX_AVAILABLE = False
 
+# Check if openpyxl is available (for template)
+try:
+    import openpyxl
+    from openpyxl.styles import Font, Alignment, Border, Side, PatternFill
+    OPENPYXL_AVAILABLE = True
+except ImportError:
+    OPENPYXL_AVAILABLE = False
+
 st.set_page_config(
     page_title="CBR Percentile Analysis",
     page_icon="📊",
@@ -37,6 +45,132 @@ sample_cbr = [14.8, 14.37, 5.31, 17.37, 5.48, 18.46, 4.85, 6.23,
               8.1, 15.56, 16.88, 20.75, 20.3, 8, 7.84, 7.48,
               23.55, 8.92, 13.3, 13.5, 13.86, 7.18, 6.95, 5.8,
               6, 11.18, 9.69, 7.48]
+
+
+# =============================================================================
+# Function: Max Rank Percentile Calculation (Method 2 - ≥ approach)
+# =============================================================================
+def calc_max_rank_percentile(cbr_values_raw):
+    """
+    คำนวณ Percentile แบบ Max Rank (จำนวนที่มีค่า ≥ CBR นั้น / n × 100)
+    
+    Returns:
+        cbr_sorted: array ของ CBR ทั้งหมด (sorted ascending)
+        n: จำนวนตัวอย่างทั้งหมด
+        unique_cbr: array ของ CBR ที่ไม่ซ้ำ (sorted ascending)
+        unique_pct: array ของ Percentile สำหรับแต่ละ unique CBR
+        full_table: list of dict สำหรับตารางแสดงผลเต็ม (ทุกแถว + เว้นว่างค่าซ้ำ)
+    """
+    cbr_sorted = np.sort(cbr_values_raw)
+    n = len(cbr_sorted)
+    
+    # หาค่า unique CBR (sorted ascending)
+    unique_cbr = np.unique(cbr_sorted)
+    
+    # คำนวณ Percentile = (จำนวนตัวอย่างที่ ≥ CBR) / n × 100
+    unique_pct = np.array([
+        np.sum(cbr_sorted >= cbr_val) / n * 100 
+        for cbr_val in unique_cbr
+    ])
+    
+    # สร้างตารางเต็ม: แสดงทุกแถว แต่ค่าซ้ำแสดง count+pct เฉพาะแถวแรกของกลุ่ม
+    full_table = []
+    seen = set()
+    for i, cbr_val in enumerate(cbr_sorted):
+        count_gte = int(np.sum(cbr_sorted >= cbr_val))
+        pct_gte = count_gte / n * 100
+        
+        if cbr_val not in seen:
+            # แถวแรกของกลุ่ม - แสดงค่า count และ percentile
+            seen.add(cbr_val)
+            full_table.append({
+                'order': i + 1,
+                'cbr': cbr_val,
+                'count_gte': count_gte,
+                'pct_gte': pct_gte,
+                'show_pct': True
+            })
+        else:
+            # แถวซ้ำ - เว้นว่างคอลัมน์ count และ percentile
+            full_table.append({
+                'order': i + 1,
+                'cbr': cbr_val,
+                'count_gte': count_gte,
+                'pct_gte': pct_gte,
+                'show_pct': False
+            })
+    
+    return cbr_sorted, n, unique_cbr, unique_pct, full_table
+
+
+# =============================================================================
+# Function: Generate Excel Template
+# =============================================================================
+def generate_template_excel():
+    """สร้างไฟล์ Excel template สำหรับกรอกค่า CBR"""
+    if not OPENPYXL_AVAILABLE:
+        return None
+    
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "CBR Data"
+    
+    # Styles
+    header_font = Font(name='TH SarabunPSK', size=14, bold=True, color='FFFFFF')
+    header_fill = PatternFill(start_color='4472C4', end_color='4472C4', fill_type='solid')
+    header_align = Alignment(horizontal='center', vertical='center')
+    thin_border = Border(
+        left=Side(style='thin'),
+        right=Side(style='thin'),
+        top=Side(style='thin'),
+        bottom=Side(style='thin')
+    )
+    data_font = Font(name='TH SarabunPSK', size=14)
+    data_align = Alignment(horizontal='center', vertical='center')
+    note_font = Font(name='TH SarabunPSK', size=12, italic=True, color='808080')
+    
+    # Header
+    ws['A1'] = 'CBR (%)'
+    ws['A1'].font = header_font
+    ws['A1'].fill = header_fill
+    ws['A1'].alignment = header_align
+    ws['A1'].border = thin_border
+    ws.column_dimensions['A'].width = 15
+    
+    # Example data rows (2 rows as guide)
+    for row_idx in range(2, 4):
+        cell = ws.cell(row=row_idx, column=1)
+        cell.font = data_font
+        cell.alignment = data_align
+        cell.border = thin_border
+    ws['A2'] = 6.5
+    ws['A3'] = 7.2
+    
+    # Empty rows for user to fill (up to row 102)
+    for row_idx in range(4, 103):
+        cell = ws.cell(row=row_idx, column=1)
+        cell.font = data_font
+        cell.alignment = data_align
+        cell.border = thin_border
+    
+    # Notes in column C
+    ws['C1'] = 'คำแนะนำ:'
+    ws['C1'].font = Font(name='TH SarabunPSK', size=12, bold=True, color='4472C4')
+    ws['C2'] = '• กรอกค่า CBR (%) ในคอลัมน์ A'
+    ws['C2'].font = note_font
+    ws['C3'] = '• ค่าซ้ำได้ ระบบจะจัดการให้อัตโนมัติ'
+    ws['C3'].font = note_font
+    ws['C4'] = '• ลบแถวตัวอย่าง (6.5, 7.2) แล้วกรอกข้อมูลจริง'
+    ws['C4'].font = note_font
+    ws['C5'] = '• บันทึกแล้ว Upload ในโปรแกรม'
+    ws['C5'].font = note_font
+    ws.column_dimensions['C'].width = 45
+    
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return buf
+
 
 # Sidebar for file upload
 with st.sidebar:
@@ -101,6 +235,20 @@ with st.sidebar:
         help="ไฟล์ควรมีคอลัมน์ CBR(%) เพียงคอลัมน์เดียว"
     )
     
+    # Download Template button
+    st.markdown("#### 📄 ดาวน์โหลด Template")
+    template_buf = generate_template_excel()
+    if template_buf is not None:
+        st.download_button(
+            label="📥 Download Template Excel",
+            data=template_buf,
+            file_name="CBR_Template.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            help="ดาวน์โหลดแบบฟอร์มสำหรับกรอกค่า CBR"
+        )
+    else:
+        st.info("ต้องติดตั้ง openpyxl เพื่อสร้าง Template")
+    
     st.markdown("---")
     st.markdown("### 📋 รูปแบบข้อมูลที่ต้องการ")
     st.markdown("""
@@ -111,7 +259,7 @@ with st.sidebar:
     | 5.31   |
     | ...    |
     """)
-    st.info("ระบบจะคำนวณ Percentile ให้อัตโนมัติ")
+    st.info("ระบบจะคำนวณ Percentile ให้อัตโนมัติ\n(รองรับค่า CBR ซ้ำ)")
 
 # Process uploaded Excel file
 if uploaded_file is not None:
@@ -164,22 +312,19 @@ else:
 
 if cbr_values is not None and len(cbr_values) > 0:
     
-    # Sort CBR values
-    cbr_sorted = np.sort(cbr_values)
-    n = len(cbr_sorted)
+    # =================================================================
+    # Calculate using Max Rank method (Method 2 - ≥ approach)
+    # =================================================================
+    cbr_sorted, n, unique_cbr, unique_pct, full_table = calc_max_rank_percentile(cbr_values)
     
-    # Calculate cumulative percentile (percentage of values <= each CBR)
-    cumulative_percentile = (np.arange(1, n + 1) / n) * 100
-    
-    # Create dataframe for display
-    df_sorted = pd.DataFrame({
-        'CBR': cbr_sorted,
-        'Cumulative_Percentile': cumulative_percentile
-    })
-    
-    # Create interpolation function using numpy
-    def f_interp(x):
-        return np.interp(x, cumulative_percentile, cbr_sorted)
+    # Create interpolation function using unique values only (no duplicates)
+    # unique_pct is descending (high pct at low CBR), reverse for interp
+    # np.interp requires xp to be increasing
+    def f_interp(target_pct):
+        """Interpolate CBR from target percentile using unique values"""
+        # unique_pct is descending, unique_cbr is ascending
+        # reverse both for np.interp (needs increasing xp)
+        return np.interp(target_pct, unique_pct[::-1], unique_cbr[::-1])
     
     # Input percentile at the top
     st.markdown("### 🎯 กำหนดค่า Percentile")
@@ -191,20 +336,12 @@ if cbr_values is not None and len(cbr_values) > 0:
         max_value=100.0,
         value=default_percentile,
         step=1.0,
-        help="ใส่ค่า Percentile ที่ต้องการหาค่า CBR",
+        help="ใส่ค่า Percentile ที่ต้องการหาค่า CBR (% ที่มีค่าเท่ากับหรือมากกว่า)",
         key="input_percentile"
     )
     
     # Calculate CBR at target percentile
-    design_percentile = 100 - target_percentile
-    
-    if design_percentile >= cumulative_percentile.min() and \
-       design_percentile <= cumulative_percentile.max():
-        cbr_at_percentile = float(f_interp(design_percentile))
-    else:
-        cbr_at_percentile = float(f_interp(np.clip(design_percentile, 
-                                                    cumulative_percentile.min(),
-                                                    cumulative_percentile.max())))
+    cbr_at_percentile = float(f_interp(target_percentile))
     
     st.markdown("---")
     
@@ -311,20 +448,20 @@ if cbr_values is not None and len(cbr_values) > 0:
     
     st.markdown("---")
     
-    # Graph section - full width
+    # Graph section - full width (uses unique values only for clean curve)
     st.markdown("### 📈 กราฟ Percentile vs CBR")
     
     # Create figure
     fig = go.Figure()
     
     # Calculate axis ranges
-    x_max = max(cbr_sorted) * 1.1
+    x_max = max(unique_cbr) * 1.1
     y_max = 100
     
-    # Add main curve
+    # Add main curve - plot unique points only (no vertical lines from duplicates)
     fig.add_trace(go.Scatter(
-        x=cbr_sorted,
-        y=100 - cumulative_percentile,  # Convert to "% >= value"
+        x=unique_cbr,
+        y=unique_pct,
         mode='lines+markers',
         name='CBR Distribution',
         line=dict(color='blue', width=2),
@@ -564,7 +701,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     doc.add_paragraph()  # spacing
                     
                     # =========================================================
-                    # 3) TABLE (ตารางมาก่อนรูป)
+                    # 3) TABLE (ตารางมาก่อนรูป) - ใช้ full_table (Max Rank)
                     # =========================================================
                     # Table caption above table
                     table_cap_para = doc.add_paragraph()
@@ -577,14 +714,15 @@ if cbr_values is not None and len(cbr_values) > 0:
                     # Calculate half point for splitting data
                     half_n = (n + 1) // 2
                     
-                    # Create CBR data table with 6 columns (2 sets of 3 columns)
+                    # Create CBR data table with 8 columns
+                    # CBR | จำนวนที่≥ | %ที่≥ | (เว้น) | CBR | จำนวนที่≥ | %ที่≥
                     cbr_table = doc.add_table(rows=half_n+1, cols=6)
                     cbr_table.style = 'Table Grid'
                     cbr_table.alignment = WD_TABLE_ALIGNMENT.CENTER
                     
                     # Header row
                     header_row = cbr_table.rows[0]
-                    headers = ['ลำดับ', 'CBR (%)', 'Percentile (%)', 'ลำดับ', 'CBR (%)', 'Percentile (%)']
+                    headers = ['CBR (%)', 'จำนวนที่≥', 'Percentile (%)', 'CBR (%)', 'จำนวนที่≥', 'Percentile (%)']
                     for j, header_text in enumerate(headers):
                         cell = header_row.cells[j]
                         run = cell.paragraphs[0].add_run(header_text)
@@ -601,18 +739,24 @@ if cbr_values is not None and len(cbr_values) > 0:
                         # Left side data (first half)
                         left_idx = i
                         if left_idx < n:
-                            cbr_val_left = cbr_sorted[left_idx]
-                            pct_val_left = 100 - cumulative_percentile[left_idx]
-                            left_data = [f'{left_idx+1}', f'{cbr_val_left:.2f}', f'{pct_val_left:.2f}']
+                            ft = full_table[left_idx]
+                            left_data = [
+                                f'{ft["cbr"]:.2f}',
+                                f'{ft["count_gte"]}' if ft['show_pct'] else '',
+                                f'{ft["pct_gte"]:.1f}' if ft['show_pct'] else ''
+                            ]
                         else:
                             left_data = ['', '', '']
                         
                         # Right side data (second half)
                         right_idx = i + half_n
                         if right_idx < n:
-                            cbr_val_right = cbr_sorted[right_idx]
-                            pct_val_right = 100 - cumulative_percentile[right_idx]
-                            right_data = [f'{right_idx+1}', f'{cbr_val_right:.2f}', f'{pct_val_right:.2f}']
+                            ft = full_table[right_idx]
+                            right_data = [
+                                f'{ft["cbr"]:.2f}',
+                                f'{ft["count_gte"]}' if ft['show_pct'] else '',
+                                f'{ft["pct_gte"]:.1f}' if ft['show_pct'] else ''
+                            ]
                         else:
                             right_data = ['', '', '']
                         
@@ -634,11 +778,11 @@ if cbr_values is not None and len(cbr_values) > 0:
                     
                     # Set column widths for CBR table
                     for row in cbr_table.rows:
-                        row.cells[0].width = Cm(1.5)
-                        row.cells[1].width = Cm(2.5)
+                        row.cells[0].width = Cm(2.0)
+                        row.cells[1].width = Cm(2.0)
                         row.cells[2].width = Cm(2.5)
-                        row.cells[3].width = Cm(1.5)
-                        row.cells[4].width = Cm(2.5)
+                        row.cells[3].width = Cm(2.0)
+                        row.cells[4].width = Cm(2.0)
                         row.cells[5].width = Cm(2.5)
                     
                     doc.add_paragraph()  # spacing
@@ -698,14 +842,13 @@ if cbr_values is not None and len(cbr_values) > 0:
                     doc.add_paragraph()  # spacing
                     
                     # =========================================================
-                    # 5) FIGURE (รูปมาหลังตาราง)
+                    # 5) FIGURE (รูปมาหลังตาราง) - ใช้ unique values
                     # =========================================================
                     # Create chart using matplotlib
                     fig_mpl, ax = plt.subplots(figsize=(6, 6))
                     
-                    # Plot main curve
-                    y_plot = 100 - cumulative_percentile
-                    ax.plot(cbr_sorted, y_plot, 'b-', linewidth=2, marker='x', 
+                    # Plot main curve using unique values only
+                    ax.plot(unique_cbr, unique_pct, 'b-', linewidth=2, marker='x', 
                            markersize=6, markerfacecolor='black', markeredgecolor='black',
                            label='CBR Distribution')
                     
@@ -722,7 +865,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                                fontsize=12, color='red', fontweight='bold',
                                ha='center')
                     
-                    ax.set_xlim(0, max(cbr_sorted) * 1.1)
+                    ax.set_xlim(0, max(unique_cbr) * 1.1)
                     ax.set_ylim(0, 100)
                     ax.set_xlabel('CBR (%)', fontsize=12)
                     ax.set_ylabel('Percentile (%)', fontsize=12)
@@ -796,15 +939,16 @@ if cbr_values is not None and len(cbr_values) > 0:
             st.warning("⚠️ ต้องติดตั้ง python-docx เพื่อใช้งานฟีเจอร์นี้")
             st.code("pip install python-docx", language="bash")
     
-    # Show data table
+    # Show data table (Max Rank format)
     st.markdown("---")
     st.markdown("### 📋 ตารางข้อมูล (เรียงตาม CBR)")
     
-    # Create display table with calculated percentile
+    # Create display table using full_table (Max Rank method)
     df_display = pd.DataFrame({
-        'ลำดับ': range(1, n + 1),
-        'CBR (%)': cbr_sorted,
-        'Percentile (%)': np.round(100 - cumulative_percentile, 2)
+        'ลำดับ': [ft['order'] for ft in full_table],
+        'CBR (%)': [ft['cbr'] for ft in full_table],
+        'จำนวนที่≥': [ft['count_gte'] if ft['show_pct'] else None for ft in full_table],
+        'Percentile (%)': [round(ft['pct_gte'], 1) if ft['show_pct'] else None for ft in full_table]
     })
     
     col_a, col_b = st.columns(2)
