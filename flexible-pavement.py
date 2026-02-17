@@ -598,96 +598,93 @@ def plot_sensitivity_w18(Zr, So, delta_psi, Mr, current_w18):
 
 def _get_thai_fonts():
     """
-    ค้นหาหรือดาวน์โหลด Thai font สำหรับ matplotlib
-    คืนค่า (thai_font, thai_font_bold, has_thai_font)
+    หา Thai font สำหรับ matplotlib — 3 ขั้นตอน:
+    1. ค้นหาในระบบ (Linux)
+    2. ดาวน์โหลด Noto Sans Thai จาก Google Fonts (cache ไว้)
+    3. Fallback = DejaVu Sans (ไม่แสดงไทย แต่ไม่ crash)
+    
+    Return: (font_regular, font_bold, has_thai)
     """
     import os
+    import urllib.request
     
-    # 1. ค้นหา Thai font ที่มีอยู่ในระบบ
-    system_fonts = [
-        '/usr/share/fonts/truetype/tlwg/Garuda.ttf',
-        '/usr/share/fonts/opentype/tlwg/Garuda.otf',
-        '/usr/share/fonts/truetype/tlwg/Loma.ttf',
-        '/usr/share/fonts/opentype/tlwg/Loma.otf',
-        '/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf',
+    # === 1. ค้นหาในระบบ ===
+    sys_candidates = [
+        ('/usr/share/fonts/truetype/tlwg/Garuda.ttf', '/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf'),
+        ('/usr/share/fonts/opentype/tlwg/Garuda.otf', '/usr/share/fonts/opentype/tlwg/Garuda-Bold.otf'),
+        ('/usr/share/fonts/truetype/tlwg/Loma.ttf', '/usr/share/fonts/truetype/tlwg/Loma-Bold.ttf'),
+        ('/usr/share/fonts/opentype/tlwg/Loma.otf', '/usr/share/fonts/opentype/tlwg/Loma-Bold.otf'),
+        ('/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf', '/usr/share/fonts/truetype/noto/NotoSansThai-Bold.ttf'),
     ]
-    system_bold = [
-        '/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf',
-        '/usr/share/fonts/opentype/tlwg/Garuda-Bold.otf',
-        '/usr/share/fonts/truetype/tlwg/Loma-Bold.ttf',
-        '/usr/share/fonts/opentype/tlwg/Loma-Bold.otf',
-        '/usr/share/fonts/truetype/noto/NotoSansThai-Bold.ttf',
-    ]
+    for reg, bold in sys_candidates:
+        if os.path.exists(reg):
+            fp_r = fm.FontProperties(fname=reg)
+            fp_b = fm.FontProperties(fname=bold) if os.path.exists(bold) else fm.FontProperties(fname=reg)
+            return fp_r, fp_b, True
     
-    found_font = None
-    found_bold = None
+    # === 2. ดาวน์โหลด Noto Sans Thai ===
+    cache_dir = os.path.join(os.path.expanduser('~'), '.fonts')
+    os.makedirs(cache_dir, exist_ok=True)
     
-    for fp in system_fonts:
-        if os.path.exists(fp):
-            found_font = fp
-            break
-    for fp in system_bold:
-        if os.path.exists(fp):
-            found_bold = fp
-            break
+    reg_path = os.path.join(cache_dir, 'NotoSansThai-Regular.ttf')
+    bold_path = os.path.join(cache_dir, 'NotoSansThai-Bold.ttf')
     
-    # 2. ถ้าไม่พบในระบบ → ดาวน์โหลด Noto Sans Thai จาก Google Fonts
-    if found_font is None:
-        cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'thai_fonts')
-        os.makedirs(cache_dir, exist_ok=True)
-        
-        font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansThai/NotoSansThai-Regular.ttf"
-        bold_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansThai/NotoSansThai-Bold.ttf"
-        
-        font_path = os.path.join(cache_dir, 'NotoSansThai-Regular.ttf')
-        bold_path = os.path.join(cache_dir, 'NotoSansThai-Bold.ttf')
-        
-        # ดาวน์โหลดเฉพาะครั้งแรก
-        if not os.path.exists(font_path):
+    # URL ที่เชื่อถือได้จาก Google Fonts CDN
+    base_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansthai/NotoSansThai%5Bwdth%2Cwght%5D.ttf"
+    # ใช้ static version แทน (variable font ใช้กับ matplotlib ไม่ได้)
+    static_reg_url = "https://cdn.jsdelivr.net/gh/nicholedlc/noto-sans-thai@master/NotoSansThai-Regular.ttf"
+    static_bold_url = "https://cdn.jsdelivr.net/gh/nicholedlc/noto-sans-thai@master/NotoSansThai-Bold.ttf"
+    
+    # ลองดาวน์โหลด
+    for url, path in [(static_reg_url, reg_path), (static_bold_url, bold_path)]:
+        if not os.path.exists(path):
             try:
-                import urllib.request
-                urllib.request.urlretrieve(font_url, font_path)
+                urllib.request.urlretrieve(url, path)
             except Exception:
                 pass
-        if not os.path.exists(bold_path):
-            try:
-                import urllib.request
-                urllib.request.urlretrieve(bold_url, bold_path)
-            except Exception:
-                pass
-        
-        if os.path.exists(font_path):
-            found_font = font_path
+    
+    if os.path.exists(reg_path):
+        # ลงทะเบียน font กับ matplotlib
+        fm.fontManager.addfont(reg_path)
         if os.path.exists(bold_path):
-            found_bold = bold_path
+            fm.fontManager.addfont(bold_path)
+        
+        fp_r = fm.FontProperties(fname=reg_path)
+        fp_b = fm.FontProperties(fname=bold_path) if os.path.exists(bold_path) else fp_r
+        return fp_r, fp_b, True
     
-    # 3. สร้าง FontProperties
-    if found_font:
-        thai_font = fm.FontProperties(fname=found_font)
-        thai_font_bold = fm.FontProperties(fname=found_bold) if found_bold else fm.FontProperties(fname=found_font, weight='bold')
-        return thai_font, thai_font_bold, True
-    else:
-        # Fallback — ใช้ DejaVu Sans (ไม่แสดงภาษาไทยได้ แต่ไม่ crash)
-        return (fm.FontProperties(family='DejaVu Sans'), 
-                fm.FontProperties(family='DejaVu Sans', weight='bold'), 
-                False)
+    # === 3. Fallback ===
+    return (fm.FontProperties(family='DejaVu Sans'),
+            fm.FontProperties(family='DejaVu Sans', weight='bold'),
+            False)
+
+
+# Cache font ไว้ใน session (เรียกครั้งเดียว)
+@st.cache_resource
+def get_cached_thai_fonts():
+    """Cache Thai font resource เพื่อไม่ต้องค้นหาซ้ำทุก rerun"""
+    return _get_thai_fonts()
 
 
 def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, lang='en'):
-    """Draw vertical pavement section diagram"""
-    
-    # Font setup
-    has_thai = False
-    thai_font = thai_font_bold = None
-    
-    if lang == 'th':
-        thai_font, thai_font_bold, has_thai = _get_thai_fonts()
-        # ถ้าไม่มี Thai font → fallback เป็น English
-        if not has_thai:
-            lang = 'en'
-    
+    """Draw vertical pavement section diagram — auto fallback to English if no Thai font"""
+
     plt.rcParams['font.family'] = 'DejaVu Sans'
-    
+
+    # ตรวจสอบ Thai font
+    thai_font = thai_font_bold = None
+    has_thai = False
+    if lang == 'th':
+        thai_font, thai_font_bold, has_thai = get_cached_thai_fonts()
+        if not has_thai:
+            lang = 'en'  # fallback
+
+    def _fp(bold=False):
+        """Return fontproperties kwarg dict"""
+        if has_thai:
+            return {'fontproperties': thai_font_bold if bold else thai_font}
+        return {}
+
     if not layers_result:
         fig, ax = plt.subplots(figsize=(12, 8))
         ax.text(0.5, 0.5, 'No layers defined', ha='center', va='center', fontsize=14)
@@ -701,22 +698,24 @@ def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, la
         ax.axis('off')
         return fig
 
-    # Expand AC sublayers for Thai version
+    # Expand AC sublayers (ภาษาไทย)
     if lang == 'th':
         expanded_layers = []
         for layer in valid_layers:
             ac_sub = layer.get('ac_sublayers', None)
             if ac_sub is not None and layer['layer_no'] == 1:
-                sublayer_colors = {'wearing': '#1C1C1C', 'binder': '#333333', 'base': '#4A4A4A'}
-                sublayer_names = {'wearing': 'Wearing Course', 'binder': 'Binder Course', 'base': 'Base Course'}
-                for key in ['wearing', 'binder', 'base']:
+                sub_info = [
+                    ('wearing', '#1C1C1C', 'ชั้นผิวทาง (Wearing)', 'Wearing Course'),
+                    ('binder',  '#333333', 'ชั้นยึดเกาะ (Binder)', 'Binder Course'),
+                    ('base',    '#4A4A4A', 'ชั้นรอง AC (Base)',     'Base Course'),
+                ]
+                for key, color, th_name, en_name in sub_info:
                     if ac_sub[key] > 0:
                         expanded_layers.append({
                             'design_thickness_cm': ac_sub[key],
-                            'material': sublayer_names[key],
+                            'material': th_name, 'english_name': en_name,
                             'short_name': key[:2].upper() + 'C',
-                            'color': sublayer_colors[key],
-                            'mr_mpa': layer['mr_mpa'],
+                            'color': color, 'mr_mpa': layer['mr_mpa'],
                             'is_sublayer': True
                         })
             else:
@@ -725,12 +724,11 @@ def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, la
     else:
         draw_layers = valid_layers
 
-    total_thickness = sum([l['design_thickness_cm'] for l in draw_layers])
+    total_thickness = sum(l['design_thickness_cm'] for l in draw_layers)
 
     fig, ax = plt.subplots(figsize=(12, 9))
-    
     width = 3
-    x_center = 7 if lang == 'th' else 6
+    x_center = 7
     x_start = x_center - width / 2
 
     min_display_height = 6
@@ -748,111 +746,104 @@ def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, la
         color = layer.get('color', '#CCCCCC')
         e_mpa = layer.get('mr_mpa', 0)
         is_sublayer = layer.get('is_sublayer', False)
-        
+
         if lang == 'th':
-            name = layer.get('material', layer.get('short_name', f'ชั้นที่ {i+1}'))
+            name = layer.get('material', layer.get('short_name', f'Layer {i+1}'))
         else:
             name = layer.get('english_name', layer.get('short_name', f'Layer {i+1}'))
 
         y_bottom = y_current - display_h
-        
-        line_style = '--' if is_sublayer else '-'
-        line_width = 1 if is_sublayer else 2
-        
-        rect = mpatches.Rectangle(
-            (x_start, y_bottom), width, display_h,
-            linewidth=line_width, linestyle=line_style,
-            edgecolor='black', facecolor=color
-        )
+        ls = '--' if is_sublayer else '-'
+        lw = 1 if is_sublayer else 2
+
+        rect = mpatches.Rectangle((x_start, y_bottom), width, display_h,
+                                  linewidth=lw, linestyle=ls, edgecolor='black', facecolor=color)
         ax.add_patch(rect)
 
-        y_center_pos = y_bottom + display_h / 2
-        text_color = 'white' if color in dark_colors else 'black'
+        yc = y_bottom + display_h / 2
+        tc = 'white' if color in dark_colors else 'black'
 
-        # Center: thickness
-        fontsize_center = 14 if is_sublayer else 16
-        ax.text(x_center, y_center_pos, f'{thickness:.0f} cm',
-                ha='center', va='center', fontsize=fontsize_center, fontweight='bold', color=text_color)
+        fs_center = 14 if is_sublayer else 16
+        ax.text(x_center, yc, f'{thickness:.0f} cm',
+                ha='center', va='center', fontsize=fs_center, fontweight='bold', color=tc)
 
-        # Left: name
-        fontsize_name = 12 if is_sublayer else 14
-        if lang == 'th':
-            ax.text(x_start - 0.5, y_center_pos, name,
-                    ha='right', va='center', fontsize=fontsize_name, fontweight='bold',
-                    fontproperties=thai_font_bold, color='black')
-        else:
-            ax.text(x_start - 0.5, y_center_pos, name,
-                    ha='right', va='center', fontsize=fontsize_name, fontweight='bold', color='black')
+        fs_name = 12 if is_sublayer else 14
+        ax.text(x_start - 0.5, yc, name,
+                ha='right', va='center', fontsize=fs_name, fontweight='bold', color='black', **_fp(True))
 
-        # Right: E value (skip for sublayers)
         if e_mpa and e_mpa > 0 and not is_sublayer:
-            ax.text(x_start + width + 0.5, y_center_pos, f'E = {e_mpa:,.0f} MPa',
+            ax.text(x_start + width + 0.5, yc, f'E = {e_mpa:,.0f} MPa',
                     ha='left', va='center', fontsize=12, color='#0066CC')
 
         y_current = y_bottom
 
-    # ===== Subgrade box =====
-    sg_height = 6
-    sg_y_bottom = -sg_height
-    sg_rect = mpatches.Rectangle(
-        (x_start, sg_y_bottom), width, sg_height,
-        linewidth=2, edgecolor='black', facecolor='#D7CCC8',
-        hatch='///'
-    )
-    ax.add_patch(sg_rect)
+    # ===== Subgrade — hatch ก่อน แล้วทับด้วย box สีทึบสำหรับข้อความ =====
+    sg_h = 6
+    sg_yb = -sg_h
+    # วาด hatch background
+    ax.add_patch(mpatches.Rectangle(
+        (x_start, sg_yb), width, sg_h,
+        linewidth=2, edgecolor='black', facecolor='#D7CCC8', hatch='///'))
     
+    # วาด box สีทึบตรงกลางสำหรับข้อความ (ไม่ให้ hatch ทับ)
+    text_box_h = 3.5
+    text_box_w = width * 0.85
+    ax.add_patch(mpatches.FancyBboxPatch(
+        (x_center - text_box_w / 2, sg_yb + (sg_h - text_box_h) / 2),
+        text_box_w, text_box_h,
+        boxstyle="round,pad=0.2",
+        facecolor='#EFEBE9', edgecolor='#8D6E63', linewidth=1.5, alpha=0.95))
+
     if lang == 'th':
-        sg_text = f'ดินเดิม (Subgrade)'
-        if subgrade_cbr:
-            sg_text += f'\nCBR = {subgrade_cbr:.1f}%'
-        ax.text(x_center, sg_y_bottom + sg_height / 2, sg_text,
-                ha='center', va='center', fontsize=12, fontweight='bold',
-                fontproperties=thai_font_bold, color='#5D4037')
+        sg_label = 'ดินเดิม (Subgrade)'
     else:
-        sg_text = 'Subgrade'
-        if subgrade_cbr:
-            sg_text += f'\nCBR = {subgrade_cbr:.1f}%'
-        ax.text(x_center, sg_y_bottom + sg_height / 2, sg_text,
-                ha='center', va='center', fontsize=12, fontweight='bold', color='#5D4037')
+        sg_label = 'Subgrade'
+    if subgrade_cbr:
+        sg_label += f'\nCBR = {subgrade_cbr:.1f}%'
+    ax.text(x_center, sg_yb + sg_h / 2, sg_label,
+            ha='center', va='center', fontsize=12, fontweight='bold', color='#5D4037', **_fp(True))
 
     if subgrade_mr:
-        ax.text(x_start + width + 0.5, sg_y_bottom + sg_height / 2, f'Mr = {subgrade_mr:,} psi',
+        ax.text(x_start + width + 0.5, sg_yb + sg_h / 2, f'Mr = {subgrade_mr:,} psi',
                 ha='left', va='center', fontsize=12, color='#0066CC')
 
-    # Total thickness arrow
-    ax.annotate('', xy=(x_start + width + 3.5, total_display), xytext=(x_start + width + 3.5, 0),
+    # ===== Total thickness arrow =====
+    ax.annotate('', xy=(x_start + width + 3.5, total_display),
+                xytext=(x_start + width + 3.5, 0),
                 arrowprops=dict(arrowstyle='<->', color='red', lw=2))
-    
+
     if lang == 'th':
-        ax.text(x_start + width + 4, total_display / 2, f'รวม\n{total_thickness:.0f} cm',
-                ha='left', va='center', fontsize=14, color='red', fontweight='bold',
-                fontproperties=thai_font_bold)
+        total_label = f'รวม\n{total_thickness:.0f} cm'
     else:
-        ax.text(x_start + width + 4, total_display / 2, f'Total\n{total_thickness:.0f} cm',
-                ha='left', va='center', fontsize=14, color='red', fontweight='bold')
+        total_label = f'Total\n{total_thickness:.0f} cm'
+    ax.text(x_start + width + 4, total_display / 2, total_label,
+            ha='left', va='center', fontsize=14, color='red', fontweight='bold', **_fp(True))
 
     margin = 10
     ax.set_xlim(0, 15)
-    ax.set_ylim(-sg_height - 4, total_display + margin)
+    ax.set_ylim(-sg_h - 4, total_display + margin)
     ax.axis('off')
 
+    # Title
     if lang == 'th':
-        ax.set_title('รูปตัดโครงสร้างชั้นทาง', fontsize=20, fontweight='bold', pad=20,
-                     fontproperties=thai_font_bold)
-        ax.text(x_center, -sg_height - 2, f'ความหนารวมโครงสร้างชั้นทาง: {total_thickness:.0f} cm',
-                ha='center', va='center', fontsize=15, fontweight='bold',
-                fontproperties=thai_font_bold,
-                bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9, edgecolor='orange'))
+        title_text = 'รูปตัดโครงสร้างชั้นทาง'
     else:
-        ax.set_title('Pavement Structure', fontsize=20, fontweight='bold', pad=20)
-        ax.text(x_center, -sg_height - 2, f'Total Pavement Thickness: {total_thickness:.0f} cm',
-                ha='center', va='center', fontsize=15, fontweight='bold',
-                bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9, edgecolor='orange'))
+        title_text = 'Pavement Structure'
+    ax.set_title(title_text, fontsize=20, fontweight='bold', pad=20, **_fp(True))
+
+    # Bottom box
+    if lang == 'th':
+        box_text = f'ความหนารวมโครงสร้างชั้นทาง: {total_thickness:.0f} cm'
+    else:
+        box_text = f'Total Pavement Thickness: {total_thickness:.0f} cm'
+    ax.text(x_center, -sg_h - 2, box_text,
+            ha='center', va='center', fontsize=15, fontweight='bold', **_fp(True),
+            bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9, edgecolor='orange'))
 
     try:
         plt.tight_layout()
     except Exception:
-        pass  # Skip tight_layout if font causes issues
+        pass
     return fig
 
 
