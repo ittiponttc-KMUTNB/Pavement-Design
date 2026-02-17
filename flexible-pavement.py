@@ -556,7 +556,10 @@ def plot_sensitivity_cbr(W18, Zr, So, delta_psi, current_cbr):
     ax.set_title('Sensitivity: SN Required vs CBR', fontsize=14, fontweight='bold')
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except Exception:
+        pass
     return fig
 
 
@@ -582,7 +585,10 @@ def plot_sensitivity_w18(Zr, So, delta_psi, Mr, current_w18):
     ax.set_title('Sensitivity: SN Required vs W₁₈', fontsize=14, fontweight='bold')
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except Exception:
+        pass
     return fig
 
 
@@ -590,23 +596,95 @@ def plot_sensitivity_w18(Zr, So, delta_psi, Mr, current_w18):
 # VISUALIZATION FUNCTIONS
 # ================================================================================
 
+def _get_thai_fonts():
+    """
+    ค้นหาหรือดาวน์โหลด Thai font สำหรับ matplotlib
+    คืนค่า (thai_font, thai_font_bold, has_thai_font)
+    """
+    import os
+    
+    # 1. ค้นหา Thai font ที่มีอยู่ในระบบ
+    system_fonts = [
+        '/usr/share/fonts/truetype/tlwg/Garuda.ttf',
+        '/usr/share/fonts/opentype/tlwg/Garuda.otf',
+        '/usr/share/fonts/truetype/tlwg/Loma.ttf',
+        '/usr/share/fonts/opentype/tlwg/Loma.otf',
+        '/usr/share/fonts/truetype/noto/NotoSansThai-Regular.ttf',
+    ]
+    system_bold = [
+        '/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf',
+        '/usr/share/fonts/opentype/tlwg/Garuda-Bold.otf',
+        '/usr/share/fonts/truetype/tlwg/Loma-Bold.ttf',
+        '/usr/share/fonts/opentype/tlwg/Loma-Bold.otf',
+        '/usr/share/fonts/truetype/noto/NotoSansThai-Bold.ttf',
+    ]
+    
+    found_font = None
+    found_bold = None
+    
+    for fp in system_fonts:
+        if os.path.exists(fp):
+            found_font = fp
+            break
+    for fp in system_bold:
+        if os.path.exists(fp):
+            found_bold = fp
+            break
+    
+    # 2. ถ้าไม่พบในระบบ → ดาวน์โหลด Noto Sans Thai จาก Google Fonts
+    if found_font is None:
+        cache_dir = os.path.join(os.path.expanduser('~'), '.cache', 'thai_fonts')
+        os.makedirs(cache_dir, exist_ok=True)
+        
+        font_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansThai/NotoSansThai-Regular.ttf"
+        bold_url = "https://github.com/googlefonts/noto-fonts/raw/main/hinted/ttf/NotoSansThai/NotoSansThai-Bold.ttf"
+        
+        font_path = os.path.join(cache_dir, 'NotoSansThai-Regular.ttf')
+        bold_path = os.path.join(cache_dir, 'NotoSansThai-Bold.ttf')
+        
+        # ดาวน์โหลดเฉพาะครั้งแรก
+        if not os.path.exists(font_path):
+            try:
+                import urllib.request
+                urllib.request.urlretrieve(font_url, font_path)
+            except Exception:
+                pass
+        if not os.path.exists(bold_path):
+            try:
+                import urllib.request
+                urllib.request.urlretrieve(bold_url, bold_path)
+            except Exception:
+                pass
+        
+        if os.path.exists(font_path):
+            found_font = font_path
+        if os.path.exists(bold_path):
+            found_bold = bold_path
+    
+    # 3. สร้าง FontProperties
+    if found_font:
+        thai_font = fm.FontProperties(fname=found_font)
+        thai_font_bold = fm.FontProperties(fname=found_bold) if found_bold else fm.FontProperties(fname=found_font, weight='bold')
+        return thai_font, thai_font_bold, True
+    else:
+        # Fallback — ใช้ DejaVu Sans (ไม่แสดงภาษาไทยได้ แต่ไม่ crash)
+        return (fm.FontProperties(family='DejaVu Sans'), 
+                fm.FontProperties(family='DejaVu Sans', weight='bold'), 
+                False)
+
+
 def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, lang='en'):
     """Draw vertical pavement section diagram"""
     
     # Font setup
+    has_thai = False
+    thai_font = thai_font_bold = None
+    
     if lang == 'th':
-        thai_font_path = '/usr/share/fonts/truetype/tlwg/Garuda.ttf'
-        thai_font_bold_path = '/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf'
-        try:
-            thai_font = fm.FontProperties(fname=thai_font_path)
-            thai_font_bold = fm.FontProperties(fname=thai_font_bold_path)
-        except:
-            try:
-                thai_font = fm.FontProperties(fname='/usr/share/fonts/opentype/tlwg/Loma.otf')
-                thai_font_bold = fm.FontProperties(fname='/usr/share/fonts/opentype/tlwg/Loma-Bold.otf')
-            except:
-                thai_font = fm.FontProperties()
-                thai_font_bold = fm.FontProperties(weight='bold')
+        thai_font, thai_font_bold, has_thai = _get_thai_fonts()
+        # ถ้าไม่มี Thai font → fallback เป็น English
+        if not has_thai:
+            lang = 'en'
     
     plt.rcParams['font.family'] = 'DejaVu Sans'
     
@@ -771,7 +849,10 @@ def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, la
                 ha='center', va='center', fontsize=15, fontweight='bold',
                 bbox=dict(boxstyle='round', facecolor='lightyellow', alpha=0.9, edgecolor='orange'))
 
-    plt.tight_layout()
+    try:
+        plt.tight_layout()
+    except Exception:
+        pass  # Skip tight_layout if font causes issues
     return fig
 
 
