@@ -598,17 +598,14 @@ def plot_sensitivity_w18(Zr, So, delta_psi, Mr, current_w18):
 
 def _get_thai_fonts():
     """
-    หา Thai font สำหรับ matplotlib — 3 ขั้นตอน:
-    1. ค้นหาในระบบ (Linux)
-    2. ดาวน์โหลด Noto Sans Thai จาก Google Fonts (cache ไว้)
-    3. Fallback = DejaVu Sans (ไม่แสดงไทย แต่ไม่ crash)
-    
+    หา Thai font สำหรับ matplotlib
+    - ค้นหาในระบบ (Garuda จาก packages.txt / Loma / Noto)
+    - Fallback = DejaVu Sans (ไม่แสดงไทย แต่ไม่ crash)
     Return: (font_regular, font_bold, has_thai)
     """
     import os
-    import urllib.request
     
-    # === 1. ค้นหาในระบบ ===
+    # ค้นหา font ในระบบ (Garuda จาก packages.txt เป็นอันดับแรก)
     sys_candidates = [
         ('/usr/share/fonts/truetype/tlwg/Garuda.ttf', '/usr/share/fonts/truetype/tlwg/Garuda-Bold.ttf'),
         ('/usr/share/fonts/opentype/tlwg/Garuda.otf', '/usr/share/fonts/opentype/tlwg/Garuda-Bold.otf'),
@@ -622,38 +619,7 @@ def _get_thai_fonts():
             fp_b = fm.FontProperties(fname=bold) if os.path.exists(bold) else fm.FontProperties(fname=reg)
             return fp_r, fp_b, True
     
-    # === 2. ดาวน์โหลด Noto Sans Thai ===
-    cache_dir = os.path.join(os.path.expanduser('~'), '.fonts')
-    os.makedirs(cache_dir, exist_ok=True)
-    
-    reg_path = os.path.join(cache_dir, 'NotoSansThai-Regular.ttf')
-    bold_path = os.path.join(cache_dir, 'NotoSansThai-Bold.ttf')
-    
-    # URL ที่เชื่อถือได้จาก Google Fonts CDN
-    base_url = "https://raw.githubusercontent.com/google/fonts/main/ofl/notosansthai/NotoSansThai%5Bwdth%2Cwght%5D.ttf"
-    # ใช้ static version แทน (variable font ใช้กับ matplotlib ไม่ได้)
-    static_reg_url = "https://cdn.jsdelivr.net/gh/nicholedlc/noto-sans-thai@master/NotoSansThai-Regular.ttf"
-    static_bold_url = "https://cdn.jsdelivr.net/gh/nicholedlc/noto-sans-thai@master/NotoSansThai-Bold.ttf"
-    
-    # ลองดาวน์โหลด
-    for url, path in [(static_reg_url, reg_path), (static_bold_url, bold_path)]:
-        if not os.path.exists(path):
-            try:
-                urllib.request.urlretrieve(url, path)
-            except Exception:
-                pass
-    
-    if os.path.exists(reg_path):
-        # ลงทะเบียน font กับ matplotlib
-        fm.fontManager.addfont(reg_path)
-        if os.path.exists(bold_path):
-            fm.fontManager.addfont(bold_path)
-        
-        fp_r = fm.FontProperties(fname=reg_path)
-        fp_b = fm.FontProperties(fname=bold_path) if os.path.exists(bold_path) else fp_r
-        return fp_r, fp_b, True
-    
-    # === 3. Fallback ===
+    # Fallback — DejaVu Sans (English only)
     return (fm.FontProperties(family='DejaVu Sans'),
             fm.FontProperties(family='DejaVu Sans', weight='bold'),
             False)
@@ -698,31 +664,29 @@ def plot_pavement_section(layers_result, subgrade_mr=None, subgrade_cbr=None, la
         ax.axis('off')
         return fig
 
-    # Expand AC sublayers (ภาษาไทย)
-    if lang == 'th':
-        expanded_layers = []
-        for layer in valid_layers:
-            ac_sub = layer.get('ac_sublayers', None)
-            if ac_sub is not None and layer['layer_no'] == 1:
-                sub_info = [
-                    ('wearing', '#1C1C1C', 'ชั้นผิวทาง (Wearing)', 'Wearing Course'),
-                    ('binder',  '#333333', 'ชั้นยึดเกาะ (Binder)', 'Binder Course'),
-                    ('base',    '#4A4A4A', 'ชั้นรอง AC (Base)',     'Base Course'),
-                ]
-                for key, color, th_name, en_name in sub_info:
-                    if ac_sub[key] > 0:
-                        expanded_layers.append({
-                            'design_thickness_cm': ac_sub[key],
-                            'material': th_name, 'english_name': en_name,
-                            'short_name': key[:2].upper() + 'C',
-                            'color': color, 'mr_mpa': layer['mr_mpa'],
-                            'is_sublayer': True
-                        })
-            else:
-                expanded_layers.append(layer)
-        draw_layers = expanded_layers
-    else:
-        draw_layers = valid_layers
+    # Expand AC sublayers
+    expanded_layers = []
+    for layer in valid_layers:
+        ac_sub = layer.get('ac_sublayers', None)
+        if ac_sub is not None and layer['layer_no'] == 1:
+            sub_info = [
+                ('wearing', '#1C1C1C', 'ผิวทาง (Wearing Course)',   'Wearing Course'),
+                ('binder',  '#333333', 'ยึดเกาะ (Binder Course)',   'Binder Course'),
+                ('base',    '#4A4A4A', 'รองผิวทาง (Base Course)',   'Base Course'),
+            ]
+            for key, color, th_name, en_name in sub_info:
+                if ac_sub[key] > 0:
+                    expanded_layers.append({
+                        'design_thickness_cm': ac_sub[key],
+                        'material': th_name if lang == 'th' else en_name,
+                        'english_name': en_name,
+                        'short_name': key[:2].upper() + 'C',
+                        'color': color, 'mr_mpa': layer['mr_mpa'],
+                        'is_sublayer': True
+                    })
+        else:
+            expanded_layers.append(layer)
+    draw_layers = expanded_layers
 
     total_thickness = sum(l['design_thickness_cm'] for l in draw_layers)
 
