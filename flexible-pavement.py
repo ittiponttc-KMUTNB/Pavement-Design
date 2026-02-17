@@ -25,7 +25,6 @@ Version: 5.0
 import streamlit as st
 import numpy as np
 import json
-from scipy.optimize import brentq
 import matplotlib.pyplot as plt
 import matplotlib.patches as mpatches
 import matplotlib.font_manager as fm
@@ -35,6 +34,75 @@ from docx import Document
 from docx.shared import Inches, Pt, Cm, RGBColor
 from docx.enum.text import WD_ALIGN_PARAGRAPH
 from docx.enum.table import WD_TABLE_ALIGNMENT
+
+
+# ================================================================================
+# CUSTOM ROOT-FINDING (แทน scipy.optimize.brentq)
+# ================================================================================
+
+def brentq(f, a, b, xtol=1e-12, maxiter=200):
+    """
+    Brent's method for root-finding — ไม่ต้องพึ่ง scipy
+    หาค่า x ใน [a, b] ที่ f(x) = 0
+    """
+    fa, fb = f(a), f(b)
+    if fa * fb > 0:
+        raise ValueError(f"f(a) and f(b) must have different signs: f({a})={fa:.4f}, f({b})={fb:.4f}")
+    if abs(fa) < xtol:
+        return a
+    if abs(fb) < xtol:
+        return b
+
+    c, fc = a, fa
+    d = e = b - a
+
+    for _ in range(maxiter):
+        if fb * fc > 0:
+            c, fc = a, fa
+            d = e = b - a
+
+        if abs(fc) < abs(fb):
+            a, b, c = b, c, b
+            fa, fb, fc = fb, fc, fb
+
+        tol1 = 2.0 * 2.2e-16 * abs(b) + 0.5 * xtol
+        m = 0.5 * (c - b)
+
+        if abs(m) <= tol1 or fb == 0.0:
+            return b
+
+        if abs(e) >= tol1 and abs(fa) > abs(fb):
+            s = fb / fa
+            if a == c:
+                p = 2.0 * m * s
+                q = 1.0 - s
+            else:
+                q = fa / fc
+                r = fb / fc
+                p = s * (2.0 * m * q * (q - r) - (b - a) * (r - 1.0))
+                q = (q - 1.0) * (r - 1.0) * (s - 1.0)
+            if p > 0:
+                q = -q
+            else:
+                p = -p
+            if 2.0 * p < min(3.0 * m * q - abs(tol1 * q), abs(e * q)):
+                e = d
+                d = p / q
+            else:
+                d = m
+                e = m
+        else:
+            d = m
+            e = m
+
+        a, fa = b, fb
+        if abs(d) > tol1:
+            b += d
+        else:
+            b += tol1 if m > 0 else -tol1
+        fb = f(b)
+
+    return b
 
 # ================================================================================
 # PAGE CONFIGURATION
