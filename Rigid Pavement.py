@@ -629,9 +629,11 @@ def _add_heading(doc, text, level=1):
     run.underline = (level <= 2)   # underline สำหรับ level 1-2, level 3 bold อย่างเดียว
     return p
 
-def _add_para(doc, text, bold=False, italic=False, indent_cm=0):
+def _add_para(doc, text, bold=False, italic=False, indent_cm=0, justify=True):
     from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
     p = doc.add_paragraph()
+    p.alignment = WD_ALIGN_PARAGRAPH.THAI_JUSTIFY if justify else WD_ALIGN_PARAGRAPH.LEFT
     run = p.add_run(text)
     run.bold = bold
     run.italic = italic
@@ -650,7 +652,7 @@ def _add_equation_section(doc):
     from docx.enum.table import WD_TABLE_ALIGNMENT
 
     EQ_FONT = 'Times New Roman'
-    EQ_SIZE = Pt(12)
+    EQ_SIZE = Pt(11)
     TH_FONT = _get_font_name()
     TH_SIZE = Pt(15)
 
@@ -903,69 +905,118 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
 
     doc.add_paragraph()
 
-def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None):
-    """เพิ่มหัวข้อการคำนวณ k-value (Nomograph)"""
+def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None,
+                        fig_prefix='4-', fig_num_start=4):
+    """การคำนวณ k-value (Nomograph) พร้อม caption ใต้รูป"""
     from docx.shared import Pt, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
 
-    def set_cell(cell, text, bold=False):
-        cell.text = text
-        for run in cell.paragraphs[0].runs:
-            run.font.name = _get_font_name()
-            run.font.size = Pt(15)
-            run.bold = bold
+    FONT = _get_font_name()
+    FS   = Pt(15)
+    HEADER_BG = 'BDD7EE'
 
-    # ตาราง Step 1
+    def _sc(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT, bg=None):
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = align
+        run = p.add_run(text)
+        run.font.name = FONT; run.font.size = FS; run.bold = bold
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'),'80'); m.set(qn('w:type'),'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'),'clear'); shd.set(qn('w:color'),'auto')
+            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+
+    def _add_fig_caption(text):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        run.font.name = FONT; run.font.size = FS
+        run.bold = True; run.underline = True
+
+    # ── Step 1: Composite k∞ ──────────────────────────────────────────
+    col_w1 = [4200, 1400, 1000]
     _add_para(doc, 'ขั้นตอนที่ 1: หาค่า Composite Modulus of Subgrade Reaction (k∞)', bold=True)
     tbl1 = doc.add_table(rows=1, cols=3)
     tbl1.style = 'Table Grid'
-    tbl1.alignment = WD_TABLE_ALIGNMENT.CENTER
-    hdr = tbl1.rows[0].cells
-    set_cell(hdr[0], 'พารามิเตอร์', bold=True)
-    set_cell(hdr[1], 'ค่า', bold=True)
-    set_cell(hdr[2], 'หน่วย', bold=True)
-    data1 = [
-        ('Roadbed Soil Resilient Modulus (MR)', f"{params.get('MR', 0):,.0f}", 'psi'),
-        ('Subbase Elastic Modulus (ESB)',        f"{params.get('ESB', 0):,.0f}", 'psi'),
-        ('Subbase Thickness (DSB)',              f"{params.get('DSB', 0):.1f}",  'inches'),
-        ('Composite Modulus k∞',                f"{params.get('k_inf', 0):,.0f}", 'pci'),
-    ]
-    for p_name, val, unit in data1:
-        row = tbl1.add_row().cells
-        set_cell(row[0], p_name); set_cell(row[1], val); set_cell(row[2], unit)
+    tbl1.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    def _set_w(row, widths):
+        from docx.oxml.ns import qn; from docx.oxml import OxmlElement
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(widths[i])); tcW.set(qn('w:type'),'dxa')
+            tcPr.append(tcW)
+
+    hdr = tbl1.rows[0]; _set_w(hdr, col_w1)
+    _sc(hdr.cells[0], 'พารามิเตอร์', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr.cells[1], 'ค่า',         bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr.cells[2], 'หน่วย',       bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+
+    for p_name, val, unit in [
+        ('Roadbed Soil Resilient Modulus (MR)', f"{params.get('MR',0):,.0f}", 'psi'),
+        ('Subbase Elastic Modulus (ESB)',        f"{params.get('ESB',0):,.0f}",'psi'),
+        ('Subbase Thickness (DSB)',              f"{params.get('DSB',0):.1f}", 'inches'),
+        ('Composite Modulus k∞',                f"{params.get('k_inf',0):,.0f}",'pci'),
+    ]:
+        row = tbl1.add_row(); _set_w(row, col_w1)
+        _sc(row.cells[0], p_name)
+        _sc(row.cells[1], val,  align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[2], unit, align=WD_ALIGN_PARAGRAPH.CENTER)
 
     if img1_bytes:
         doc.add_paragraph()
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p_img.add_run().add_picture(io.BytesIO(img1_bytes), width=Inches(5.0))
+        _add_fig_caption(
+            f'รูปที่ {fig_prefix}{fig_num_start}  '
+            f'ค่า Composite Modulus of Subgrade Reaction, k\u221e (pci)'
+        )
 
     doc.add_paragraph()
 
-    # ตาราง Step 2
+    # ── Step 2: Loss of Support ───────────────────────────────────────
+    col_w2 = [4200, 1400, 1000]
     _add_para(doc, 'ขั้นตอนที่ 2: ปรับแก้ค่า Loss of Support (LS)', bold=True)
     tbl2 = doc.add_table(rows=1, cols=3)
     tbl2.style = 'Table Grid'
-    tbl2.alignment = WD_TABLE_ALIGNMENT.CENTER
-    hdr2 = tbl2.rows[0].cells
-    set_cell(hdr2[0], 'พารามิเตอร์', bold=True)
-    set_cell(hdr2[1], 'ค่า', bold=True)
-    set_cell(hdr2[2], 'หน่วย', bold=True)
-    data2 = [
-        ('Effective Modulus k∞ (จาก Step 1)',    f"{params.get('k_inf', 0):,.0f}",       'pci'),
-        ('Loss of Support Factor (LS)',            f"{params.get('LS_factor', 0):.1f}",   '-'),
-        ('Corrected Modulus k (ที่ใช้ออกแบบ)',   f"{params.get('k_corrected', 0):,.0f}", 'pci'),
-    ]
-    for p_name, val, unit in data2:
-        row = tbl2.add_row().cells
-        set_cell(row[0], p_name); set_cell(row[1], val); set_cell(row[2], unit)
+    tbl2.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    hdr2 = tbl2.rows[0]; _set_w(hdr2, col_w2)
+    _sc(hdr2.cells[0], 'พารามิเตอร์', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr2.cells[1], 'ค่า',         bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr2.cells[2], 'หน่วย',       bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+
+    for p_name, val, unit in [
+        ('Effective Modulus k∞ (จาก Step 1)',  f"{params.get('k_inf',0):,.0f}",      'pci'),
+        ('Loss of Support Factor (LS)',          f"{params.get('LS_factor',0):.1f}",  '-'),
+        ('Corrected Modulus k (ที่ใช้ออกแบบ)', f"{params.get('k_corrected',0):,.0f}",'pci'),
+    ]:
+        row = tbl2.add_row(); _set_w(row, col_w2)
+        _sc(row.cells[0], p_name)
+        _sc(row.cells[1], val,  align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[2], unit, align=WD_ALIGN_PARAGRAPH.CENTER)
 
     if img2_bytes:
         doc.add_paragraph()
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
         p_img.add_run().add_picture(io.BytesIO(img2_bytes), width=Inches(5.0))
+        _add_fig_caption(
+            f'รูปที่ {fig_prefix}{fig_num_start+1}  '
+            f'การปรับแก้ค่า Modulus of Subgrade Reaction ประสิทธิผล '
+            f'เนื่องจากการสูญเสียฐานรองรับ'
+        )
 
     doc.add_paragraph()
 
@@ -1403,7 +1454,10 @@ def create_full_word_report(
 
         h_jpcp_k = _heading_num(section_prefix, 2)
         _add_heading(doc, f'{h_jpcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ JPCP/JRCP', level=2)
-        _add_kvalue_section(doc, jpcp_nomo_params, img1_bytes_jpcp, img2_bytes_jpcp)
+        k_fig_n = next_fig_num()
+        _add_kvalue_section(doc, jpcp_nomo_params, img1_bytes_jpcp, img2_bytes_jpcp,
+                            fig_prefix=fig_prefix, fig_num_start=k_fig_n)
+        fig_counter[0] += 1   # นับรูปที่ 2 ของ nomograph (LS)
 
         # ผลการออกแบบ JPCP
         _add_heading(doc, f'ผลการออกแบบความหนาผิวทางคอนกรีต JPCP/JRCP', level=3)
@@ -1423,7 +1477,10 @@ def create_full_word_report(
 
         h_crcp_k = _heading_num(section_prefix, sub_offset + 2)
         _add_heading(doc, f'{h_crcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ CRCP', level=2)
-        _add_kvalue_section(doc, crcp_nomo_params, img1_bytes_crcp, img2_bytes_crcp)
+        k_fig_n2 = next_fig_num()
+        _add_kvalue_section(doc, crcp_nomo_params, img1_bytes_crcp, img2_bytes_crcp,
+                            fig_prefix=fig_prefix, fig_num_start=k_fig_n2)
+        fig_counter[0] += 1   # นับรูปที่ 2 ของ nomograph CRCP
 
         _add_heading(doc, f'ผลการออกแบบความหนาผิวทางคอนกรีต CRCP', level=3)
         _add_design_result_section(doc, crcp_inputs, crcp_calc, crcp_comparison,
