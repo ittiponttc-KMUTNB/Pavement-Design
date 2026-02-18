@@ -642,16 +642,22 @@ def _add_para(doc, text, bold=False, italic=False, indent_cm=0):
     return p
 
 def _add_equation_section(doc):
-    """เพิ่มสมการ AASHTO 1993 พร้อม subscript/superscript และตารางสัญลักษณ์"""
-    from docx.shared import Pt
+    """สมการ AASHTO 1993 — Times New Roman 12pt พร้อม subscript/superscript และตารางสัญลักษณ์"""
+    from docx.shared import Pt, Cm
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    EQ_FONT = 'Times New Roman'
+    EQ_SIZE = Pt(12)
+    TH_FONT = _get_font_name()
+    TH_SIZE = Pt(15)
 
     def _eq_run(p, text, sub=False, sup=False, bold=False):
         run = p.add_run(text)
-        run.font.name = 'TH SarabunPSK'
-        run.font.size = Pt(15)
+        run.font.name = EQ_FONT
+        run.font.size = EQ_SIZE
         run.bold = bold
         if sub or sup:
             rPr = run._r.get_or_add_rPr()
@@ -660,98 +666,107 @@ def _add_equation_section(doc):
             rPr.append(va)
         return run
 
-    def eq_line(indent=True):
+    def eq_line():
         p = doc.add_paragraph()
         p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        if indent:
-            p.paragraph_format.left_indent = Pt(36)
+        p.paragraph_format.left_indent = Cm(1.5)
+        p.paragraph_format.space_after = Pt(2)
         return p
 
-    # บรรทัด 1
+    # บรรทัด 1: log10(W18) = ZR × So + 7.35 × log10(D+1) - 0.06
     p1 = eq_line()
-    _eq_run(p1, 'log')
-    _eq_run(p1, '10', sub=True)
-    _eq_run(p1, '(W')
-    _eq_run(p1, '18', sub=True)
-    _eq_run(p1, ') = Z')
-    _eq_run(p1, 'R', sub=True)
-    _eq_run(p1, ' × S')
-    _eq_run(p1, 'o', sub=True)
-    _eq_run(p1, ' + 7.35 × log')
-    _eq_run(p1, '10', sub=True)
-    _eq_run(p1, '(D+1) - 0.06')
+    _eq_run(p1, 'log'); _eq_run(p1, '10', sub=True)
+    _eq_run(p1, '(W');  _eq_run(p1, '18', sub=True)
+    _eq_run(p1, ') = Z'); _eq_run(p1, 'R', sub=True)
+    _eq_run(p1, ' \u00d7 S'); _eq_run(p1, 'o', sub=True)
+    _eq_run(p1, ' + 7.35 \u00d7 log'); _eq_run(p1, '10', sub=True)
+    _eq_run(p1, '(D+1) \u2212 0.06')
 
-    # บรรทัด 2
+    # บรรทัด 2: + log10(ΔPSI/(4.5-1.5)) / (1 + 1.624×10^7/(D+1)^8.46)
     p2 = eq_line()
-    _eq_run(p2, '        + log')
-    _eq_run(p2, '10', sub=True)
-    _eq_run(p2, '(ΔPSI/(4.5-1.5)) / (1 + 1.624×10')
+    _eq_run(p2, '        + log'); _eq_run(p2, '10', sub=True)
+    _eq_run(p2, '(\u0394PSI / (4.5 \u2212 1.5)) / (1 + 1.624\u00d710')
     _eq_run(p2, '7', sup=True)
-    _eq_run(p2, '/(D+1)')
-    _eq_run(p2, '8.46', sup=True)
-    _eq_run(p2, ')')
+    _eq_run(p2, ' / (D+1)'); _eq_run(p2, '8.46', sup=True); _eq_run(p2, ')')
 
-    # บรรทัด 3
+    # บรรทัด 3: + (4.22 - 0.32×Pt) × log10([Sc×Cd×(D^0.75-1.132)] / [...])
     p3 = eq_line()
-    _eq_run(p3, '        + (4.22 - 0.32×P')
-    _eq_run(p3, 't', sub=True)
-    _eq_run(p3, ') × log')
-    _eq_run(p3, '10', sub=True)
-    _eq_run(p3, '[(S')
-    _eq_run(p3, 'c', sub=True)
-    _eq_run(p3, '×C')
-    _eq_run(p3, 'd', sub=True)
-    _eq_run(p3, '×(D')
-    _eq_run(p3, '0.75', sup=True)
-    _eq_run(p3, '-1.132))/(215.63×J×(D')
-    _eq_run(p3, '0.75', sup=True)
-    _eq_run(p3, ' - 18.42/(E')
-    _eq_run(p3, 'c', sub=True)
-    _eq_run(p3, '/k)')
-    _eq_run(p3, '0.25', sup=True)
-    _eq_run(p3, ')]')
+    _eq_run(p3, '        + (4.22 \u2212 0.32\u00d7P'); _eq_run(p3, 't', sub=True)
+    _eq_run(p3, ') \u00d7 log'); _eq_run(p3, '10', sub=True)
+    _eq_run(p3, ' [(S'); _eq_run(p3, 'c', sub=True)
+    _eq_run(p3, '\u00d7C'); _eq_run(p3, 'd', sub=True)
+    _eq_run(p3, '\u00d7(D'); _eq_run(p3, '0.75', sup=True)
+    _eq_run(p3, '\u22121.132)) / (215.63\u00d7J\u00d7(D'); _eq_run(p3, '0.75', sup=True)
+    _eq_run(p3, ' \u2212 18.42 / (E'); _eq_run(p3, 'c', sub=True)
+    _eq_run(p3, '/k)'); _eq_run(p3, '0.25', sup=True); _eq_run(p3, ')]')
 
     doc.add_paragraph()
-    _add_para(doc, 'โดยที่:')
+
+    # "โดยที่:" — TH SarabunPSK 15pt
+    p_by = doc.add_paragraph()
+    r_by = p_by.add_run('โดยที่:')
+    r_by.font.name = TH_FONT; r_by.font.size = TH_SIZE
 
     # ตารางสัญลักษณ์
-    from docx.shared import Pt
-    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn as _qn
+    from docx.oxml import OxmlElement as _OE
+
+    HEADER_BG = 'BDD7EE'
+    col_w_sym = [1000, 4500, 1000]
+
     tbl = doc.add_table(rows=1, cols=3)
     tbl.style = 'Table Grid'
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    border_color = "000000"
-    def set_cell(cell, text, bold=False):
-        cell.text = text
-        for run in cell.paragraphs[0].runs:
-            run.font.name = _get_font_name()
-            run.font.size = Pt(15)
-            run.bold = bold
+    def _sym_cell(cell, text, bold=False, font=TH_FONT, fsize=TH_SIZE, bg=None,
+                  align=WD_ALIGN_PARAGRAPH.LEFT):
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = align
+        run = p.add_run(text)
+        run.font.name = font; run.font.size = fsize; run.bold = bold
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = _OE('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = _OE(f'w:{side}'); m.set(_qn('w:w'),'80'); m.set(_qn('w:type'),'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = _OE('w:shd'); shd.set(_qn('w:val'),'clear')
+            shd.set(_qn('w:color'),'auto'); shd.set(_qn('w:fill'), bg)
+            tcPr.append(shd)
 
-    hdr = tbl.rows[0].cells
-    set_cell(hdr[0], 'สัญลักษณ์', bold=True)
-    set_cell(hdr[1], 'ความหมาย', bold=True)
-    set_cell(hdr[2], 'หน่วย', bold=True)
+    def _set_sym_widths(row):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = _OE('w:tcW')
+            tcW.set(_qn('w:w'), str(col_w_sym[i])); tcW.set(_qn('w:type'),'dxa')
+            tcPr.append(tcW)
+
+    hdr = tbl.rows[0]; _set_sym_widths(hdr)
+    _sym_cell(hdr.cells[0], 'สัญลักษณ์', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sym_cell(hdr.cells[1], 'ความหมาย',  bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sym_cell(hdr.cells[2], 'หน่วย',     bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
 
     symbols = [
-        ('W₁₈',  'จำนวนแกนเดี่ยว 18 kip ที่รองรับได้',        'ESALs'),
-        ('ZR',   'Standard Normal Deviate ที่ความเชื่อมั่น R', '-'),
-        ('So',   'Overall Standard Deviation',                  '-'),
-        ('D',    'ความหนาแผ่นคอนกรีต',                          'นิ้ว'),
-        ('ΔPSI', 'การสูญเสีย Serviceability (4.5 - Pt)',        '-'),
-        ('Pt',   'Terminal Serviceability Index',                '-'),
-        ('Sc',   'Modulus of Rupture ของคอนกรีต',               'psi'),
-        ('Cd',   'Drainage Coefficient',                         '-'),
-        ('J',    'Load Transfer Coefficient',                    '-'),
-        ('Ec',   'Modulus of Elasticity ของคอนกรีต',            'psi'),
-        ('k',    'Modulus of Subgrade Reaction',                 'pci'),
+        ('W₁₈',  'จำนวนแกนเดี่ยว 18 kip ที่รองรับได้',              'ESALs'),
+        ('ZR',   'Standard Normal Deviate ที่ความเชื่อมั่น R',       '-'),
+        ('So',   'Overall Standard Deviation',                        '-'),
+        ('D',    'ความหนาแผ่นคอนกรีต',                                'นิ้ว'),
+        ('ΔPSI', 'การสูญเสีย Serviceability (4.5 − Pt)',             '-'),
+        ('Pt',   'Terminal Serviceability Index',                     '-'),
+        ('Sc',   'Modulus of Rupture ของคอนกรีต',                    'psi'),
+        ('Cd',   'Drainage Coefficient',                              '-'),
+        ('J',    'Load Transfer Coefficient',                         '-'),
+        ('Ec',   'Modulus of Elasticity ของคอนกรีต',                 'psi'),
+        ('k',    'Modulus of Subgrade Reaction',                      'pci'),
     ]
     for sym, meaning, unit in symbols:
-        row = tbl.add_row().cells
-        set_cell(row[0], sym)
-        set_cell(row[1], meaning)
-        set_cell(row[2], unit)
+        row = tbl.add_row(); _set_sym_widths(row)
+        # สัญลักษณ์ใช้ Times New Roman, ความหมาย/หน่วยใช้ TH SarabunPSK
+        _sym_cell(row.cells[0], sym,     font=EQ_FONT, fsize=EQ_SIZE, align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sym_cell(row.cells[1], meaning, font=TH_FONT, fsize=TH_SIZE)
+        _sym_cell(row.cells[2], unit,    font=EQ_FONT, fsize=EQ_SIZE, align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
 
@@ -1119,6 +1134,148 @@ def _add_design_result_section(doc, inputs, calculated_values, comparison_result
     doc.add_paragraph()
 
 
+def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
+                              fig_caption="", cbr_subgrade=3.0):
+    """
+    ตารางสรุปชั้นทางสำหรับหัวข้อ 4.6  —  รูปแบบภาพ 1
+    โครงสร้าง:
+      ┌──────┬──────────────────────────┬──────────────┐
+      │ ลำดับ│       ชนิดวัสดุ          │ ความหนา (ซม.)│  ← Header สีฟ้า
+      ├──────┼──────────────────────────┼──────────────┤
+      │  1   │ ผิวทางคอนกรีต JPCP      │      28      │
+      │  2   │ ชื่อชั้น                 │       5      │
+      │  ... │ ...                      │     ...      │
+      ├──────┴──────────────────────────┴──────────────┤
+      │         รูปตัดขวาง (merge 3 col)               │
+      ├──────┬──────────────────────────┬──────────────┤
+      │  N   │ ดินคันทาง               │  CBR x.x %   │
+      └──────┴──────────────────────────┴──────────────┘
+      Caption: รูปที่ X-X  โครงสร้างชั้นทาง... (bold underline center)
+    """
+    from docx.shared import Pt, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    HEADER_BG = 'BDD7EE'
+    FONT  = _get_font_name()
+    FS    = Pt(15)
+    col_w = [700, 4500, 1600]   # ลำดับ | ชนิดวัสดุ | ความหนา
+
+    def _qset(el, attr, val):
+        el.set(qn(attr), val)
+
+    def _set_widths(row):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            _qset(tcW, 'w:w', str(col_w[i])); _qset(tcW, 'w:type', 'dxa')
+            tcPr.append(tcW)
+
+    def _cell_margin(cell):
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = OxmlElement(f'w:{side}')
+            _qset(m, 'w:w', '80'); _qset(m, 'w:type', 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+
+    def _bg(cell, color):
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        shd = OxmlElement('w:shd')
+        _qset(shd, 'w:val', 'clear'); _qset(shd, 'w:color', 'auto')
+        _qset(shd, 'w:fill', color); tcPr.append(shd)
+
+    def _sc(cell, text, bold=False,
+            align=WD_ALIGN_PARAGRAPH.LEFT, bg_color=None):
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = align
+        run = p.add_run(text)
+        run.font.name = FONT; run.font.size = FS; run.bold = bold
+        _cell_margin(cell)
+        if bg_color: _bg(cell, bg_color)
+
+    def _merge_row_3col(tbl):
+        """เพิ่มแถวและ merge 3 คอลัมน์"""
+        row = tbl.add_row()
+        a, b, c = row.cells
+        a.merge(c)
+        return row
+
+    # ── สร้างตาราง ──────────────────────────────────────────────────────
+    # นับจำนวนชั้นที่มีความหนา > 0
+    valid_layers = [l for l in layers_data if l.get('thickness_cm', 0) > 0]
+    # แถว: header + คอนกรีต + ชั้นวัสดุ + merge(รูป) + subgrade
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    # ── Header ──────────────────────────────────────────────────────────
+    hdr = tbl.rows[0]; _set_widths(hdr)
+    _sc(hdr.cells[0], 'ลำดับ',         bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+    _sc(hdr.cells[1], 'ชนิดวัสดุ',    bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+    _sc(hdr.cells[2], 'ความหนา (ซม.)', bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+
+    # ── แถวคอนกรีต ──────────────────────────────────────────────────────
+    row = tbl.add_row(); _set_widths(row)
+    _sc(row.cells[0], '1',  align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[1], f'ผิวทางคอนกรีต {pavement_type}')
+    _sc(row.cells[2], str(d_cm), align=WD_ALIGN_PARAGRAPH.CENTER)
+
+    # ── แถวชั้นวัสดุ ─────────────────────────────────────────────────────
+    row_num = 2
+    for layer in valid_layers:
+        row = tbl.add_row(); _set_widths(row)
+        _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[1], layer.get('name', ''))
+        _sc(row.cells[2], str(layer.get('thickness_cm', 0)),
+            align=WD_ALIGN_PARAGRAPH.CENTER)
+        row_num += 1
+
+    # ── แถว merge — รูปตัดขวาง ──────────────────────────────────────────
+    fig = create_pavement_structure_figure(valid_layers, d_cm)
+    merged_row = _merge_row_3col(tbl)
+    merged_cell = merged_row.cells[0]
+    # ตั้ง width ของ merged cell = ผลรวมทั้งหมด
+    tc = merged_cell._tc; tcPr = tc.get_or_add_tcPr()
+    tcW = OxmlElement('w:tcW')
+    _qset(tcW, 'w:w', str(sum(col_w))); _qset(tcW, 'w:type', 'dxa')
+    tcPr.append(tcW)
+    _cell_margin(merged_cell)
+
+    p_fig = merged_cell.paragraphs[0]
+    p_fig.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    if fig:
+        img_buf = BytesIO()
+        fig.savefig(img_buf, format='png', dpi=150,
+                    bbox_inches='tight', facecolor='white')
+        img_buf.seek(0)
+        p_fig.add_run().add_picture(img_buf, width=Inches(4.2))
+        plt.close(fig)
+
+    # ── แถว Subgrade ────────────────────────────────────────────────────
+    row = tbl.add_row(); _set_widths(row)
+    _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[1], 'ดินคันทาง')
+    _sc(row.cells[2], f'CBR {cbr_subgrade:.1f} %',
+        align=WD_ALIGN_PARAGRAPH.CENTER)
+
+    # ── Caption ──────────────────────────────────────────────────────────
+    if fig_caption:
+        p_cap = doc.add_paragraph()
+        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run_cap = p_cap.add_run(fig_caption)
+        run_cap.font.name = FONT; run_cap.font.size = FS
+        run_cap.bold = True; run_cap.underline = True
+
+    doc.add_paragraph()
+
+
 def create_full_word_report(
     # ข้อมูลหัวข้อ
     section_prefix,        # เช่น "4.5"
@@ -1288,16 +1445,18 @@ def create_full_word_report(
         if include_jpcp:
             fig_n = next_fig_num()
             _add_para(doc, f'รูปแบบที่ 1: ผิวทางคอนกรีต แบบ JPCP/JRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
-            _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
-                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP',
-                             cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
+            _add_summary_layer_table(
+                doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
+                fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP',
+                cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
 
         if include_crcp:
             fig_n = next_fig_num()
             _add_para(doc, f'รูปแบบที่ 2: ผิวทางคอนกรีต แบบ CRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
-            _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP',
-                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 2 ผิวทางคอนกรีต แบบ CRCP',
-                             cbr_subgrade=crcp_subgrade.get('cbr', 3.0))
+            _add_summary_layer_table(
+                doc, crcp_layers_data, crcp_d_cm, 'CRCP',
+                fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 2 ผิวทางคอนกรีต แบบ CRCP',
+                cbr_subgrade=crcp_subgrade.get('cbr', 3.0))
 
     # ── เอกสารอ้างอิง ────────────────────────────────────────────────────
     doc.add_paragraph()
