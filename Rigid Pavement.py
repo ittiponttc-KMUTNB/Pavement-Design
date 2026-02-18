@@ -1076,7 +1076,6 @@ def create_full_word_report(
     r.font.name = _get_font_name()
     r.font.size = Pt(15)
 
-    from docx.shared import PageBreak as DocxPageBreak
     doc.add_page_break()
 
     # ── หัวข้อ X.X  การออกแบบผิวทางคอนกรีต ────────────────────────────
