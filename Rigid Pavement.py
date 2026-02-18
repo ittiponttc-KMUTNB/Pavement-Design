@@ -617,14 +617,16 @@ def _setup_doc_styles(doc):
     section.bottom_margin = Cm(2.0)
 
 def _add_heading(doc, text, level=1):
-    from docx.shared import Pt, RGBColor
+    """หัวข้อแบบ bold + underline (ตามภาพตัวอย่าง) ไม่ใช้ Heading style"""
+    from docx.shared import Pt
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    p = doc.add_heading(text, level=level)
+    p = doc.add_paragraph()
     p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    for run in p.runs:
-        run.font.name = _get_font_name()
-        run.font.size = Pt(15 if level >= 2 else 17)
-        run.font.color.rgb = RGBColor(0, 0, 0)
+    run = p.add_run(text)
+    run.font.name = _get_font_name()
+    run.font.size = Pt(15)
+    run.bold = True
+    run.underline = (level <= 2)   # underline สำหรับ level 1-2, level 3 bold อย่างเดียว
     return p
 
 def _add_para(doc, text, bold=False, italic=False, indent_cm=0):
@@ -753,51 +755,108 @@ def _add_equation_section(doc):
 
     doc.add_paragraph()
 
-def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption=""):
-    """เพิ่มตารางชั้นโครงสร้างทาง + รูปตัดขวาง ในรูปแบบเดียวกับภาพตัวอย่าง"""
-    from docx.shared import Pt, Inches, RGBColor
+def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
+                     cbr_subgrade=3.0):
+    """ตารางชั้นโครงสร้างทาง รูปแบบตามภาพ:
+    คอลัมน์: ลำดับ | ชนิดวัสดุ | ความหนา (ซม.) | Modulus E (MPa)
+    Header สีฟ้าอ่อน, แถวข้อมูล justify ซ้าย, ตัวเลข center
+    """
+    from docx.shared import Pt, Inches, Cm
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
 
-    # ตารางข้อมูล
-    tbl = doc.add_table(rows=1, cols=3)
-    tbl.style = 'Table Grid'
-    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    HEADER_BG = "BDD7EE"
+    FONT = _get_font_name()
+    FS = Pt(15)
 
-    def set_cell(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER):
+    def _sc(cell, text, bold=False,
+            align=WD_ALIGN_PARAGRAPH.LEFT, bg=None):
+        """set cell content"""
         cell.text = ''
         p = cell.paragraphs[0]
         p.alignment = align
         run = p.add_run(text)
-        run.font.name = _get_font_name()
-        run.font.size = Pt(15)
+        run.font.name = FONT
+        run.font.size = FS
         run.bold = bold
+        # cell padding
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top', 'bottom', 'left', 'right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '80')
+            m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear')
+            shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), bg)
+            tcPr.append(shd)
 
-    hdr = tbl.rows[0].cells
-    set_cell(hdr[0], 'รายละเอียด', bold=True)
-    set_cell(hdr[1], 'หนา (ซม.)', bold=True)
-    set_cell(hdr[2], 'ชนิด', bold=True)
+    # กว้างคอลัมน์ (DXA): ลำดับ | ชนิดวัสดุ | ความหนา | Modulus E
+    col_w = [700, 4200, 1600, 1900]
+    tbl = doc.add_table(rows=1, cols=4)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # แถวคอนกรีต
-    row = tbl.add_row().cells
-    set_cell(row[0], f'ผิวทางคอนกรีต ({pavement_type})')
-    set_cell(row[1], str(d_cm))
-    fc_text = f'กำลังอัด Cube ≥ {d_cm} ซม.'
-    set_cell(row[2], f'Concrete Slab {d_cm} cm')
+    # ตั้งความกว้างคอลัมน์ผ่าน XML
+    tbl_pr = tbl._tbl.get_or_add_tblPr()
+    tbl_w = OxmlElement('w:tblW')
+    tbl_w.set(qn('w:w'), str(sum(col_w)))
+    tbl_w.set(qn('w:type'), 'dxa')
+    tbl_pr.append(tbl_w)
 
-    # แถวชั้นอื่นๆ
+    def _set_col_widths(row):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(col_w[i]))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+    # Header
+    hdr = tbl.rows[0]
+    _set_col_widths(hdr)
+    _sc(hdr.cells[0], 'ลำดับ',          bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr.cells[1], 'ชนิดวัสดุ',      bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr.cells[2], 'ความหนา (ซม.)',  bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+    _sc(hdr.cells[3], 'Modulus E (MPa)', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+
+    # แถวที่ 1: คอนกรีต
+    row = tbl.add_row(); _set_col_widths(row)
+    _sc(row.cells[0], '1',  align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[1], f'ผิวทางคอนกรีต {pavement_type}')
+    _sc(row.cells[2], str(d_cm), align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[3], '-',       align=WD_ALIGN_PARAGRAPH.CENTER)
+
+    # แถวชั้นวัสดุ
+    row_num = 2
     for layer in layers_data:
-        if layer.get('thickness_cm', 0) > 0:
-            row = tbl.add_row().cells
-            set_cell(row[0], '')
-            set_cell(row[1], str(layer.get('thickness_cm', 0)))
-            set_cell(row[2], layer.get('name', ''))
+        thick = layer.get('thickness_cm', 0)
+        if thick <= 0:
+            continue
+        e_mpa = layer.get('E_MPa', 0)
+        row = tbl.add_row(); _set_col_widths(row)
+        _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[1], layer.get('name', ''))
+        _sc(row.cells[2], str(thick),   align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[3], f"{e_mpa:,}" if e_mpa > 0 else '-',
+            align=WD_ALIGN_PARAGRAPH.CENTER)
+        row_num += 1
 
     # แถว Subgrade
-    row = tbl.add_row().cells
-    set_cell(row[0], '')
-    set_cell(row[1], 'Existing')
-    set_cell(row[2], 'Earth Embankment or Subgrade')
+    row = tbl.add_row(); _set_col_widths(row)
+    _sc(row.cells[0], str(row_num),          align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[1], 'ดินคันทาง')
+    mr_psi = int(1500 * cbr_subgrade if cbr_subgrade < 10 else 1000 + 555 * cbr_subgrade)
+    _sc(row.cells[2], f'CBR {cbr_subgrade:.1f} %', align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[3], f'{mr_psi:,} ({mr_psi:,} psi)', align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
 
@@ -805,22 +864,23 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption=""):
     fig = create_pavement_structure_figure(layers_data, d_cm)
     if fig:
         img_buf = BytesIO()
-        fig.savefig(img_buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        fig.savefig(img_buf, format='png', dpi=150,
+                    bbox_inches='tight', facecolor='white')
         img_buf.seek(0)
         p_img = doc.add_paragraph()
         p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        from docx.shared import Inches
-        run_img = p_img.add_run()
-        run_img.add_picture(img_buf, width=Inches(4.5))
+        p_img.add_run().add_picture(img_buf, width=Inches(4.5))
         plt.close(fig)
 
     if fig_caption:
-        p_cap = doc.add_paragraph(fig_caption)
+        p_cap = doc.add_paragraph()
         p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        for run in p_cap.runs:
-            run.font.name = _get_font_name()
-            run.font.size = Pt(15)
-            run.bold = True
+        run_cap = p_cap.add_run(fig_caption)
+        run_cap.font.name = FONT
+        run_cap.font.size = FS
+        run_cap.bold = True
+
+    doc.add_paragraph()
 
 def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None):
     """เพิ่มหัวข้อการคำนวณ k-value (Nomograph)"""
@@ -890,97 +950,166 @@ def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None):
 
 def _add_design_result_section(doc, inputs, calculated_values, comparison_results,
                                 selected_d_cm, main_result, layers_data, subgrade_info):
-    """เพิ่มตารางผลการคำนวณออกแบบ"""
-    from docx.shared import Pt, RGBColor
+    """ตารางผลการคำนวณออกแบบ — รูปแบบตามภาพตัวอย่าง"""
+    from docx.shared import Pt
     from docx.enum.table import WD_TABLE_ALIGNMENT
     from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
 
-    def set_cell(cell, text, bold=False, bg_color=None):
-        from docx.oxml.ns import qn
-        from docx.oxml import OxmlElement
+    HEADER_BG = "BDD7EE"
+    FONT = _get_font_name()
+    FS = Pt(15)
+
+    def _sc(cell, text, bold=False,
+            align=WD_ALIGN_PARAGRAPH.LEFT, bg=None):
         cell.text = ''
         p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.alignment = align
         run = p.add_run(text)
-        run.font.name = _get_font_name()
-        run.font.size = Pt(15)
+        run.font.name = FONT
+        run.font.size = FS
         run.bold = bold
-        if bg_color:
-            tc = cell._tc
-            tcPr = tc.get_or_add_tcPr()
+        tc = cell._tc
+        tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top', 'bottom', 'left', 'right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '80')
+            m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
             shd = OxmlElement('w:shd')
             shd.set(qn('w:val'), 'clear')
             shd.set(qn('w:color'), 'auto')
-            shd.set(qn('w:fill'), bg_color)
+            shd.set(qn('w:fill'), bg)
             tcPr.append(shd)
 
-    # ตาราง input
-    _add_para(doc, 'ข้อมูลนำเข้าการออกแบบ:', bold=True)
+    def _set_col_widths(row, widths):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(widths[i]))
+            tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+    # ── หัวข้อ "ข้อมูลนำเข้าการออกแบบ:" (bold underline) ─────────────
+    p_lbl = doc.add_paragraph()
+    run_lbl = p_lbl.add_run('ข้อมูลนำเข้าการออกแบบ:')
+    run_lbl.font.name = FONT
+    run_lbl.font.size = FS
+    run_lbl.bold = True
+    run_lbl.underline = True
+
+    # คอลัมน์: พารามิเตอร์ | สัญลักษณ์ | ค่า | หน่วย
+    col_w_in = [3200, 1200, 1800, 1200]
     tbl_in = doc.add_table(rows=1, cols=4)
     tbl_in.style = 'Table Grid'
-    tbl_in.alignment = WD_TABLE_ALIGNMENT.CENTER
-    hdr = tbl_in.rows[0].cells
+    tbl_in.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    hdr = tbl_in.rows[0]
+    _set_col_widths(hdr, col_w_in)
     for i, t in enumerate(['พารามิเตอร์', 'สัญลักษณ์', 'ค่า', 'หน่วย']):
-        set_cell(hdr[i], t, bold=True, bg_color='DDEEFF')
+        _sc(hdr.cells[i], t, bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
+
+    delta_psi = calculated_values.get('delta_psi', 4.5 - inputs['pt'])
+    zr        = calculated_values.get('zr', -1.282)
+    ec        = calculated_values.get('ec', 0)
 
     input_rows = [
-        ('ESAL ออกแบบ',                 'W₁₈',    f"{inputs['w18_design']:,.0f}",  'ESALs'),
-        ('Terminal Serviceability',       'Pt',     f"{inputs['pt']:.1f}",            '-'),
-        ('Reliability',                   'R',      f"{inputs['reliability']:.0f}",   '%'),
-        ('Standard Deviation',            'So',     f"{inputs['so']:.2f}",            '-'),
-        ('Modulus of Subgrade Reaction',  'k_eff',  f"{inputs['k_eff']:,.0f}",        'pci'),
-        ('Loss of Support',               'LS',     f"{inputs.get('ls', 1.0):.1f}",   '-'),
-        ('กำลังคอนกรีต (Cube)',           "f'c",   f"{inputs['fc_cube']:.0f}",        'ksc'),
-        ('Modulus of Rupture',            'Sc',     f"{inputs['sc']:.0f}",            'psi'),
-        ('Load Transfer Coefficient',     'J',      f"{inputs['j']:.1f}",             '-'),
-        ('Drainage Coefficient',          'Cd',     f"{inputs['cd']:.1f}",            '-'),
-        ('Modulus of Elasticity',         'Ec',     f"{calculated_values['ec']:,.0f}", 'psi'),
+        ('ESAL ออกแบบ',               'W₁₈',   f"{inputs['w18_design']:,.0f}",      'ESALs'),
+        ('Terminal Serviceability',    'Pt',    f"{inputs['pt']:.1f}",                '-'),
+        ('การสูญเสีย Serviceability',  'ΔPSI',  f"{delta_psi:.1f}",                  '-'),
+        ('Reliability',                'R',     f"{inputs['reliability']:.0f}",       '%'),
+        ('Standard Normal Deviate',    'ZR',    f"{zr:.3f}",                          '-'),
+        ('Standard Deviation',         'So',    f"{inputs['so']:.2f}",                '-'),
+        ('Modulus of Subgrade Reaction','k_eff', f"{inputs['k_eff']:,.0f}",           'pci'),
+        ('Loss of Support',            'LS',    f"{inputs.get('ls', 1.0):.1f}",       '-'),
+        ('กำลังคอนกรีต',               "f'c",   f"{inputs['fc_cube']:.0f} Cube",     'ksc'),
+        ('Modulus of Elasticity',      'Ec',    f"{ec:,.0f}",                         'psi'),
+        ('Modulus of Rupture',         'Sc',    f"{inputs['sc']:.0f}",                'psi'),
+        ('Load Transfer Coefficient',  'J',     f"{inputs['j']:.1f}",                 '-'),
+        ('Drainage Coefficient',       'Cd',    f"{inputs['cd']:.2f}",                '-'),
     ]
     for row_data in input_rows:
-        row = tbl_in.add_row().cells
-        for i, txt in enumerate(row_data):
-            set_cell(row[i], txt)
+        row = tbl_in.add_row()
+        _set_col_widths(row, col_w_in)
+        _sc(row.cells[0], row_data[0])
+        _sc(row.cells[1], row_data[1], align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[2], row_data[2], align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[3], row_data[3], align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
 
-    # ตารางผลการตรวจสอบความหนา
-    _add_para(doc, 'ผลการตรวจสอบความหนาแผ่นคอนกรีต:', bold=True)
+    # ── ตารางผลการตรวจสอบความหนา ──────────────────────────────────────
+    p_lbl2 = doc.add_paragraph()
+    run_lbl2 = p_lbl2.add_run('ผลการตรวจสอบความหนาแผ่นคอนกรีต:')
+    run_lbl2.font.name = FONT
+    run_lbl2.font.size = FS
+    run_lbl2.bold = True
+    run_lbl2.underline = True
+
+    col_w_res = [1100, 1100, 1500, 1900, 1400, 1400]
     tbl_res = doc.add_table(rows=1, cols=6)
     tbl_res.style = 'Table Grid'
-    tbl_res.alignment = WD_TABLE_ALIGNMENT.CENTER
-    hdr = tbl_res.rows[0].cells
-    for i, t in enumerate(['D (ซม.)', 'D (นิ้ว)', 'log₁₀(W₁₈)', 'W₁₈ รองรับได้', 'อัตราส่วน', 'ผล']):
-        set_cell(hdr[i], t, bold=True, bg_color='DDEEFF')
+    tbl_res.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    hdr2 = tbl_res.rows[0]
+    _set_col_widths(hdr2, col_w_res)
+    for i, t in enumerate(['D (ซม.)', 'D (นิ้ว)', 'log₁₀(W₁₈)',
+                            'W₁₈ รองรับได้', 'อัตราส่วน', 'ผล']):
+        _sc(hdr2.cells[i], t, bold=True,
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=HEADER_BG)
 
     for r in comparison_results:
-        row = tbl_res.add_row().cells
-        passed_color = 'CCFFCC' if r['passed'] else 'FFCCCC'
-        is_selected = (r['d_cm'] == selected_d_cm)
-        bg = 'FFFFAA' if is_selected else None
-        set_cell(row[0], f"{r['d_cm']:.0f}", bold=is_selected, bg_color=bg)
-        set_cell(row[1], f"{r['d_inch']:.0f}", bg_color=bg)
-        set_cell(row[2], f"{r['log_w18']:.4f}", bg_color=bg)
-        set_cell(row[3], f"{r['w18']:,.0f}", bg_color=bg)
-        set_cell(row[4], f"{r['ratio']:.2f}", bg_color=bg)
-        set_cell(row[5], "ผ่าน ✓" if r['passed'] else "ไม่ผ่าน ✗", bg_color=passed_color)
+        is_sel = (r['d_cm'] == selected_d_cm)
+        bg_row = 'FFFFAA' if is_sel else None
+        bg_res = 'CCFFCC' if r['passed'] else 'FFCCCC'
+        row = tbl_res.add_row()
+        _set_col_widths(row, col_w_res)
+        _sc(row.cells[0], f"{r['d_cm']:.0f}",    bold=is_sel,
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_row)
+        _sc(row.cells[1], f"{r['d_inch']:.0f}",
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_row)
+        _sc(row.cells[2], f"{r['log_w18']:.4f}",
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_row)
+        _sc(row.cells[3], f"{r['w18']:,.0f}",
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_row)
+        _sc(row.cells[4], f"{r['ratio']:.2f}",
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_row)
+        _sc(row.cells[5], "ผ่าน ✓" if r['passed'] else "ไม่ผ่าน ✗",
+            align=WD_ALIGN_PARAGRAPH.CENTER, bg=bg_res)
 
     doc.add_paragraph()
 
-    # สรุปผล
+    # ── สรุปผล ────────────────────────────────────────────────────────
     passed, ratio = main_result
-    selected_d_inch = round(selected_d_cm / 2.54)
-    w18_cap = next((r['w18'] for r in comparison_results if r['d_cm'] == selected_d_cm), 0)
+    sel_inch = round(selected_d_cm / 2.54)
+    w18_cap  = next((r['w18'] for r in comparison_results
+                     if r['d_cm'] == selected_d_cm), 0)
 
-    _add_para(doc, 'สรุปผลการออกแบบ:', bold=True)
-    summary_items = [
-        f"ความหนาที่เลือก: {selected_d_cm:.0f} ซม. ({selected_d_inch:.0f} นิ้ว)",
-        f"ESAL ที่ต้องการ: {inputs['w18_design']:,.0f} ESALs",
-        f"ESAL ที่รองรับได้: {w18_cap:,.0f} ESALs",
-        f"อัตราส่วน W₁₈ รองรับ / W₁₈ ที่ต้องการ = {ratio:.2f}",
-        f"ผลการตรวจสอบ: {'✅ ผ่านเกณฑ์' if passed else '❌ ไม่ผ่านเกณฑ์'}",
-    ]
-    for item in summary_items:
-        _add_para(doc, f"   {item}")
+    p_lbl3 = doc.add_paragraph()
+    run_lbl3 = p_lbl3.add_run('สรุปผลการออกแบบ:')
+    run_lbl3.font.name = FONT
+    run_lbl3.font.size = FS
+    run_lbl3.bold = True
+    run_lbl3.underline = True
+
+    for item in [
+        f"ความหนาที่เลือก : {selected_d_cm:.0f} ซม. ({sel_inch:.0f} นิ้ว)",
+        f"ESAL ที่ต้องการ  : {inputs['w18_design']:,.0f} ESALs",
+        f"ESAL ที่รองรับได้ : {w18_cap:,.0f} ESALs",
+        f"อัตราส่วน        : {ratio:.2f}",
+        f"ผลการตรวจสอบ  : {'✅ ผ่านเกณฑ์' if passed else '❌ ไม่ผ่านเกณฑ์'}",
+    ]:
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Pt(36)
+        run = p.add_run(item)
+        run.font.name = FONT
+        run.font.size = FS
 
     doc.add_paragraph()
 
@@ -1105,7 +1234,9 @@ def create_full_word_report(
         _add_heading(doc, f'{h_jpcp_layer}  ชั้นโครงสร้างทางคอนกรีตประเภท JPCP/JRCP', level=2)
         fig_n = next_fig_num()
         caption = f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางผิวทางคอนกรีต แบบ JPCP/JRCP'
-        _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type, fig_caption=caption)
+        _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
+                         fig_caption=caption,
+                         cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
 
         h_jpcp_k = _heading_num(section_prefix, 2)
         _add_heading(doc, f'{h_jpcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ JPCP/JRCP', level=2)
@@ -1123,7 +1254,9 @@ def create_full_word_report(
         _add_heading(doc, f'{h_crcp_layer}  ชั้นโครงสร้างทางคอนกรีตประเภท CRCP', level=2)
         fig_n = next_fig_num()
         caption = f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางผิวทางคอนกรีต แบบ CRCP'
-        _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP', fig_caption=caption)
+        _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP',
+                         fig_caption=caption,
+                         cbr_subgrade=crcp_subgrade.get('cbr', 3.0))
 
         h_crcp_k = _heading_num(section_prefix, sub_offset + 2)
         _add_heading(doc, f'{h_crcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ CRCP', level=2)
@@ -1136,7 +1269,6 @@ def create_full_word_report(
     # ── หัวข้อ X.X+1  สรุปโครงสร้างชั้นทาง ────────────────────────────
     if include_summary_section:
         doc.add_page_break()
-        # คำนวณหัวข้อสรุป = prefix หลัก +1
         parts = section_prefix.split('.')
         try:
             parts[-1] = str(int(parts[-1]) + 1)
@@ -1152,13 +1284,15 @@ def create_full_word_report(
             fig_n = next_fig_num()
             _add_para(doc, f'รูปแบบที่ 1: ผิวทางคอนกรีต แบบ JPCP/JRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
             _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
-                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP')
+                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP',
+                             cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
 
         if include_crcp:
             fig_n = next_fig_num()
             _add_para(doc, f'รูปแบบที่ 2: ผิวทางคอนกรีต แบบ CRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
             _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP',
-                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 2 ผิวทางคอนกรีต แบบ CRCP')
+                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 2 ผิวทางคอนกรีต แบบ CRCP',
+                             cbr_subgrade=crcp_subgrade.get('cbr', 3.0))
 
     # ── เอกสารอ้างอิง ────────────────────────────────────────────────────
     doc.add_paragraph()
