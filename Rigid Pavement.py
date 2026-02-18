@@ -21,6 +21,7 @@ import matplotlib.patches as patches
 from PIL import Image, ImageDraw
 import io
 import json
+import pandas as pd
 
 # ============================================================
 # ค่าคงที่และตารางอ้างอิง AASHTO 1993
@@ -242,8 +243,8 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
     selected_d_inch = round(selected_d_cm / 2.54)
     doc = Document()
     style = doc.styles['Normal']
-    style.font.name = 'TH Sarabun New'
-    style.font.size = Pt(14)
+    style.font.name = 'TH SarabunPSK'
+    style.font.size = Pt(15)
     
     title = doc.add_heading('รายการคำนวณออกแบบความหนาถนนคอนกรีต', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -342,7 +343,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
             run.bold = bold
             run.italic = italic
             run.font.name = 'Times New Roman'
-            run.font.size = Pt(11)
+            run.font.size = Pt(15)
             if is_sub or is_sup:
                 rPr = run._r.get_or_add_rPr()
                 vertAlign = OxmlElement('w:vertAlign')
@@ -359,7 +360,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
     # คำอธิบาย
     p_desc = doc.add_paragraph('สมการหลักที่ใช้ในการออกแบบความหนาถนนคอนกรีตตาม AASHTO 1993 มีดังนี้:')
     p_desc.runs[0].font.name = 'TH SarabunPSK'
-    p_desc.runs[0].font.size = Pt(14)
+    p_desc.runs[0].font.size = Pt(15)
 
     # บรรทัดที่ 1: log10(W18) = ZR x So + 7.35 x log10(D+1) - 0.06
     line1_parts = [
@@ -418,7 +419,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
     doc.add_paragraph()
     p_sym = doc.add_paragraph('โดยที่:')
     p_sym.runs[0].font.name = 'TH SarabunPSK'
-    p_sym.runs[0].font.size = Pt(14)
+    p_sym.runs[0].font.size = Pt(15)
 
     tbl_sym = doc.add_table(rows=1, cols=3)
     tbl_sym.style = 'Table Grid'
@@ -430,7 +431,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
         run = cell.paragraphs[0].runs[0]
         run.bold = True
         run.font.name = 'TH SarabunPSK'
-        run.font.size = Pt(14)
+        run.font.size = Pt(15)
 
     symbol_data = [
         ('W\u2081\u2088',        'จำนวนแกนเดี่ยว 18 kip ที่รองรับได้',     'ESALs'),
@@ -453,7 +454,7 @@ def create_word_report(pavement_type, inputs, calculated_values, comparison_resu
         for cell in row_s:
             run = cell.paragraphs[0].runs[0]
             run.font.name = 'TH SarabunPSK'
-            run.font.size = Pt(14)
+            run.font.size = Pt(15)
 
     doc.add_paragraph()
 
@@ -507,7 +508,7 @@ def generate_word_report_nomograph(params, img1_bytes, img2_bytes=None):
     doc = Document()
     style = doc.styles['Normal']
     style.font.name = 'TH SarabunPSK'
-    style.font.size = Pt(14)
+    style.font.size = Pt(15)
     
     title = doc.add_heading('รายการคำนวณ Corrected Modulus of Subgrade Reaction', 0)
     title.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -562,6 +563,614 @@ def generate_word_report_nomograph(params, img1_bytes, img2_bytes=None):
     doc.save(buffer)
     buffer.seek(0)
     return buffer, None
+
+# ============================================================
+# ฟังก์ชันสร้างรายงาน Word ฉบับสมบูรณ์ (พร้อมบทเกริ่นนำ + เลขหัวข้อยืดหยุ่น)
+# ============================================================
+
+DEFAULT_INTRO_TEXT = (
+    "การออกแบบความหนาแผ่นคอนกรีตตามแนวทางของ AASHTO 1993 จำเป็นต้องอาศัยสมเหตุสมผลที่"
+    "พัฒนามาจากผลการทดสอบ AASHO Road Test ซึ่งสะท้อนพฤติกรรมการรับน้ำหนักและการเสื่อมสภาพของแผ่น"
+    "คอนกรีตภายใต้สภาพการใช้งานจริง สมการดังกล่าวรวมปัจจัยสำคัญหลายด้าน ทั้งด้านปริมาณจราจร ความ"
+    "น่าเชื่อถือของการออกแบบ คุณสมบัติวัสดุ และสภาพชั้นรองรับ เพื่อให้สามารถประเมินความหนาที่เหมาะสม"
+    "สำหรับรองรับปริมาณจราจรตลอดอายุโครงการได้อย่างแม่นยำ สมการหลักที่ใช้ในการออกแบบความหนาถนน"
+    "คอนกรีตตาม AASHTO 1993 มีดังนี้"
+)
+
+DEFAULT_SUMMARY_TEXT = (
+    "จากการคำนวณตามวิธีของ AASHTO 1993 ผิวทางคอนกรีต (Concrete Pavement) สามารถสรุปรูปแบบของ"
+    "โครงสร้างชั้นทางที่ออกแบบได้ดังแสดงในตารางและรูปด้านล่าง"
+)
+
+def _get_font_name():
+    return 'TH SarabunPSK'
+
+def _heading_num(prefix, sub=None):
+    """สร้างเลขหัวข้อ เช่น prefix='4.5' sub=1 -> '4.5.1'"""
+    if sub is None:
+        return prefix
+    return f"{prefix}.{sub}"
+
+def _setup_doc_styles(doc):
+    """ตั้งค่า Font, Page A4, Margin"""
+    from docx.shared import Pt, Cm
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    font_name = _get_font_name()
+    style = doc.styles['Normal']
+    style.font.name = font_name
+    style.font.size = Pt(15)
+    # ตั้งค่า font สำหรับ East Asian
+    rPr = style.element.get_or_add_rPr()
+
+    # ตั้ง page A4 + margin
+    section = doc.sections[0]
+    section.page_width  = int(21.0 * 914400 / 25.4 * 914400 / 914400)   # 21 cm
+    section.page_height = int(29.7 * 914400 / 25.4 * 914400 / 914400)   # 29.7 cm
+    from docx.shared import Cm
+    section.page_width  = Cm(21.0)
+    section.page_height = Cm(29.7)
+    section.left_margin   = Cm(2.5)
+    section.right_margin  = Cm(2.5)
+    section.top_margin    = Cm(2.5)
+    section.bottom_margin = Cm(2.0)
+
+def _add_heading(doc, text, level=1):
+    from docx.shared import Pt, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    p = doc.add_heading(text, level=level)
+    p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    for run in p.runs:
+        run.font.name = _get_font_name()
+        run.font.size = Pt(15 if level >= 2 else 17)
+        run.font.color.rgb = RGBColor(0, 0, 0)
+    return p
+
+def _add_para(doc, text, bold=False, italic=False, indent_cm=0):
+    from docx.shared import Pt, Cm
+    p = doc.add_paragraph()
+    run = p.add_run(text)
+    run.bold = bold
+    run.italic = italic
+    run.font.name = _get_font_name()
+    run.font.size = Pt(15)
+    if indent_cm > 0:
+        p.paragraph_format.left_indent = Cm(indent_cm)
+    return p
+
+def _add_equation_section(doc):
+    """เพิ่มสมการ AASHTO 1993 พร้อม subscript/superscript และตารางสัญลักษณ์"""
+    from docx.shared import Pt
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    def _eq_run(p, text, sub=False, sup=False, bold=False):
+        run = p.add_run(text)
+        run.font.name = 'TH SarabunPSK'
+        run.font.size = Pt(15)
+        run.bold = bold
+        if sub or sup:
+            rPr = run._r.get_or_add_rPr()
+            va = OxmlElement('w:vertAlign')
+            va.set(qn('w:val'), 'subscript' if sub else 'superscript')
+            rPr.append(va)
+        return run
+
+    def eq_line(indent=True):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        if indent:
+            p.paragraph_format.left_indent = Pt(36)
+        return p
+
+    # บรรทัด 1
+    p1 = eq_line()
+    _eq_run(p1, 'log')
+    _eq_run(p1, '10', sub=True)
+    _eq_run(p1, '(W')
+    _eq_run(p1, '18', sub=True)
+    _eq_run(p1, ') = Z')
+    _eq_run(p1, 'R', sub=True)
+    _eq_run(p1, ' × S')
+    _eq_run(p1, 'o', sub=True)
+    _eq_run(p1, ' + 7.35 × log')
+    _eq_run(p1, '10', sub=True)
+    _eq_run(p1, '(D+1) - 0.06')
+
+    # บรรทัด 2
+    p2 = eq_line()
+    _eq_run(p2, '        + log')
+    _eq_run(p2, '10', sub=True)
+    _eq_run(p2, '(ΔPSI/(4.5-1.5)) / (1 + 1.624×10')
+    _eq_run(p2, '7', sup=True)
+    _eq_run(p2, '/(D+1)')
+    _eq_run(p2, '8.46', sup=True)
+    _eq_run(p2, ')')
+
+    # บรรทัด 3
+    p3 = eq_line()
+    _eq_run(p3, '        + (4.22 - 0.32×P')
+    _eq_run(p3, 't', sub=True)
+    _eq_run(p3, ') × log')
+    _eq_run(p3, '10', sub=True)
+    _eq_run(p3, '[(S')
+    _eq_run(p3, 'c', sub=True)
+    _eq_run(p3, '×C')
+    _eq_run(p3, 'd', sub=True)
+    _eq_run(p3, '×(D')
+    _eq_run(p3, '0.75', sup=True)
+    _eq_run(p3, '-1.132))/(215.63×J×(D')
+    _eq_run(p3, '0.75', sup=True)
+    _eq_run(p3, ' - 18.42/(E')
+    _eq_run(p3, 'c', sub=True)
+    _eq_run(p3, '/k)')
+    _eq_run(p3, '0.25', sup=True)
+    _eq_run(p3, ')]')
+
+    doc.add_paragraph()
+    _add_para(doc, 'โดยที่:')
+
+    # ตารางสัญลักษณ์
+    from docx.shared import Pt
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    border_color = "000000"
+    def set_cell(cell, text, bold=False):
+        cell.text = text
+        for run in cell.paragraphs[0].runs:
+            run.font.name = _get_font_name()
+            run.font.size = Pt(15)
+            run.bold = bold
+
+    hdr = tbl.rows[0].cells
+    set_cell(hdr[0], 'สัญลักษณ์', bold=True)
+    set_cell(hdr[1], 'ความหมาย', bold=True)
+    set_cell(hdr[2], 'หน่วย', bold=True)
+
+    symbols = [
+        ('W₁₈',  'จำนวนแกนเดี่ยว 18 kip ที่รองรับได้',        'ESALs'),
+        ('ZR',   'Standard Normal Deviate ที่ความเชื่อมั่น R', '-'),
+        ('So',   'Overall Standard Deviation',                  '-'),
+        ('D',    'ความหนาแผ่นคอนกรีต',                          'นิ้ว'),
+        ('ΔPSI', 'การสูญเสีย Serviceability (4.5 - Pt)',        '-'),
+        ('Pt',   'Terminal Serviceability Index',                '-'),
+        ('Sc',   'Modulus of Rupture ของคอนกรีต',               'psi'),
+        ('Cd',   'Drainage Coefficient',                         '-'),
+        ('J',    'Load Transfer Coefficient',                    '-'),
+        ('Ec',   'Modulus of Elasticity ของคอนกรีต',            'psi'),
+        ('k',    'Modulus of Subgrade Reaction',                 'pci'),
+    ]
+    for sym, meaning, unit in symbols:
+        row = tbl.add_row().cells
+        set_cell(row[0], sym)
+        set_cell(row[1], meaning)
+        set_cell(row[2], unit)
+
+    doc.add_paragraph()
+
+def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption=""):
+    """เพิ่มตารางชั้นโครงสร้างทาง + รูปตัดขวาง ในรูปแบบเดียวกับภาพตัวอย่าง"""
+    from docx.shared import Pt, Inches, RGBColor
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    # ตารางข้อมูล
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    def set_cell(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER):
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = align
+        run = p.add_run(text)
+        run.font.name = _get_font_name()
+        run.font.size = Pt(15)
+        run.bold = bold
+
+    hdr = tbl.rows[0].cells
+    set_cell(hdr[0], 'รายละเอียด', bold=True)
+    set_cell(hdr[1], 'หนา (ซม.)', bold=True)
+    set_cell(hdr[2], 'ชนิด', bold=True)
+
+    # แถวคอนกรีต
+    row = tbl.add_row().cells
+    set_cell(row[0], f'ผิวทางคอนกรีต ({pavement_type})')
+    set_cell(row[1], str(d_cm))
+    fc_text = f'กำลังอัด Cube ≥ {d_cm} ซม.'
+    set_cell(row[2], f'Concrete Slab {d_cm} cm')
+
+    # แถวชั้นอื่นๆ
+    for layer in layers_data:
+        if layer.get('thickness_cm', 0) > 0:
+            row = tbl.add_row().cells
+            set_cell(row[0], '')
+            set_cell(row[1], str(layer.get('thickness_cm', 0)))
+            set_cell(row[2], layer.get('name', ''))
+
+    # แถว Subgrade
+    row = tbl.add_row().cells
+    set_cell(row[0], '')
+    set_cell(row[1], 'Existing')
+    set_cell(row[2], 'Earth Embankment or Subgrade')
+
+    doc.add_paragraph()
+
+    # รูปตัดขวาง
+    fig = create_pavement_structure_figure(layers_data, d_cm)
+    if fig:
+        img_buf = BytesIO()
+        fig.savefig(img_buf, format='png', dpi=150, bbox_inches='tight', facecolor='white')
+        img_buf.seek(0)
+        p_img = doc.add_paragraph()
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        from docx.shared import Inches
+        run_img = p_img.add_run()
+        run_img.add_picture(img_buf, width=Inches(4.5))
+        plt.close(fig)
+
+    if fig_caption:
+        p_cap = doc.add_paragraph(fig_caption)
+        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        for run in p_cap.runs:
+            run.font.name = _get_font_name()
+            run.font.size = Pt(15)
+            run.bold = True
+
+def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None):
+    """เพิ่มหัวข้อการคำนวณ k-value (Nomograph)"""
+    from docx.shared import Pt, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+
+    def set_cell(cell, text, bold=False):
+        cell.text = text
+        for run in cell.paragraphs[0].runs:
+            run.font.name = _get_font_name()
+            run.font.size = Pt(15)
+            run.bold = bold
+
+    # ตาราง Step 1
+    _add_para(doc, 'ขั้นตอนที่ 1: หาค่า Composite Modulus of Subgrade Reaction (k∞)', bold=True)
+    tbl1 = doc.add_table(rows=1, cols=3)
+    tbl1.style = 'Table Grid'
+    tbl1.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr = tbl1.rows[0].cells
+    set_cell(hdr[0], 'พารามิเตอร์', bold=True)
+    set_cell(hdr[1], 'ค่า', bold=True)
+    set_cell(hdr[2], 'หน่วย', bold=True)
+    data1 = [
+        ('Roadbed Soil Resilient Modulus (MR)', f"{params.get('MR', 0):,.0f}", 'psi'),
+        ('Subbase Elastic Modulus (ESB)',        f"{params.get('ESB', 0):,.0f}", 'psi'),
+        ('Subbase Thickness (DSB)',              f"{params.get('DSB', 0):.1f}",  'inches'),
+        ('Composite Modulus k∞',                f"{params.get('k_inf', 0):,.0f}", 'pci'),
+    ]
+    for p_name, val, unit in data1:
+        row = tbl1.add_row().cells
+        set_cell(row[0], p_name); set_cell(row[1], val); set_cell(row[2], unit)
+
+    if img1_bytes:
+        doc.add_paragraph()
+        p_img = doc.add_paragraph()
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.add_run().add_picture(io.BytesIO(img1_bytes), width=Inches(5.0))
+
+    doc.add_paragraph()
+
+    # ตาราง Step 2
+    _add_para(doc, 'ขั้นตอนที่ 2: ปรับแก้ค่า Loss of Support (LS)', bold=True)
+    tbl2 = doc.add_table(rows=1, cols=3)
+    tbl2.style = 'Table Grid'
+    tbl2.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr2 = tbl2.rows[0].cells
+    set_cell(hdr2[0], 'พารามิเตอร์', bold=True)
+    set_cell(hdr2[1], 'ค่า', bold=True)
+    set_cell(hdr2[2], 'หน่วย', bold=True)
+    data2 = [
+        ('Effective Modulus k∞ (จาก Step 1)',    f"{params.get('k_inf', 0):,.0f}",       'pci'),
+        ('Loss of Support Factor (LS)',            f"{params.get('LS_factor', 0):.1f}",   '-'),
+        ('Corrected Modulus k (ที่ใช้ออกแบบ)',   f"{params.get('k_corrected', 0):,.0f}", 'pci'),
+    ]
+    for p_name, val, unit in data2:
+        row = tbl2.add_row().cells
+        set_cell(row[0], p_name); set_cell(row[1], val); set_cell(row[2], unit)
+
+    if img2_bytes:
+        doc.add_paragraph()
+        p_img = doc.add_paragraph()
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.add_run().add_picture(io.BytesIO(img2_bytes), width=Inches(5.0))
+
+    doc.add_paragraph()
+
+def _add_design_result_section(doc, inputs, calculated_values, comparison_results,
+                                selected_d_cm, main_result, layers_data, subgrade_info):
+    """เพิ่มตารางผลการคำนวณออกแบบ"""
+    from docx.shared import Pt, RGBColor
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    def set_cell(cell, text, bold=False, bg_color=None):
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = p.add_run(text)
+        run.font.name = _get_font_name()
+        run.font.size = Pt(15)
+        run.bold = bold
+        if bg_color:
+            tc = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear')
+            shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), bg_color)
+            tcPr.append(shd)
+
+    # ตาราง input
+    _add_para(doc, 'ข้อมูลนำเข้าการออกแบบ:', bold=True)
+    tbl_in = doc.add_table(rows=1, cols=4)
+    tbl_in.style = 'Table Grid'
+    tbl_in.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr = tbl_in.rows[0].cells
+    for i, t in enumerate(['พารามิเตอร์', 'สัญลักษณ์', 'ค่า', 'หน่วย']):
+        set_cell(hdr[i], t, bold=True, bg_color='DDEEFF')
+
+    input_rows = [
+        ('ESAL ออกแบบ',                 'W₁₈',    f"{inputs['w18_design']:,.0f}",  'ESALs'),
+        ('Terminal Serviceability',       'Pt',     f"{inputs['pt']:.1f}",            '-'),
+        ('Reliability',                   'R',      f"{inputs['reliability']:.0f}",   '%'),
+        ('Standard Deviation',            'So',     f"{inputs['so']:.2f}",            '-'),
+        ('Modulus of Subgrade Reaction',  'k_eff',  f"{inputs['k_eff']:,.0f}",        'pci'),
+        ('Loss of Support',               'LS',     f"{inputs.get('ls', 1.0):.1f}",   '-'),
+        ('กำลังคอนกรีต (Cube)',           "f'c",   f"{inputs['fc_cube']:.0f}",        'ksc'),
+        ('Modulus of Rupture',            'Sc',     f"{inputs['sc']:.0f}",            'psi'),
+        ('Load Transfer Coefficient',     'J',      f"{inputs['j']:.1f}",             '-'),
+        ('Drainage Coefficient',          'Cd',     f"{inputs['cd']:.1f}",            '-'),
+        ('Modulus of Elasticity',         'Ec',     f"{calculated_values['ec']:,.0f}", 'psi'),
+    ]
+    for row_data in input_rows:
+        row = tbl_in.add_row().cells
+        for i, txt in enumerate(row_data):
+            set_cell(row[i], txt)
+
+    doc.add_paragraph()
+
+    # ตารางผลการตรวจสอบความหนา
+    _add_para(doc, 'ผลการตรวจสอบความหนาแผ่นคอนกรีต:', bold=True)
+    tbl_res = doc.add_table(rows=1, cols=6)
+    tbl_res.style = 'Table Grid'
+    tbl_res.alignment = WD_TABLE_ALIGNMENT.CENTER
+    hdr = tbl_res.rows[0].cells
+    for i, t in enumerate(['D (ซม.)', 'D (นิ้ว)', 'log₁₀(W₁₈)', 'W₁₈ รองรับได้', 'อัตราส่วน', 'ผล']):
+        set_cell(hdr[i], t, bold=True, bg_color='DDEEFF')
+
+    for r in comparison_results:
+        row = tbl_res.add_row().cells
+        passed_color = 'CCFFCC' if r['passed'] else 'FFCCCC'
+        is_selected = (r['d_cm'] == selected_d_cm)
+        bg = 'FFFFAA' if is_selected else None
+        set_cell(row[0], f"{r['d_cm']:.0f}", bold=is_selected, bg_color=bg)
+        set_cell(row[1], f"{r['d_inch']:.0f}", bg_color=bg)
+        set_cell(row[2], f"{r['log_w18']:.4f}", bg_color=bg)
+        set_cell(row[3], f"{r['w18']:,.0f}", bg_color=bg)
+        set_cell(row[4], f"{r['ratio']:.2f}", bg_color=bg)
+        set_cell(row[5], "ผ่าน ✓" if r['passed'] else "ไม่ผ่าน ✗", bg_color=passed_color)
+
+    doc.add_paragraph()
+
+    # สรุปผล
+    passed, ratio = main_result
+    selected_d_inch = round(selected_d_cm / 2.54)
+    w18_cap = next((r['w18'] for r in comparison_results if r['d_cm'] == selected_d_cm), 0)
+
+    _add_para(doc, 'สรุปผลการออกแบบ:', bold=True)
+    summary_items = [
+        f"ความหนาที่เลือก: {selected_d_cm:.0f} ซม. ({selected_d_inch:.0f} นิ้ว)",
+        f"ESAL ที่ต้องการ: {inputs['w18_design']:,.0f} ESALs",
+        f"ESAL ที่รองรับได้: {w18_cap:,.0f} ESALs",
+        f"อัตราส่วน W₁₈ รองรับ / W₁₈ ที่ต้องการ = {ratio:.2f}",
+        f"ผลการตรวจสอบ: {'✅ ผ่านเกณฑ์' if passed else '❌ ไม่ผ่านเกณฑ์'}",
+    ]
+    for item in summary_items:
+        _add_para(doc, f"   {item}")
+
+    doc.add_paragraph()
+
+
+def create_full_word_report(
+    # ข้อมูลหัวข้อ
+    section_prefix,        # เช่น "4.5"
+    fig_prefix,            # เช่น "4-"
+    fig_start_num,         # เช่น 5
+    intro_text,            # บทเกริ่นนำ
+    summary_text,          # บทสรุป
+
+    # ข้อมูลโครงการ
+    project_name,
+    pavement_type,
+
+    # ข้อมูล JPCP/JRCP
+    include_jpcp,
+    jpcp_layers_data,
+    jpcp_d_cm,
+    jpcp_inputs,
+    jpcp_calc,
+    jpcp_comparison,
+    jpcp_result,
+    jpcp_subgrade,
+    jpcp_nomo_params,
+    img1_bytes_jpcp,
+    img2_bytes_jpcp,
+
+    # ข้อมูล CRCP
+    include_crcp,
+    crcp_layers_data,
+    crcp_d_cm,
+    crcp_inputs,
+    crcp_calc,
+    crcp_comparison,
+    crcp_result,
+    crcp_subgrade,
+    crcp_nomo_params,
+    img1_bytes_crcp,
+    img2_bytes_crcp,
+
+    # ตัวเลือกเพิ่มเติม
+    include_summary_section,
+):
+    try:
+        from docx import Document
+        from docx.shared import Pt, Inches
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+    except ImportError:
+        return None, "กรุณาติดตั้ง python-docx: pip install python-docx"
+
+    doc = Document()
+    _setup_doc_styles(doc)
+
+    fig_counter = [fig_start_num]
+
+    def next_fig_num():
+        n = fig_counter[0]
+        fig_counter[0] += 1
+        return n
+
+    # ── หน้าปก ──────────────────────────────────────────────────────────
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.shared import Pt
+
+    p_title = doc.add_paragraph()
+    p_title.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_title = p_title.add_run('รายการคำนวณออกแบบ\nผิวทางคอนกรีต')
+    run_title.font.name = _get_font_name()
+    run_title.font.size = Pt(20)
+    run_title.bold = True
+
+    doc.add_paragraph()
+    p_sub = doc.add_paragraph()
+    p_sub.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_sub = p_sub.add_run('ตามวิธี AASHTO 1993')
+    run_sub.font.name = _get_font_name()
+    run_sub.font.size = Pt(16)
+
+    if project_name:
+        doc.add_paragraph()
+        p_proj = doc.add_paragraph()
+        p_proj.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p_proj.add_run(f'โครงการ: {project_name}')
+        r.font.name = _get_font_name()
+        r.font.size = Pt(15)
+
+    doc.add_paragraph()
+    p_date = doc.add_paragraph()
+    p_date.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    r = p_date.add_run(f'วันที่: {datetime.now().strftime("%d/%m/%Y")}')
+    r.font.name = _get_font_name()
+    r.font.size = Pt(15)
+
+    from docx.shared import PageBreak as DocxPageBreak
+    doc.add_page_break()
+
+    # ── หัวข้อ X.X  การออกแบบผิวทางคอนกรีต ────────────────────────────
+    h_main = _heading_num(section_prefix)
+    _add_heading(doc, f'{h_main}  การออกแบบผิวทางคอนกรีต', level=1)
+
+    # บทเกริ่นนำ
+    _add_para(doc, intro_text, indent_cm=0)
+    doc.add_paragraph()
+
+    # สมการ
+    _add_equation_section(doc)
+
+    # คำอธิบายประเภทถนน
+    _add_para(doc, (
+        'โดยมาตรฐานการออกแบบตามวิธี AASHTO 1993 ได้แนกโครงสร้างทางคอนกรีตออกเป็นหลายรูปแบบตาม'
+        'ลักษณะการควบคุมความแตกร้าวและการถ่ายแรงระหว่างแผ่นคอนกรีต แต่ละประเภทมีแนวคิดการออกแบบ'
+        'และยุทธวิธีดำเนินโครงการสร้างที่แตกต่างกัน โครงสร้างทางคอนกรีต 3 ประเภทหลักสำหรับการคำนวณ'
+        ' ได้แก่ Jointed Plain Concrete Pavement (JPCP), Jointed Reinforced Concrete Pavement (JRCP) '
+        'และ Continuously Reinforced Concrete Pavement (CRCP)'
+    ))
+    doc.add_paragraph()
+
+    # ── JPCP/JRCP ────────────────────────────────────────────────────────
+    if include_jpcp:
+        h_jpcp_layer = _heading_num(section_prefix, 1)
+        _add_heading(doc, f'{h_jpcp_layer}  ชั้นโครงสร้างทางคอนกรีตประเภท JPCP/JRCP', level=2)
+        fig_n = next_fig_num()
+        caption = f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางผิวทางคอนกรีต แบบ JPCP/JRCP'
+        _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type, fig_caption=caption)
+
+        h_jpcp_k = _heading_num(section_prefix, 2)
+        _add_heading(doc, f'{h_jpcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ JPCP/JRCP', level=2)
+        _add_kvalue_section(doc, jpcp_nomo_params, img1_bytes_jpcp, img2_bytes_jpcp)
+
+        # ผลการออกแบบ JPCP
+        _add_heading(doc, f'ผลการออกแบบความหนาผิวทางคอนกรีต JPCP/JRCP', level=3)
+        _add_design_result_section(doc, jpcp_inputs, jpcp_calc, jpcp_comparison,
+                                   jpcp_d_cm, jpcp_result, jpcp_layers_data, jpcp_subgrade)
+
+    # ── CRCP ─────────────────────────────────────────────────────────────
+    if include_crcp:
+        sub_offset = 2 if include_jpcp else 0
+        h_crcp_layer = _heading_num(section_prefix, sub_offset + 1)
+        _add_heading(doc, f'{h_crcp_layer}  ชั้นโครงสร้างทางคอนกรีตประเภท CRCP', level=2)
+        fig_n = next_fig_num()
+        caption = f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางผิวทางคอนกรีต แบบ CRCP'
+        _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP', fig_caption=caption)
+
+        h_crcp_k = _heading_num(section_prefix, sub_offset + 2)
+        _add_heading(doc, f'{h_crcp_k}  การคำนวณ Corrected Modulus of Subgrade Reaction (k-value) สำหรับ CRCP', level=2)
+        _add_kvalue_section(doc, crcp_nomo_params, img1_bytes_crcp, img2_bytes_crcp)
+
+        _add_heading(doc, f'ผลการออกแบบความหนาผิวทางคอนกรีต CRCP', level=3)
+        _add_design_result_section(doc, crcp_inputs, crcp_calc, crcp_comparison,
+                                   crcp_d_cm, crcp_result, crcp_layers_data, crcp_subgrade)
+
+    # ── หัวข้อ X.X+1  สรุปโครงสร้างชั้นทาง ────────────────────────────
+    if include_summary_section:
+        doc.add_page_break()
+        # คำนวณหัวข้อสรุป = prefix หลัก +1
+        parts = section_prefix.split('.')
+        try:
+            parts[-1] = str(int(parts[-1]) + 1)
+            h_summary = '.'.join(parts)
+        except Exception:
+            h_summary = section_prefix + '_สรุป'
+
+        _add_heading(doc, f'{h_summary}  สรุปโครงสร้างชั้นทางที่ออกแบบด้วยวิธี AASHTO 1993', level=1)
+        _add_para(doc, summary_text)
+        doc.add_paragraph()
+
+        if include_jpcp:
+            fig_n = next_fig_num()
+            _add_para(doc, f'รูปแบบที่ 1: ผิวทางคอนกรีต แบบ JPCP/JRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
+            _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
+                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP')
+
+        if include_crcp:
+            fig_n = next_fig_num()
+            _add_para(doc, f'รูปแบบที่ 2: ผิวทางคอนกรีต แบบ CRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
+            _add_layer_table(doc, crcp_layers_data, crcp_d_cm, 'CRCP',
+                             fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 2 ผิวทางคอนกรีต แบบ CRCP')
+
+    # ── เอกสารอ้างอิง ────────────────────────────────────────────────────
+    doc.add_paragraph()
+    _add_para(doc, 'เอกสารอ้างอิง', bold=True)
+    _add_para(doc, 'AASHTO Guide for Design of Pavement Structures 1993. American Association of State Highway and Transportation Officials, Washington, D.C.')
+
+    buffer = BytesIO()
+    doc.save(buffer)
+    buffer.seek(0)
+    return buffer, None
+
 
 # ============================================================
 # Main Application
@@ -654,9 +1263,9 @@ def main():
     
     
     # Define Tabs
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([
+    tab1, tab2, tab3, tab4, tab5, tab_report = st.tabs([
         "🔢 AASHTO Calculator", "📊 Nomograph: Composite k∞", "📉 Nomograph: Loss of Support",
-        "💾 บันทึกโปรเจกต์", "📋 คู่มือการใช้งาน"
+        "💾 บันทึกโปรเจกต์", "📋 คู่มือการใช้งาน", "📄 สร้างรายงาน"
     ])
     
     # =========================================================
@@ -841,7 +1450,6 @@ def main():
                 passed, ratio = check_design(w18_design, w18_capacity)
                 comparison_results.append({'d_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18, 'w18': w18_capacity, 'passed': passed, 'ratio': ratio})
             
-            import pandas as pd
             df = pd.DataFrame([{
                 'D (ซม.)': r['d_cm'], 'D (นิ้ว)': r['d_inch'], 'log₁₀(W₁₈)': f"{r['log_w18']:.4f}",
                 'W₁₈ รองรับได้': f"{r['w18']:,.0f}", 'อัตราส่วน': f"{r['ratio']:.2f}", 'ผล': "✅" if r['passed'] else "❌"
@@ -1093,6 +1701,284 @@ def main():
         **Reference:** AASHTO Guide for Design of Pavement Structures 1993
         """)
     
+    # =========================================================
+    # TAB REPORT: สร้างรายงาน Word ฉบับสมบูรณ์
+    # =========================================================
+    with tab_report:
+        st.header("📄 สร้างรายงาน Word ฉบับสมบูรณ์")
+        st.info("รายงานครบถ้วน: บทเกริ่นนำ + สมการ + ชั้นโครงสร้างทาง + k-value + สรุป (ไฟล์เดียว)")
+
+        col_cfg, col_preview = st.columns([1, 1])
+
+        with col_cfg:
+            st.subheader("⚙️ ตั้งค่ารายงาน")
+
+            with st.expander("🔢 เลขหัวข้อและเลขรูป", expanded=True):
+                rpt_prefix = st.text_input(
+                    "Prefix หัวข้อหลัก (เช่น 4.5)",
+                    value=st.session_state.get('rpt_prefix', '4.5'),
+                    key='rpt_prefix',
+                    help="ระบบจะสร้าง 4.5.1, 4.5.2 ... อัตโนมัติ"
+                )
+                col_fig1, col_fig2 = st.columns(2)
+                with col_fig1:
+                    rpt_fig_prefix = st.text_input(
+                        "Prefix เลขรูป (เช่น 4-)",
+                        value=st.session_state.get('rpt_fig_prefix', '4-'),
+                        key='rpt_fig_prefix'
+                    )
+                with col_fig2:
+                    rpt_fig_start = st.number_input(
+                        "เริ่มที่รูปที่",
+                        min_value=1, max_value=99,
+                        value=st.session_state.get('rpt_fig_start', 5),
+                        step=1, key='rpt_fig_start'
+                    )
+                st.caption(f"ตัวอย่าง: รูปที่ {rpt_fig_prefix}{rpt_fig_start}, {rpt_fig_prefix}{rpt_fig_start+1} ...")
+
+            with st.expander("📝 บทเกริ่นนำ", expanded=True):
+                rpt_intro = st.text_area(
+                    "เนื้อหาบทเกริ่นนำ (แก้ไขได้)",
+                    value=st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
+                    height=180,
+                    key='rpt_intro'
+                )
+
+            with st.expander("📋 บทสรุป (หัวข้อสรุปโครงสร้างชั้นทาง)", expanded=False):
+                rpt_summary_text = st.text_area(
+                    "เนื้อหาบทสรุป",
+                    value=st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
+                    height=100,
+                    key='rpt_summary_text'
+                )
+
+            st.markdown("---")
+            st.subheader("📑 เลือกเนื้อหาที่รวมในรายงาน")
+
+            rpt_include_jpcp = st.checkbox(
+                "✅ รวม JPCP/JRCP (จากข้อมูล Tab 1)",
+                value=st.session_state.get('rpt_include_jpcp', True),
+                key='rpt_include_jpcp'
+            )
+            rpt_include_crcp = st.checkbox(
+                "⬜ รวม CRCP (ต้องกรอกข้อมูลแยก)",
+                value=st.session_state.get('rpt_include_crcp', False),
+                key='rpt_include_crcp'
+            )
+            rpt_include_summary = st.checkbox(
+                "✅ รวมหัวข้อสรุปโครงสร้างชั้นทาง",
+                value=st.session_state.get('rpt_include_summary', True),
+                key='rpt_include_summary'
+            )
+
+            # ข้อมูล CRCP แยก (ถ้าเลือก)
+            if rpt_include_crcp:
+                st.markdown("---")
+                st.subheader("🔧 ข้อมูล CRCP (แยกจาก JPCP)")
+                st.caption("กรอกข้อมูล CRCP หากแตกต่างจาก JPCP")
+                crcp_d_manual = st.number_input(
+                    "ความหนา CRCP (ซม.)", 20, 40,
+                    value=st.session_state.get('rpt_crcp_d', 28),
+                    key='rpt_crcp_d'
+                )
+                crcp_k_manual = st.number_input(
+                    "k_eff CRCP (pci)", 50, 1000,
+                    value=st.session_state.get('rpt_crcp_k', 200),
+                    step=25, key='rpt_crcp_k'
+                )
+
+        with col_preview:
+            st.subheader("👁️ ตัวอย่างโครงสร้างรายงาน")
+            prev_lines = [
+                f"📄 **หน้าปก**",
+                f"────────────────────────────",
+                f"**{rpt_prefix}**  การออกแบบผิวทางคอนกรีต",
+                f"   *(บทเกริ่นนำ + สมการ AASHTO 1993)*",
+                f"",
+            ]
+            sub_n = 1
+            if rpt_include_jpcp:
+                prev_lines += [
+                    f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง JPCP/JRCP",
+                    f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start})*",
+                    f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ JPCP/JRCP",
+                    f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*",
+                    f"",
+                ]
+                sub_n += 2
+            if rpt_include_crcp:
+                prev_lines += [
+                    f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง CRCP",
+                    f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start + (2 if rpt_include_jpcp else 0)})*",
+                    f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ CRCP",
+                    f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*",
+                    f"",
+                ]
+                sub_n += 2
+            if rpt_include_summary:
+                try:
+                    parts = rpt_prefix.split('.')
+                    parts[-1] = str(int(parts[-1]) + 1)
+                    h_sum = '.'.join(parts)
+                except Exception:
+                    h_sum = rpt_prefix + '_สรุป'
+                prev_lines += [
+                    f"**{h_sum}**  สรุปโครงสร้างชั้นทาง AASHTO 1993",
+                    f"   *(ตาราง + รูปตัดขวาง รูปแบบที่ 1-2)*",
+                ]
+            st.markdown('\n'.join(prev_lines))
+
+            st.markdown("---")
+            st.caption("🔴 หมายเหตุ: รายงานใช้ข้อมูลจาก Tab 1 (AASHTO Calculator) และ Tab 2-3 (Nomograph)")
+
+        st.markdown("---")
+
+        # ── ปุ่มสร้างรายงาน ──────────────────────────────────────────────
+        if st.button("📄 สร้างรายงาน Word (ฉบับสมบูรณ์)", type="primary", use_container_width=True):
+            with st.spinner("กำลังสร้างรายงาน..."):
+                # รวบรวมข้อมูลจาก session_state (Tab 1)
+                proj_name_r   = st.session_state.get('calc_project_name', '')
+                pave_type_r   = st.session_state.get('calc_pave_type', 'JPCP')
+                num_layers_r  = st.session_state.get('calc_num_layers', 5)
+                layers_r      = [
+                    {
+                        "name": st.session_state.get(f'calc_layer_name_{i}', ''),
+                        "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
+                        "E_MPa": st.session_state.get(
+                            f'calc_layer_E_{i}_{st.session_state.get(f"calc_layer_name_{i}", "")}', 100
+                        )
+                    }
+                    for i in range(num_layers_r)
+                ]
+                w18_r    = st.session_state.get('calc_w18', 500000)
+                pt_r     = st.session_state.get('calc_pt', 2.0)
+                rel_r    = st.session_state.get('calc_reliability', 90)
+                so_r     = st.session_state.get('calc_so', 0.35)
+                k_eff_r  = st.session_state.get('calc_k_eff', 200)
+                ls_r     = st.session_state.get('calc_ls', 1.0)
+                fc_r     = st.session_state.get('calc_fc', 350)
+                sc_r     = st.session_state.get('calc_sc', 600)
+                j_r      = st.session_state.get('calc_j', 2.8)
+                cd_r     = st.session_state.get('calc_cd', 1.0)
+                d_r      = st.session_state.get('calc_d', 30)
+                cbr_r    = st.session_state.get('calc_cbr', 4.0)
+
+                # คำนวณค่า
+                fc_cyl_r = convert_cube_to_cylinder(fc_r)
+                ec_r     = calculate_concrete_modulus(fc_cyl_r)
+                zr_r     = get_zr_value(rel_r)
+                dpsi_r   = 4.5 - pt_r
+                mr_r     = 1500 * cbr_r if cbr_r < 10 else 1000 + 555 * cbr_r
+
+                inputs_r = {
+                    'w18_design': w18_r, 'pt': pt_r, 'reliability': rel_r, 'so': so_r,
+                    'k_eff': k_eff_r, 'ls': ls_r, 'fc_cube': fc_r, 'sc': sc_r, 'j': j_r, 'cd': cd_r
+                }
+                calc_r = {'fc_cylinder': fc_cyl_r, 'ec': ec_r, 'zr': zr_r, 'delta_psi': dpsi_r}
+                subgrade_r = {'cbr': cbr_r, 'mr_psi': mr_r, 'mr_mpa': mr_r / 145.038}
+
+                # คำนวณตารางเปรียบเทียบ
+                thicknesses_cm = [20, 22, 25, 28, 30, 32, 35, 38, 40]
+                comparison_r = []
+                for d_cm in thicknesses_cm:
+                    d_inch = round(d_cm / 2.54)
+                    log_w18, w18_cap = calculate_aashto_rigid_w18(
+                        d_inch, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r
+                    )
+                    passed, ratio = check_design(w18_r, w18_cap)
+                    comparison_r.append({
+                        'd_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
+                        'w18': w18_cap, 'passed': passed, 'ratio': ratio
+                    })
+
+                d_inch_sel = round(d_r / 2.54)
+                log_w18_sel, w18_sel = calculate_aashto_rigid_w18(
+                    d_inch_sel, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r
+                )
+                passed_sel, ratio_sel = check_design(w18_r, w18_sel)
+                main_result_r = (passed_sel, ratio_sel)
+
+                # Nomograph params
+                nomo_r = {
+                    'MR':          st.session_state.get('nomo_mr', 7000),
+                    'ESB':         st.session_state.get('nomo_esb', 50000),
+                    'DSB':         st.session_state.get('nomo_dsb', 6.0),
+                    'k_inf':       st.session_state.get('k_inf_result', 400),
+                    'LS_factor':   st.session_state.get('ls_select_box', 1.0),
+                    'k_corrected': st.session_state.get('k_corr_input', 300),
+                }
+
+                # ข้อมูล CRCP (ถ้าเลือก)
+                crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
+                crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
+                crcp_inputs  = {**inputs_r, 'k_eff': crcp_k_use}
+                crcp_ec      = calculate_concrete_modulus(convert_cube_to_cylinder(fc_r))
+                crcp_comp    = []
+                for d_cm in thicknesses_cm:
+                    d_inch = round(d_cm / 2.54)
+                    log_w18, w18_cap = calculate_aashto_rigid_w18(
+                        d_inch, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, 2.5, crcp_ec, crcp_k_use
+                    )
+                    passed, ratio = check_design(w18_r, w18_cap)
+                    crcp_comp.append({
+                        'd_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
+                        'w18': w18_cap, 'passed': passed, 'ratio': ratio
+                    })
+                d_inch_crcp  = round(crcp_d_use / 2.54)
+                lw_crcp, w18_crcp = calculate_aashto_rigid_w18(
+                    d_inch_crcp, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, 2.5, crcp_ec, crcp_k_use
+                )
+                passed_crcp, ratio_crcp = check_design(w18_r, w18_crcp)
+
+                try:
+                    buf, err = create_full_word_report(
+                        section_prefix    = st.session_state.get('rpt_prefix', '4.5'),
+                        fig_prefix        = st.session_state.get('rpt_fig_prefix', '4-'),
+                        fig_start_num     = int(st.session_state.get('rpt_fig_start', 5)),
+                        intro_text        = st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
+                        summary_text      = st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
+                        project_name      = proj_name_r,
+                        pavement_type     = pave_type_r,
+                        include_jpcp      = st.session_state.get('rpt_include_jpcp', True),
+                        jpcp_layers_data  = layers_r,
+                        jpcp_d_cm         = d_r,
+                        jpcp_inputs       = inputs_r,
+                        jpcp_calc         = calc_r,
+                        jpcp_comparison   = comparison_r,
+                        jpcp_result       = main_result_r,
+                        jpcp_subgrade     = subgrade_r,
+                        jpcp_nomo_params  = nomo_r,
+                        img1_bytes_jpcp   = st.session_state.get('img1_bytes'),
+                        img2_bytes_jpcp   = st.session_state.get('img2_bytes'),
+                        include_crcp      = st.session_state.get('rpt_include_crcp', False),
+                        crcp_layers_data  = layers_r,
+                        crcp_d_cm         = crcp_d_use,
+                        crcp_inputs       = crcp_inputs,
+                        crcp_calc         = {**calc_r, 'ec': crcp_ec},
+                        crcp_comparison   = crcp_comp,
+                        crcp_result       = (passed_crcp, ratio_crcp),
+                        crcp_subgrade     = subgrade_r,
+                        crcp_nomo_params  = nomo_r,
+                        img1_bytes_crcp   = st.session_state.get('img1_bytes'),
+                        img2_bytes_crcp   = st.session_state.get('img2_bytes'),
+                        include_summary_section = st.session_state.get('rpt_include_summary', True),
+                    )
+                    if err:
+                        st.error(f"❌ ข้อผิดพลาด: {err}")
+                    elif buf:
+                        filename = f"AASHTO_Report_{proj_name_r or 'Project'}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+                        st.success("✅ สร้างรายงานสำเร็จ!")
+                        st.download_button(
+                            "⬇️ ดาวน์โหลดรายงาน Word (ฉบับสมบูรณ์)",
+                            buf, filename,
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            use_container_width=True
+                        )
+                except Exception as ex:
+                    st.error(f"❌ เกิดข้อผิดพลาด: {ex}")
+                    import traceback
+                    st.code(traceback.format_exc())
+
     st.markdown("---")
     st.caption("พัฒนาโดย: รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.")
 
