@@ -2130,16 +2130,50 @@ def main():
             if rpt_include_crcp:
                 st.markdown("---")
                 st.subheader("🔧 ข้อมูล CRCP (แยกจาก JPCP)")
-                st.caption("กรอกข้อมูล CRCP หากแตกต่างจาก JPCP")
-                crcp_d_manual = st.number_input(
-                    "ความหนา CRCP (ซม.)", 20, 40,
-                    value=st.session_state.get('rpt_crcp_d', 28),
-                    key='rpt_crcp_d'
-                )
-                crcp_k_manual = st.number_input(
-                    "k_eff CRCP (pci)", 50, 1000,
-                    value=st.session_state.get('rpt_crcp_k', 200),
-                    step=25, key='rpt_crcp_k'
+                st.caption("กรอกเฉพาะค่าที่แตกต่างจาก JPCP — ค่าอื่นใช้ร่วมกัน")
+
+                col_c1, col_c2 = st.columns(2)
+                with col_c1:
+                    crcp_d_manual = st.number_input(
+                        "ความหนา CRCP (ซม.)", 20, 40,
+                        value=st.session_state.get('rpt_crcp_d', 28),
+                        key='rpt_crcp_d'
+                    )
+                    crcp_j_manual = st.number_input(
+                        "Load Transfer J (CRCP)", 2.0, 4.5,
+                        value=st.session_state.get('rpt_crcp_j', 2.5),
+                        step=0.1, format="%.1f", key='rpt_crcp_j',
+                        help="ค่าแนะนำ CRCP = 2.5 (มี Tied shoulder)"
+                    )
+                    crcp_sc_manual = st.number_input(
+                        "Modulus of Rupture Sc (psi)", 400, 1000,
+                        value=st.session_state.get('rpt_crcp_sc',
+                              st.session_state.get('calc_sc', 600)),
+                        step=10, key='rpt_crcp_sc'
+                    )
+                with col_c2:
+                    crcp_k_manual = st.number_input(
+                        "k_eff CRCP (pci)", 50, 1000,
+                        value=st.session_state.get('rpt_crcp_k', 200),
+                        step=25, key='rpt_crcp_k'
+                    )
+                    crcp_cd_manual = st.number_input(
+                        "Drainage Cd (CRCP)", 0.7, 1.3,
+                        value=st.session_state.get('rpt_crcp_cd',
+                              st.session_state.get('calc_cd', 1.0)),
+                        step=0.05, format="%.2f", key='rpt_crcp_cd'
+                    )
+                    crcp_cbr_manual = st.number_input(
+                        "CBR ดินคันทาง CRCP (%)", 1.0, 100.0,
+                        value=st.session_state.get('rpt_crcp_cbr',
+                              st.session_state.get('calc_cbr', 4.0)),
+                        step=0.5, format="%.1f", key='rpt_crcp_cbr'
+                    )
+                # แสดงสรุปค่า
+                st.caption(
+                    f"📊 CRCP: D={crcp_d_manual} ซม. | J={crcp_j_manual:.1f} | "
+                    f"Sc={crcp_sc_manual} psi | k={crcp_k_manual} pci | "
+                    f"Cd={crcp_cd_manual:.2f} | CBR={crcp_cbr_manual:.1f}%"
                 )
 
         with col_preview:
@@ -2263,16 +2297,30 @@ def main():
                     'k_corrected': st.session_state.get('k_corr_input', 300),
                 }
 
-                # ข้อมูล CRCP (ถ้าเลือก)
+                # ── ข้อมูล CRCP (ค่าแยกจาก JPCP) ──────────────────────────
                 crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
                 crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
-                crcp_inputs  = {**inputs_r, 'k_eff': crcp_k_use}
+                crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.5)
+                crcp_sc_use  = st.session_state.get('rpt_crcp_sc', sc_r)
+                crcp_cd_use  = st.session_state.get('rpt_crcp_cd', cd_r)
+                crcp_cbr_use = st.session_state.get('rpt_crcp_cbr', cbr_r)
+                crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
+
+                crcp_inputs  = {
+                    **inputs_r,
+                    'k_eff': crcp_k_use,
+                    'j':     crcp_j_use,
+                    'sc':    crcp_sc_use,
+                    'cd':    crcp_cd_use,
+                    'ls':    inputs_r.get('ls', 1.0),
+                }
                 crcp_ec      = calculate_concrete_modulus(convert_cube_to_cylinder(fc_r))
                 crcp_comp    = []
                 for d_cm in thicknesses_cm:
                     d_inch = round(d_cm / 2.54)
                     log_w18, w18_cap = calculate_aashto_rigid_w18(
-                        d_inch, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, 2.5, crcp_ec, crcp_k_use
+                        d_inch, dpsi_r, pt_r, zr_r, so_r,
+                        crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
                     )
                     passed, ratio = check_design(w18_r, w18_cap)
                     crcp_comp.append({
@@ -2281,9 +2329,11 @@ def main():
                     })
                 d_inch_crcp  = round(crcp_d_use / 2.54)
                 lw_crcp, w18_crcp = calculate_aashto_rigid_w18(
-                    d_inch_crcp, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, 2.5, crcp_ec, crcp_k_use
+                    d_inch_crcp, dpsi_r, pt_r, zr_r, so_r,
+                    crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
                 )
                 passed_crcp, ratio_crcp = check_design(w18_r, w18_crcp)
+                subgrade_crcp = {'cbr': crcp_cbr_use, 'mr_psi': crcp_mr_use, 'mr_mpa': crcp_mr_use / 145.038}
 
                 try:
                     buf, err = create_full_word_report(
@@ -2312,7 +2362,7 @@ def main():
                         crcp_calc         = {**calc_r, 'ec': crcp_ec},
                         crcp_comparison   = crcp_comp,
                         crcp_result       = (passed_crcp, ratio_crcp),
-                        crcp_subgrade     = subgrade_r,
+                        crcp_subgrade     = subgrade_crcp,
                         crcp_nomo_params  = nomo_r,
                         img1_bytes_crcp   = st.session_state.get('img1_bytes'),
                         img2_bytes_crcp   = st.session_state.get('img2_bytes'),
