@@ -771,7 +771,7 @@ def _add_equation_section(doc):
     doc.add_paragraph()
 
 def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
-                     cbr_subgrade=3.0):
+                     cbr_subgrade=3.0, show_figure=False):
     """ตารางชั้นโครงสร้างทาง รูปแบบตามภาพ:
     คอลัมน์: ลำดับ | ชนิดวัสดุ | ความหนา (ซม.) | Modulus E (MPa)
     Header สีฟ้าอ่อน, แถวข้อมูล justify ซ้าย, ตัวเลข center
@@ -880,25 +880,26 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
 
     doc.add_paragraph()
 
-    # รูปตัดขวาง
-    fig = create_pavement_structure_figure(layers_data, d_cm)
-    if fig:
-        img_buf = BytesIO()
-        fig.savefig(img_buf, format='png', dpi=150,
-                    bbox_inches='tight', facecolor='white')
-        img_buf.seek(0)
-        p_img = doc.add_paragraph()
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_img.add_run().add_picture(img_buf, width=Inches(4.5))
-        plt.close(fig)
+    # รูปตัดขวาง (แสดงเฉพาะเมื่อ show_figure=True)
+    if show_figure:
+        fig = create_pavement_structure_figure(layers_data, d_cm)
+        if fig:
+            img_buf = BytesIO()
+            fig.savefig(img_buf, format='png', dpi=150,
+                        bbox_inches='tight', facecolor='white')
+            img_buf.seek(0)
+            p_img = doc.add_paragraph()
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            p_img.add_run().add_picture(img_buf, width=Inches(4.5))
+            plt.close(fig)
 
-    if fig_caption:
-        p_cap = doc.add_paragraph()
-        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        run_cap = p_cap.add_run(fig_caption)
-        run_cap.font.name = FONT
-        run_cap.font.size = FS
-        run_cap.bold = True
+        if fig_caption:
+            p_cap = doc.add_paragraph()
+            p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            run_cap = p_cap.add_run(fig_caption)
+            run_cap.font.name = FONT
+            run_cap.font.size = FS
+            run_cap.bold = True
 
     doc.add_paragraph()
 
