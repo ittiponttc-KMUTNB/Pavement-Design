@@ -804,8 +804,13 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
     tbl.style = 'Table Grid'
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # ตั้งความกว้างคอลัมน์ผ่าน XML
-    tbl_pr = tbl._tbl.get_or_add_tblPr()
+    # ตั้งความกว้างตาราง
+    from docx.oxml import OxmlElement as _OE
+    tbl_xml = tbl._tbl
+    tbl_pr = tbl_xml.find(qn('w:tblPr'))
+    if tbl_pr is None:
+        tbl_pr = _OE('w:tblPr')
+        tbl_xml.insert(0, tbl_pr)
     tbl_w = OxmlElement('w:tblW')
     tbl_w.set(qn('w:w'), str(sum(col_w)))
     tbl_w.set(qn('w:type'), 'dxa')
