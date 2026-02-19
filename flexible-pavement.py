@@ -1266,8 +1266,8 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
         shading = OxmlElement('w:shd')
         shading.set(qn('w:val'), 'clear')
         shading.set(qn('w:color'), 'auto')
-        shading.set(qn('w:fill'), '4472C4')  # สีฟ้า
-        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+        shading.set(qn('w:fill'), 'BDD7EE')  # สีฟ้าอ่อน ตามมาตรฐาน
+        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(0, 0, 0)  # สีดำ
         tc_pr = cell._tc.get_or_add_tcPr()
         tc_pr.append(shading)
 
