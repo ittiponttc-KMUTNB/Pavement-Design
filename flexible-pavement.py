@@ -2504,7 +2504,7 @@ def main():
         col_exp0, col_exp1, col_exp2, col_exp3 = st.columns(4)
 
         with col_exp0:
-            if st.button("📋 สร้างรายงานแบบมีเกริ่นนำ", type="primary",
+            if st.button("📋 สร้างรายงานแบบที่ปรึกษา", type="primary",
                          help="รายงานรูปแบบสำหรับรวมกับบทรายงานอื่น — มีหัวข้อ, เกริ่นนำ, ตาราง, รูป"):
                 with st.spinner("กำลังสร้างรายงาน..."):
                     fig_intro = plot_pavement_section(calc_results['layers'], Mr, CBR, lang='th')
@@ -2513,20 +2513,20 @@ def main():
                     )
                     plt.close(fig_intro)
                     st.download_button(
-                        label="⬇️ ดาวน์โหลดรายงานแบบเกริ่นนำ",
+                        label="⬇️ ดาวน์โหลดรายงานแบบที่ปรึกษา",
                         data=doc_intro_bytes,
                         file_name=f"Flexible_Intro_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     )
 
         with col_exp1:
-            if st.button("📝 สร้างรายงาน Word (เต็ม)"):
+            if st.button("📝 สร้างรายงานแบบย่อ"):
                 with st.spinner("กำลังสร้างรายงาน..."):
                     fig_thai = plot_pavement_section(calc_results['layers'], Mr, CBR, lang='th')
                     doc_bytes = create_word_report(project_title, inputs, calc_results, design_check, fig_thai)
                     plt.close(fig_thai)
                     st.download_button(
-                        label="⬇️ ดาวน์โหลดรายงาน Word (เต็ม)",
+                        label="⬇️ ดาวน์โหลดรายงานแบบย่อ",
                         data=doc_bytes,
                         file_name=f"AASHTO_Flexible_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                         mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
