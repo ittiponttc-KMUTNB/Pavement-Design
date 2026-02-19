@@ -1872,7 +1872,11 @@ def main():
     with tab2:
         st.header("2️⃣ หาค่า Composite Modulus of Subgrade Reaction (k∞)")
         uploaded_file = st.file_uploader("📂 อัปโหลดภาพ Figure 3.3 (Composite k)", type=['png', 'jpg', 'jpeg'], key='uploader_1')
-        
+
+        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปจาก JSON → โหลดเข้า PIL
+        if uploaded_file is None and st.session_state.get('img1_bytes'):
+            uploaded_file = io.BytesIO(st.session_state['img1_bytes'])
+
         if uploaded_file is not None:
             image = Image.open(uploaded_file).convert("RGB")
             width, height = image.size
@@ -1926,7 +1930,11 @@ def main():
         st.header("3️⃣ ปรับแก้ Loss of Support (LS)")
         st.info("ใช้กราฟ Figure 3.4 เพื่อปรับค่า k∞ กรณีที่มีการสูญเสียการรองรับ (LS > 0)")
         uploaded_file_2 = st.file_uploader("📂 อัปโหลดภาพ Figure 3.4 (LS Correction)", type=['png', 'jpg', 'jpeg'], key='uploader_2')
-        
+
+        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปจาก JSON → โหลดเข้า PIL
+        if uploaded_file_2 is None and st.session_state.get('img2_bytes'):
+            uploaded_file_2 = io.BytesIO(st.session_state['img2_bytes'])
+
         if uploaded_file_2 is not None:
             img2 = Image.open(uploaded_file_2).convert("RGB")
             w2, h2 = img2.size
