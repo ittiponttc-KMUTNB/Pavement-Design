@@ -1355,8 +1355,12 @@ def add_table_header_shading(cell, fill_hex='D9E2F3'):
 def create_word_report_intro(project_title, inputs, calc_results, design_check, fig, report_settings):
     """
     สร้างรายงาน Word รูปแบบสำหรับรวมกับรายงานอื่น
-    มีบทเกริ่นนำ, หมายเลขหัวข้อ/ตาราง/รูปที่แก้ไขได้
-    โครงสร้าง: หัวข้อ → เกริ่นนำ → ตารางพารามิเตอร์ → ตารางวัสดุ → รูปตัดขวาง
+    โครงสร้างครบ:
+      {sec_no}      หัวข้อ + เกริ่นนำ
+      {sec_no}.1    วิธีการออกแบบ
+      {sec_no}.2    ข้อมูลนำเข้า (Design Inputs) + ตาราง
+      {sec_no}.3    คุณสมบัติวัสดุชั้นทาง + ตาราง
+      {sec_no}.4    ขั้นตอนการคำนวณความหนาชั้นทาง + รูปตัดขวาง
     """
     from docx.oxml import OxmlElement
     from docx.oxml.ns import qn
@@ -1372,250 +1376,314 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     except Exception:
         pass
 
-    # รับค่า report settings
-    sec_no   = report_settings.get('section_number', '4.4')
-    tbl_no1  = report_settings.get('table_number_inputs', '4-8')
-    tbl_no2  = report_settings.get('table_number_materials', '4-9')
-    fig_no   = report_settings.get('figure_number', '4-8')
-    sec_title  = report_settings.get('section_title', 'การออกแบบผิวทางลาดยาง (Flexible Pavement)')
-    tbl_cap1   = report_settings.get('table_caption_inputs', 'ค่าพารามิเตอร์ที่ใช้ในการออกแบบผิวทางยืดหยุ่น')
-    tbl_cap2   = report_settings.get('table_caption_materials', 'ค่าสัมประสิทธิ์และค่าโมดูลัสของวัสดุโครงสร้างชั้นทาง')
-    fig_cap    = report_settings.get('figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ')
+    # ------------------------------------------------------------------
+    # Helper functions (inline)
+    # ------------------------------------------------------------------
+    def _run(para, text, size=15, bold=False, italic=False, color=None, underline=False):
+        r = para.add_run(text)
+        r.font.name = 'TH SarabunPSK'
+        r.font.size = Pt(size)
+        r.bold = bold
+        r.italic = italic
+        r.underline = underline
+        if color:
+            r.font.color.rgb = color
+        try:
+            r._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
+        except Exception:
+            pass
+        return r
 
-    # ค่าคำนวณ (สีม่วงใน preview)
+    def _heading_para(text, size=15, bold=True, underline=False):
+        p = doc.add_paragraph()
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after  = Pt(4)
+        _run(p, text, size=size, bold=bold, underline=underline)
+        return p
+
+    def _body_para(parts, indent_cm=1.25):
+        """parts = list of (text, bold)"""
+        p = doc.add_paragraph()
+        p.paragraph_format.first_line_indent = Cm(indent_cm)
+        p.paragraph_format.space_after = Pt(4)
+        set_thai_distribute(p)
+        for text, bold in parts:
+            _run(p, text, bold=bold)
+        return p
+
+    def _table_caption(text):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(8)
+        p.paragraph_format.space_after  = Pt(2)
+        _run(p, text, bold=True)
+
+    def _fig_caption(text):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p.paragraph_format.space_before = Pt(4)
+        _run(p, text, size=14, bold=True)
+
+    def _cell_run(cell, text, size=14, bold=False, color=None, align=WD_ALIGN_PARAGRAPH.CENTER):
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = align
+        _run(p, text, size=size, bold=bold, color=color)
+
+    def _make_table_header(tbl, headers, widths_cm=None, fill='D9E2F3'):
+        row = tbl.rows[0]
+        for i, hdr in enumerate(headers):
+            cell = row.cells[i]
+            if widths_cm:
+                cell.width = Cm(widths_cm[i])
+            _cell_run(cell, hdr, bold=True)
+            add_table_header_shading(cell, fill)
+
+    # ------------------------------------------------------------------
+    # รับค่า report settings
+    # ------------------------------------------------------------------
+    sec_no  = report_settings.get('section_number', '4.4')
+    tbl_no1 = report_settings.get('table_number_inputs', '4-8')
+    tbl_no2 = report_settings.get('table_number_materials', '4-9')
+    fig_no  = report_settings.get('figure_number', '4-8')
+    sec_title   = report_settings.get('section_title', 'การออกแบบผิวทางลาดยาง (Flexible Pavement)')
+    tbl_cap1    = report_settings.get('table_caption_inputs',    'ค่าพารามิเตอร์ที่ใช้ในการออกแบบผิวทางยืดหยุ่น')
+    tbl_cap2    = report_settings.get('table_caption_materials', 'ค่าสัมประสิทธิ์และค่าโมดูลัสของวัสดุโครงสร้างชั้นทาง')
+    fig_cap     = report_settings.get('figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ')
+
+    # ค่าคำนวณ
     W18_val     = inputs.get('W18', 0)
     reliability = inputs.get('reliability', 90)
     CBR_val     = inputs.get('CBR', 3.0)
     Mr_val      = inputs.get('Mr', 4500)
+    Zr_val      = inputs.get('Zr', -1.282)
+    So_val      = inputs.get('So', 0.45)
+    P0_val      = inputs.get('P0', 4.2)
+    Pt_val      = inputs.get('Pt', 2.5)
+    dpsi_val    = inputs.get('delta_psi', 1.7)
     sn_req      = calc_results.get('total_sn_required', 0)
     sn_prov     = calc_results.get('total_sn_provided', 0)
     total_thick = sum(l['design_thickness_cm'] for l in calc_results.get('layers', []))
     num_layers  = len(calc_results.get('layers', []))
     passed_txt  = 'ผ่านเกณฑ์' if design_check.get('passed') else 'ไม่ผ่านเกณฑ์'
+    RED = RGBColor(255, 0, 0)
 
-    # ========================================
-    # 1. SECTION HEADING: "{เลขหัวข้อ}  {ชื่อหัวข้อ}"
-    # ========================================
-    heading_para = doc.add_paragraph()
-    heading_para.paragraph_format.space_before = Pt(6)
-    heading_para.paragraph_format.space_after  = Pt(3)
-    run_h = heading_para.add_run(f'{sec_no}\t{sec_title}')
-    run_h.font.name = 'TH SarabunPSK'
-    run_h.font.size = Pt(16)
-    run_h.bold = True
-    try:
-        run_h._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-    except Exception:
-        pass
+    # ==================================================================
+    # 4.4  หัวข้อหลัก + บทเกริ่นนำ
+    # ==================================================================
+    _heading_para(f'{sec_no}\t{sec_title}', size=16, bold=True)
 
-    # ========================================
-    # 2. INTRO PARAGRAPH
-    # ========================================
-    intro_text_parts = [
-        ('        ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด การออกแบบโครงสร้างถนนแบบยืดหยุ่น '
-         '(Flexible Pavement) ใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures '
-         'โดยใช้สมการหลักในการออกแบบ ซึ่งพิจารณาปัจจัยด้านปริมาณจราจรสะสม ESALs ความน่าเชื่อถือ '
-         'และคุณสมบัติของดินรองรับ สำหรับโครงการนี้ที่ปรึกษาได้กำหนดค่าพารามิเตอร์หลักในการออกแบบ '
-         'ได้แก่ ปริมาณ W\u2081\u2088 = ', False),
-        (f'{W18_val:,.0f}', True),
-        (' 18-kip ESALs ที่ระดับความน่าเชื่อถือ (Reliability) = ', False),
-        (f'{reliability}', True),
-        (' % โดยมีดินเดิมค่า CBR = ', False),
-        (f'{CBR_val:.1f}', True),
-        (' % (M\u1d63 = ', False),
-        (f'{Mr_val:,.0f}', True),
-        (' psi) ผลการออกแบบได้โครงสร้างชั้นทาง ', False),
-        (f'{num_layers}', True),
-        (' ชั้น ที่ SN_required = ', False),
-        (f'{sn_req:.2f}', True),
-        (' และ SN_provided = ', False),
-        (f'{sn_prov:.2f}', True),
-        (f' ความหนารวม ', False),
-        (f'{total_thick:.0f}', True),
-        (' ซม. การออกแบบ', False),
-        (f'{passed_txt}', True),
-        (f' ดังแสดงผลการวิเคราะห์ในตารางที่ ', False),
+    _body_para([
+        ('        ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด เนื่องจาก หน่วยแรงจากน้ำหนักจราจร'
+         'จะมีความเข้มข้นสูงสุดบนผิวทาง แอสฟัลต์คอนกรีตจึงนำมาใช้เป็นวัสดุ ผิวทาง '
+         'และใช้วัสดุที่มีคุณภาพด้อยลงมา ได้แก่ วัสดุท้องถิ่น (Local Materials) '
+         'หรือวัสดุที่มีราคาถูก ในระดับลึกลงไป โดยวางซ้อนกันเป็นชั้น ๆ อย่างเป็นระบบ '
+         '(Multi-layer System) เหนือดินฐานราก (Subgrade)', False),
+    ], indent_cm=1.25)
+
+    # ==================================================================
+    # 4.4.1  วิธีการออกแบบ
+    # ==================================================================
+    _heading_para(f'{sec_no}.1\tวิธีการออกแบบ', size=15, bold=True)
+
+    _body_para([
+        ('        การออกแบบโครงสร้างถนนแบบยืดหยุ่น (Flexible Pavement) ใช้วิธี ', False),
+        ('AASHTO 1993 Guide for Design of Pavement Structures', True),
+        (' โดยใช้สมการหลักดังนี้', False),
+    ], indent_cm=1.25)
+
+    # สมการ AASHTO — ใช้ Times New Roman
+    eq_para = doc.add_paragraph()
+    eq_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    eq_para.paragraph_format.space_before = Pt(4)
+    eq_para.paragraph_format.space_after  = Pt(4)
+    eq_run = eq_para.add_run(
+        'log\u2081\u2080(W\u2081\u2088) = Z\u1d63\u00b7S\u2092 + 9.36\u00b7log\u2081\u2080(SN+1) \u2212 0.20 + '
+        'log\u2081\u2080(\u0394PSI/2.7) / [0.4 + 1094/(SN+1)\u2075\u00b7\u00b9\u2079] + '
+        '2.32\u00b7log\u2081\u2080(M\u1d63) \u2212 8.07'
+    )
+    eq_run.font.name = 'Times New Roman'
+    eq_run.font.size = Pt(12)
+    eq_run.italic = True
+
+    # ==================================================================
+    # 4.4.2  ข้อมูลนำเข้า (Design Inputs)
+    # ==================================================================
+    _heading_para(f'{sec_no}.2\tข้อมูลนำเข้า (Design Inputs)', size=15, bold=True)
+
+    _body_para([
+        ('        ในการออกแบบโครงสร้างถนนยืดหยุ่น การกำหนดค่าพารามิเตอร์นำเข้า (Design Inputs) '
+         'ถือเป็นขั้นตอนสำคัญที่มีผลโดยตรงต่อความถูกต้องและความน่าเชื่อถือของแบบโครงสร้างถนนที่ต้องการ '
+         'เนื่องจากค่าพารามิเตอร์แต่ละตัวสะท้อนให้เห็นสภาพการใช้งานจริงของโครงสร้างถนน '
+         'ปริมาณการจราจรตลอดอายุการใช้งาน ระดับความน่าเชื่อถือที่ยอมรับได้ '
+         'รวมถึงคุณสมบัติของวัสดุและชั้นดินรองรับในพื้นที่โครงการ '
+         'สำหรับโครงการนี้ ที่ปรึกษาได้กำหนดค่าพารามิเตอร์หลักที่ใช้ในการออกแบบตามแนวทางของ AASHTO '
+         'ซึ่งประกอบด้วยข้อมูลด้านความสามารถในการรับน้ำหนักของโครงสร้างชั้นทาง ปริมาณจราจรที่โครงสร้าง'
+         'ถนนต้องรองรับตลอดอายุการใช้งาน รวมถึงคุณสมบัติของชั้นดินที่ต้องซ่อมบำรุงหรือปรับปรุงใหม่ '
+         'รวมถึงคุณสมบัติของดินชั้นรองรับ รายละเอียดของค่าพารามิเตอร์ทั้งหมดแสดงในตารางที่ ', False),
         (f'{tbl_no1}', True),
-        (' และ ', False),
-        (f'{tbl_no2}', True),
-        (f' และรูปที่ ', False),
-        (f'{fig_no}', True),
-    ]
+    ], indent_cm=1.25)
 
-    intro_para = doc.add_paragraph()
-    intro_para.paragraph_format.first_line_indent = Cm(0)  # already have indent in text
-    intro_para.paragraph_format.space_after = Pt(6)
-    set_thai_distribute(intro_para)
+    _table_caption(f'ตารางที่ {tbl_no1}  {tbl_cap1}')
 
-    for text, bold in intro_text_parts:
-        run = intro_para.add_run(text)
-        run.font.name = 'TH SarabunPSK'
-        run.font.size = Pt(15)
-        run.bold = bold
-        try:
-            run._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-        except Exception:
-            pass
-
-    # ========================================
-    # 3. TABLE 1: ตารางพารามิเตอร์ออกแบบ
-    # ========================================
-    # Caption เหนือตาราง
-    cap1_para = doc.add_paragraph()
-    cap1_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    cap1_para.paragraph_format.space_before = Pt(6)
-    cap1_run = cap1_para.add_run(f'ตารางที่ {tbl_no1}  {tbl_cap1}')
-    cap1_run.font.name = 'TH SarabunPSK'
-    cap1_run.font.size = Pt(15)
-    cap1_run.bold = True
-    try:
-        cap1_run._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-    except Exception:
-        pass
-
-    input_table = doc.add_table(rows=1, cols=3)
-    input_table.style = 'Table Grid'
-    input_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-
-    for row in input_table.rows:
-        row.cells[0].width = Cm(8)
-        row.cells[1].width = Cm(4)
-        row.cells[2].width = Cm(4)
-
-    # Header
-    for i, hdr in enumerate(['พารามิเตอร์', 'ค่า', 'หน่วย']):
-        cell = input_table.rows[0].cells[i]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(hdr)
-        r.font.name = 'TH SarabunPSK'
-        r.font.size = Pt(14)
-        r.bold = True
-        try:
-            r._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-        except Exception:
-            pass
-        add_table_header_shading(cell, 'D9E2F3')
+    t1 = doc.add_table(rows=1, cols=3)
+    t1.style = 'Table Grid'
+    t1.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _make_table_header(t1, ['พารามิเตอร์', 'ค่า', 'หน่วย'], widths_cm=[9, 4, 3])
 
     input_data = [
-        ('Design ESALs (W₁₈)',              f'{inputs["W18"]:,.0f}',        '18-kip ESAL'),
-        ('Reliability (R)',                  f'{inputs["reliability"]}',     '%'),
-        ('Standard Normal Deviate (Zᵣ)',     f'{inputs["Zr"]:.3f}',         '-'),
-        ('Overall Standard Deviation (Sₒ)', f'{inputs["So"]:.2f}',         '-'),
-        ('Initial Serviceability (P₀)',      f'{inputs["P0"]:.1f}',         '-'),
-        ('Terminal Serviceability (Pₜ)',     f'{inputs["Pt"]:.1f}',         '-'),
-        ('ΔPSI = P₀ - Pₜ',                 f'{inputs["delta_psi"]:.1f}',   '-'),
-        ('Subgrade CBR',                     f'{inputs.get("CBR", "-")}',   '%'),
-        ('Subgrade Mᵣ = 1500 × CBR',        f'{inputs["Mr"]:,.0f}',        'psi'),
+        ('Design ESALs (W\u2081\u2088)',               f'{W18_val:,.0f}',        '18-kip ESAL'),
+        ('Reliability (R)',                             f'{reliability}',         '%'),
+        ('Standard Normal Deviate (Z\u1d63)',           f'{Zr_val:.3f}',          '-'),
+        ('Overall Standard Deviation (S\u2092)',        f'{So_val:.2f}',          '-'),
+        ('Initial Serviceability (P\u2080)',            f'{P0_val:.1f}',          '-'),
+        ('Terminal Serviceability (P\u209c)',           f'{Pt_val:.1f}',          '-'),
+        ('\u0394PSI = P\u2080 \u2212 P\u209c',         f'{dpsi_val:.1f}',         '-'),
+        ('Subgrade CBR',                                f'{CBR_val}',             '%'),
+        ('Subgrade M\u1d63 = 1500 \u00d7 CBR',         f'{Mr_val:,.0f}',         'psi'),
     ]
 
     for param, value, unit in input_data:
-        row = input_table.add_row()
-        for j, txt in enumerate([param, value, unit]):
-            cell = row.cells[j]
-            cell.text = ''
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if j > 0 else WD_ALIGN_PARAGRAPH.LEFT
-            r = p.add_run(txt)
-            r.font.name = 'TH SarabunPSK'
-            r.font.size = Pt(14)
-            # ค่าสำคัญ bold + แดง
-            if j == 1 and txt not in ['-', '']:
-                r.bold = True
-                r.font.color.rgb = RGBColor(255, 0, 0)
-            try:
-                r._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-            except Exception:
-                pass
+        row = t1.add_row()
+        _cell_run(row.cells[0], param, align=WD_ALIGN_PARAGRAPH.LEFT)
+        _cell_run(row.cells[1], value, bold=True, color=RED)
+        _cell_run(row.cells[2], unit)
 
-    # ========================================
-    # 4. TABLE 2: ตารางคุณสมบัติวัสดุ
-    # ========================================
+    # ==================================================================
+    # 4.4.3  คุณสมบัติวัสดุชั้นทาง
+    # ==================================================================
     doc.add_paragraph()
+    _heading_para(f'{sec_no}.3\tคุณสมบัติวัสดุชั้นทาง', size=15, bold=True)
 
-    cap2_para = doc.add_paragraph()
-    cap2_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    cap2_para.paragraph_format.space_before = Pt(6)
-    cap2_run = cap2_para.add_run(f'ตารางที่ {tbl_no2}  {tbl_cap2}')
-    cap2_run.font.name = 'TH SarabunPSK'
-    cap2_run.font.size = Pt(15)
-    cap2_run.bold = True
-    try:
-        cap2_run._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-    except Exception:
-        pass
+    _body_para([
+        ('        วัสดุโครงสร้างชั้นทางแต่ละชนิดมีค่าสัมประสิทธิ์ชั้นทาง (Layer Coefficient) '
+         'และค่าสัมประสิทธิ์การระบายน้ำ (Drained Coefficient) โดยที่ปรึกษาเลือกใช้วัสดุ'
+         'และแสดงค่าสัมประสิทธิ์รวมถึงค่าโมดูลัสของวัสดุต่างๆ ดังแสดงในตารางที่ ', False),
+        (f'{tbl_no2}', True),
+    ], indent_cm=1.25)
 
-    mat_table = doc.add_table(rows=1, cols=5)
-    mat_table.style = 'Table Grid'
-    mat_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _table_caption(f'ตารางที่ {tbl_no2}  {tbl_cap2}')
 
-    for i, hdr in enumerate(['ชั้น', 'วัสดุ', 'aᵢ', 'mᵢ', 'Mᵣ (psi)']):
-        cell = mat_table.rows[0].cells[i]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(hdr)
-        r.font.name = 'TH SarabunPSK'
-        r.font.size = Pt(14)
-        r.bold = True
-        try:
-            r._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-        except Exception:
-            pass
-        add_table_header_shading(cell, 'D9E2F3')
+    # ตาราง 4 คอลัมน์ตามภาพตัวอย่าง: ชั้น | วัสดุ | ai | mi | Mr(psi) | E(MPa)
+    t2 = doc.add_table(rows=1, cols=6)
+    t2.style = 'Table Grid'
+    t2.alignment = WD_TABLE_ALIGNMENT.CENTER
+    _make_table_header(t2, ['ชั้น', 'วัสดุ', 'a\u1d62', 'm\u1d62', 'M\u1d63 (psi)', 'E (MPa)'],
+                       widths_cm=[1.5, 7, 1.5, 1.5, 2.5, 2])
 
     for layer in calc_results.get('layers', []):
-        row = mat_table.add_row()
-        vals = [str(layer['layer_no']), layer['material'],
-                f'{layer["a_i"]:.2f}', f'{layer["m_i"]:.2f}', f'{layer["mr_psi"]:,}']
-        for j, txt in enumerate(vals):
-            cell = row.cells[j]
-            cell.text = ''
-            p = cell.paragraphs[0]
-            p.alignment = WD_ALIGN_PARAGRAPH.CENTER if j != 1 else WD_ALIGN_PARAGRAPH.LEFT
-            r = p.add_run(txt)
-            r.font.name = 'TH SarabunPSK'
-            r.font.size = Pt(14)
-            try:
-                r._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-            except Exception:
-                pass
+        row = t2.add_row()
+        _cell_run(row.cells[0], str(layer['layer_no']))
+        _cell_run(row.cells[1], layer['material'], align=WD_ALIGN_PARAGRAPH.LEFT)
+        _cell_run(row.cells[2], f'{layer["a_i"]:.2f}')
+        _cell_run(row.cells[3], f'{layer["m_i"]:.2f}')
+        _cell_run(row.cells[4], f'{layer["mr_psi"]:,}')
+        _cell_run(row.cells[5], f'{layer["mr_mpa"]:,}')
 
-    # ========================================
-    # 5. FIGURE: รูปตัดขวาง + caption
-    # ========================================
+    # ==================================================================
+    # 4.4.4  ขั้นตอนการคำนวณความหนาชั้นทาง
+    # ==================================================================
+    doc.add_paragraph()
+    _heading_para(f'{sec_no}.4\tขั้นตอนการคำนวณความหนาชั้นทาง', size=15, bold=True)
+
+    _body_para([
+        ('        การคำนวณความหนาขั้นต่ำของแต่ละชั้น ใช้หลักการว่า Structural Number (SN) '
+         'ที่จุดใดๆ ต้องมากกว่าหรือเท่ากับ SN ที่ต้องการ โดยคำนวณจากค่า M\u1d63 ของชั้นถัดไป', False),
+    ], indent_cm=1.25)
+
+    # --- ชั้นทีละชั้น ---
+    for layer in calc_results.get('layers', []):
+        sn_at = layer['sn_required_at_layer']
+        layer_no = layer['layer_no']
+
+        # หัวข้อชั้น
+        sub_p = doc.add_paragraph()
+        sub_p.paragraph_format.space_before = Pt(6)
+        sub_p.paragraph_format.space_after  = Pt(2)
+        sub_p.paragraph_format.left_indent  = Cm(1.0)
+        _run(sub_p, f'ชั้นที่ {layer_no}: {layer["material"]}', bold=True, underline=True)
+
+        # ข้อมูลวัสดุ
+        mat_p = doc.add_paragraph()
+        mat_p.paragraph_format.left_indent = Cm(2.0)
+        mat_p.paragraph_format.space_after = Pt(2)
+        _run(mat_p,
+             f'M\u1d63 = {layer["mr_psi"]:,} psi = {layer["mr_mpa"]:,} MPa   '
+             f'| a{layer_no} = {layer["a_i"]:.2f}   '
+             f'| m{layer_no} = {layer["m_i"]:.2f}')
+
+        # SN required
+        sn_p = doc.add_paragraph()
+        sn_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        sn_run = sn_p.add_run(f'SN{layer_no} = {sn_at:.2f}   (จากสมการ AASHTO 1993)')
+        sn_run.font.name = 'Times New Roman'
+        sn_run.font.size = Pt(11)
+        sn_run.bold = True
+
+        # สูตรความหนา
+        formula_p = doc.add_paragraph()
+        formula_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if layer_no == 1:
+            formula_txt = (f'D\u2081 \u2265 SN\u2081 / (a\u2081 \u00d7 m\u2081) = '
+                           f'{sn_at:.2f} / ({layer["a_i"]:.2f} \u00d7 {layer["m_i"]:.2f}) = '
+                           f'{layer["min_thickness_inch"]:.2f} \u0e19\u0e34\u0e49\u0e27 = '
+                           f'{layer["min_thickness_cm"]:.1f} \u0e0b\u0e21.')
+        else:
+            prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
+            formula_txt = (f'D{layer_no} \u2265 (SN{layer_no} \u2212 SN{layer_no-1}) / '
+                           f'(a{layer_no} \u00d7 m{layer_no}) = '
+                           f'({sn_at:.2f} \u2212 {prev_sn:.2f}) / ({layer["a_i"]:.2f} \u00d7 {layer["m_i"]:.2f}) = '
+                           f'{layer["min_thickness_inch"]:.2f} \u0e19\u0e34\u0e49\u0e27 = '
+                           f'{layer["min_thickness_cm"]:.1f} \u0e0b\u0e21.')
+        f_run = formula_p.add_run(formula_txt)
+        f_run.font.name = 'Times New Roman'
+        f_run.font.size = Pt(11)
+        f_run.italic = True
+
+        # ความหนาที่เลือก + SN contribution
+        res_p = doc.add_paragraph()
+        res_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        res_p.paragraph_format.space_after = Pt(2)
+        status_sym = '\u2713 OK' if layer['is_ok'] else '\u2717 NG'
+        res_run = res_p.add_run(
+            f'D{layer_no}(design) = {layer["design_thickness_cm"]:.0f} \u0e0b\u0e21.   '
+            f'| \u0394SN{layer_no} = {layer["sn_contribution"]:.3f}   '
+            f'| \u03a3SN = {layer["cumulative_sn"]:.2f}   '
+            f'| {status_sym}'
+        )
+        res_run.font.name = 'Times New Roman'
+        res_run.font.size = Pt(11)
+        res_run.bold = True
+        res_run.font.color.rgb = RGBColor(0, 112, 0) if layer['is_ok'] else RED
+
+    # สรุป SN รวม
+    doc.add_paragraph()
+    sum_p = doc.add_paragraph()
+    sum_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    sum_p.paragraph_format.space_before = Pt(6)
+    _run(sum_p,
+         f'SN_required = {sn_req:.2f}   |   SN_provided = {sn_prov:.2f}   |   '
+         f'Safety Margin = {design_check.get("safety_margin", sn_prov - sn_req):.2f}   |   '
+         f'ผลการออกแบบ: {passed_txt}',
+         bold=True, size=15,
+         color=RGBColor(0, 112, 0) if design_check.get('passed') else RED)
+
+    # รูปตัดขวาง
     doc.add_paragraph()
     fig_bytes_intro = get_figure_as_bytes(fig)
     doc.add_picture(fig_bytes_intro, width=Inches(5.5))
     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _fig_caption(f'รูปที่ {fig_no}  {fig_cap}')
 
-    fig_cap_para = doc.add_paragraph()
-    fig_cap_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    fig_cap_para.paragraph_format.space_before = Pt(3)
-    fig_cap_run = fig_cap_para.add_run(f'รูปที่ {fig_no}  {fig_cap}')
-    fig_cap_run.font.name = 'TH SarabunPSK'
-    fig_cap_run.font.size = Pt(14)
-    fig_cap_run.bold = True
-    try:
-        fig_cap_run._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-    except Exception:
-        pass
-
-    # ========================================
+    # ==================================================================
     # Footer
-    # ========================================
+    # ==================================================================
     doc.add_paragraph()
-    footer_para = doc.add_paragraph()
-    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    footer_run = footer_para.add_run('พัฒนาโดย รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.')
-    footer_run.font.name = 'TH SarabunPSK'
-    footer_run.font.size = Pt(12)
-    footer_run.italic = True
-    try:
-        footer_run._element.rPr.rFonts.set(qn('w:cs'), 'TH SarabunPSK')
-    except Exception:
-        pass
+    footer_p = doc.add_paragraph()
+    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _run(footer_p,
+         'พัฒนาโดย รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.',
+         size=12, italic=True)
 
     doc_bytes = BytesIO()
     doc.save(doc_bytes)
