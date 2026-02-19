@@ -2398,7 +2398,7 @@ def main():
                     if err:
                         st.error(f"❌ ข้อผิดพลาด: {err}")
                     elif buf:
-                        filename = f"AASHTO_Report_{proj_name_r or 'Project'}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+                        filename = f"Concrete_Report_{proj_name_r or 'Project'}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
                         st.success("✅ สร้างรายงานสำเร็จ!")
                         st.download_button(
                             "⬇️ ดาวน์โหลดรายงาน Word (ฉบับสมบูรณ์)",
