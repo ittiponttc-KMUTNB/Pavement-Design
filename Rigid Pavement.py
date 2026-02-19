@@ -209,7 +209,9 @@ def load_project_from_json(uploaded_file):
 
 def collect_design_data(project_name, pavement_type, num_layers, layers_data, w18_design, pt, reliability, so,
                         k_eff, ls_value, fc_cube, sc, j_value, cd, d_cm_selected, cbr_value,
-                        mr_val=0, esb_val=0, dsb_val=0, k_inf_val=0, ls_select=0, k_corrected=0):
+                        mr_val=0, esb_val=0, dsb_val=0, k_inf_val=0, ls_select=0, k_corrected=0,
+                        img1_bytes=None, img2_bytes=None):
+    import base64
     return {
         "version": "1.0",
         "save_date": datetime.now().isoformat(),
@@ -222,7 +224,11 @@ def collect_design_data(project_name, pavement_type, num_layers, layers_data, w1
         },
         "subgrade": {"cbr_value": cbr_value},
         "nomograph": {"mr_val": mr_val, "esb_val": esb_val, "dsb_val": dsb_val,
-                      "k_inf_val": k_inf_val, "ls_select": ls_select, "k_corrected": k_corrected}
+                      "k_inf_val": k_inf_val, "ls_select": ls_select, "k_corrected": k_corrected},
+        "nomograph_images": {
+            "img1_b64": base64.b64encode(img1_bytes).decode('utf-8') if img1_bytes else None,
+            "img2_b64": base64.b64encode(img2_bytes).decode('utf-8') if img2_bytes else None,
+        }
     }
 
 # ============================================================
@@ -775,8 +781,7 @@ def _add_equation_section(doc):
 def _fmt_layer_name(name: str) -> str:
     """แทน 'CBR xx%' ด้วย 'CBR ≥ xx%' ในชื่อชั้นวัสดุ"""
     import re
-    # จับรูปแบบ CBR ตามด้วยช่องว่าง+ตัวเลข+% เช่น CBR 80%, CBR 25%
-    return re.sub(r'CBR\s+(\d+\.?\d*)\s*%', r'CBR \u2265 \1%', name)
+    return re.sub(r'CBR\s+(\d+\.?\d*)\s*%', r'CBR ≥ \1%', name)
 
 def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
                      cbr_subgrade=3.0, show_figure=False):
@@ -1604,8 +1609,20 @@ def main():
                         st.session_state['k_inf_result'] = nomo.get('k_inf_val', 400)
                         st.session_state['ls_select_box'] = nomo.get('ls_select', 1.0)
                         st.session_state['k_corr_input'] = nomo.get('k_corrected', 300)
+
+                        # Nomograph images (base64 → bytes)
+                        import base64
+                        nomo_imgs = loaded.get('nomograph_images', {})
+                        img1_b64 = nomo_imgs.get('img1_b64')
+                        img2_b64 = nomo_imgs.get('img2_b64')
+                        if img1_b64:
+                            st.session_state['img1_bytes'] = base64.b64decode(img1_b64)
+                        if img2_b64:
+                            st.session_state['img2_bytes'] = base64.b64decode(img2_b64)
+                        n_imgs = sum([1 for x in [img1_b64, img2_b64] if x])
+                        img_msg = f" + โหลดรูป Nomograph {n_imgs} รูป ✅" if n_imgs else " (ไม่มีรูป Nomograph)"
                         
-                        st.success("✅ โหลดข้อมูลสำเร็จ!")
+                        st.success(f"✅ โหลดข้อมูลสำเร็จ!{img_msg}")
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ ไม่สามารถอ่านไฟล์ได้: {e}")
@@ -2021,7 +2038,9 @@ def main():
                 dsb_val=st.session_state.get('nomo_dsb', 6.0),
                 k_inf_val=st.session_state.get('nomo_k_inf', 400),
                 ls_select=st.session_state.get('ls_select_box', 1.0),
-                k_corrected=st.session_state.get('k_corr_input', 300)
+                k_corrected=st.session_state.get('k_corr_input', 300),
+                img1_bytes=st.session_state.get('img1_bytes'),
+                img2_bytes=st.session_state.get('img2_bytes'),
             )
             json_bytes = save_project_to_json(project_data)
             proj_name = project_data['project_info']['project_name'] or 'AASHTO_Project'
