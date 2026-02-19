@@ -772,6 +772,12 @@ def _add_equation_section(doc):
 
     doc.add_paragraph()
 
+def _fmt_layer_name(name: str) -> str:
+    """แทน 'CBR xx%' ด้วย 'CBR ≥ xx%' ในชื่อชั้นวัสดุ"""
+    import re
+    # จับรูปแบบ CBR ตามด้วยช่องว่าง+ตัวเลข+% เช่น CBR 80%, CBR 25%
+    return re.sub(r'CBR\s+(\d+\.?\d*)\s*%', r'CBR \u2265 \1%', name)
+
 def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
                      cbr_subgrade=3.0, show_figure=False):
     """ตารางชั้นโครงสร้างทาง รูปแบบตามภาพ:
@@ -866,7 +872,7 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
         e_mpa = layer.get('E_MPa', 0)
         row = tbl.add_row(); _set_col_widths(row)
         _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
-        _sc(row.cells[1], layer.get('name', ''))
+        _sc(row.cells[1], _fmt_layer_name(layer.get('name', '')))
         _sc(row.cells[2], str(thick),   align=WD_ALIGN_PARAGRAPH.CENTER)
         _sc(row.cells[3], f"{e_mpa:,}" if e_mpa > 0 else '-',
             align=WD_ALIGN_PARAGRAPH.CENTER)
@@ -877,7 +883,7 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
     _sc(row.cells[0], str(row_num),          align=WD_ALIGN_PARAGRAPH.CENTER)
     _sc(row.cells[1], 'ดินคันทาง')
     mr_psi = int(1500 * cbr_subgrade if cbr_subgrade < 10 else 1000 + 555 * cbr_subgrade)
-    _sc(row.cells[2], f'CBR {cbr_subgrade:.1f} %', align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[2], f'CBR \u2265 {cbr_subgrade:.1f} %', align=WD_ALIGN_PARAGRAPH.CENTER)
     _sc(row.cells[3], f'{mr_psi:,} ({mr_psi:,} psi)', align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
@@ -1284,7 +1290,7 @@ def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
     for layer in valid_layers:
         row = tbl.add_row(); _set_widths(row)
         _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
-        _sc(row.cells[1], layer.get('name', ''))
+        _sc(row.cells[1], _fmt_layer_name(layer.get('name', '')))
         _sc(row.cells[2], str(layer.get('thickness_cm', 0)),
             align=WD_ALIGN_PARAGRAPH.CENTER)
         row_num += 1
@@ -1314,7 +1320,7 @@ def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
     row = tbl.add_row(); _set_widths(row)
     _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
     _sc(row.cells[1], 'ดินคันทาง')
-    _sc(row.cells[2], f'CBR {cbr_subgrade:.1f} %',
+    _sc(row.cells[2], f'CBR \u2265 {cbr_subgrade:.1f} %',
         align=WD_ALIGN_PARAGRAPH.CENTER)
 
     # ── Caption ──────────────────────────────────────────────────────────
