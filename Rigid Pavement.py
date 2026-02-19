@@ -2145,12 +2145,10 @@ def main():
                         step=0.1, format="%.1f", key='rpt_crcp_j',
                         help="ค่าแนะนำ CRCP = 2.5 (มี Tied shoulder)"
                     )
-                    crcp_sc_manual = st.number_input(
-                        "Modulus of Rupture Sc (psi)", 400, 1000,
-                        value=st.session_state.get('rpt_crcp_sc',
-                              st.session_state.get('calc_sc', 600)),
-                        step=10, key='rpt_crcp_sc'
-                    )
+                    # Sc ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
+                    crcp_sc_use = st.session_state.get('calc_sc', 600)
+                    st.caption("Modulus of Rupture Sc (psi)")
+                    st.info(f"**{crcp_sc_use}** psi  *(ใช้ร่วมกับ JPCP)*", icon="📌")
                 with col_c2:
                     crcp_k_manual = st.number_input(
                         "k_eff CRCP (pci)", 50, 1000,
@@ -2163,17 +2161,20 @@ def main():
                               st.session_state.get('calc_cd', 1.0)),
                         step=0.05, format="%.2f", key='rpt_crcp_cd'
                     )
-                    crcp_cbr_manual = st.number_input(
-                        "CBR ดินคันทาง CRCP (%)", 1.0, 100.0,
-                        value=st.session_state.get('rpt_crcp_cbr',
-                              st.session_state.get('calc_cbr', 4.0)),
-                        step=0.5, format="%.1f", key='rpt_crcp_cbr'
-                    )
+                    # CBR ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
+                    crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
+                    st.caption("CBR ดินคันทาง (%)")
+                    st.info(f"**{crcp_cbr_use:.1f}** %  *(ใช้ร่วมกับ JPCP)*", icon="📌")
                 # แสดงสรุปค่า
+                crcp_sc_use  = st.session_state.get('calc_sc', 600)
+                crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
                 st.caption(
-                    f"📊 CRCP: D={crcp_d_manual} ซม. | J={crcp_j_manual:.1f} | "
-                    f"Sc={crcp_sc_manual} psi | k={crcp_k_manual} pci | "
-                    f"Cd={crcp_cd_manual:.2f} | CBR={crcp_cbr_manual:.1f}%"
+                    f"📊 CRCP: D={st.session_state.get('rpt_crcp_d',28)} ซม. | "
+                    f"J={st.session_state.get('rpt_crcp_j',2.5):.1f} | "
+                    f"Sc={crcp_sc_use} psi | "
+                    f"k={st.session_state.get('rpt_crcp_k',200)} pci | "
+                    f"Cd={st.session_state.get('rpt_crcp_cd',1.0):.2f} | "
+                    f"CBR={crcp_cbr_use:.1f}%"
                 )
 
         with col_preview:
@@ -2301,9 +2302,9 @@ def main():
                 crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
                 crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
                 crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.5)
-                crcp_sc_use  = st.session_state.get('rpt_crcp_sc', sc_r)
                 crcp_cd_use  = st.session_state.get('rpt_crcp_cd', cd_r)
-                crcp_cbr_use = st.session_state.get('rpt_crcp_cbr', cbr_r)
+                crcp_sc_use  = sc_r        # ใช้ร่วมกับ JPCP
+                crcp_cbr_use = cbr_r       # ใช้ร่วมกับ JPCP
                 crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
 
                 crcp_inputs  = {
