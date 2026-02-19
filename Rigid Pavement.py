@@ -714,7 +714,7 @@ def _add_equation_section(doc):
     from docx.oxml import OxmlElement as _OE
 
     HEADER_BG = 'BDD7EE'
-    col_w_sym = [1000, 4500, 1000]
+    col_w_sym = [1396, 6281, 1395]
 
     tbl = doc.add_table(rows=1, cols=3)
     tbl.style = 'Table Grid'
@@ -816,7 +816,7 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
             tcPr.append(shd)
 
     # กว้างคอลัมน์ (DXA): ลำดับ | ชนิดวัสดุ | ความหนา | Modulus E
-    col_w = [700, 4200, 1600, 1900]
+    col_w = [756, 4536, 1728, 2052]
     tbl = doc.add_table(rows=1, cols=4)
     tbl.style = 'Table Grid'
     tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -943,7 +943,7 @@ def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None,
         run.bold = True; run.underline = True
 
     # ── Step 1: Composite k∞ ──────────────────────────────────────────
-    col_w1 = [4200, 1400, 1000]
+    col_w1 = [5772, 1924, 1376]   # sum = 9072
     _add_para(doc, 'ขั้นตอนที่ 1: หาค่า Composite Modulus of Subgrade Reaction (k∞)', bold=True)
     tbl1 = doc.add_table(rows=1, cols=3)
     tbl1.style = 'Table Grid'
@@ -986,7 +986,7 @@ def _add_kvalue_section(doc, params, img1_bytes=None, img2_bytes=None,
     doc.add_paragraph()
 
     # ── Step 2: Loss of Support ───────────────────────────────────────
-    col_w2 = [4200, 1400, 1000]
+    col_w2 = [5772, 1924, 1376]   # sum = 9072
     _add_para(doc, 'ขั้นตอนที่ 2: ปรับแก้ค่า Loss of Support (LS)', bold=True)
     tbl2 = doc.add_table(rows=1, cols=3)
     tbl2.style = 'Table Grid'
@@ -1076,7 +1076,7 @@ def _add_design_result_section(doc, inputs, calculated_values, comparison_result
     run_lbl.underline = True
 
     # คอลัมน์: พารามิเตอร์ | สัญลักษณ์ | ค่า | หน่วย
-    col_w_in = [3200, 1200, 1800, 1200]
+    col_w_in = [3923, 1471, 2207, 1471]
     tbl_in = doc.add_table(rows=1, cols=4)
     tbl_in.style = 'Table Grid'
     tbl_in.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -1124,7 +1124,7 @@ def _add_design_result_section(doc, inputs, calculated_values, comparison_result
     run_lbl2.bold = True
     run_lbl2.underline = True
 
-    col_w_res = [1100, 1100, 1500, 1900, 1400, 1400]
+    col_w_res = [1188, 1188, 1620, 2052, 1512, 1512]
     tbl_res = doc.add_table(rows=1, cols=6)
     tbl_res.style = 'Table Grid'
     tbl_res.alignment = WD_TABLE_ALIGNMENT.LEFT
@@ -1213,7 +1213,7 @@ def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
     HEADER_BG = 'BDD7EE'
     FONT  = _get_font_name()
     FS    = Pt(15)
-    col_w = [700, 4500, 1600]   # ลำดับ | ชนิดวัสดุ | ความหนา
+    col_w = [934, 6004, 2134]   # ลำดับ | ชนิดวัสดุ | ความหนา  (9072 DXA = เต็มหน้า)
 
     def _qset(el, attr, val):
         el.set(qn(attr), val)
