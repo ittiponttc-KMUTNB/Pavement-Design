@@ -210,7 +210,9 @@ def load_project_from_json(uploaded_file):
 def collect_design_data(project_name, pavement_type, num_layers, layers_data, w18_design, pt, reliability, so,
                         k_eff, ls_value, fc_cube, sc, j_value, cd, d_cm_selected, cbr_value,
                         mr_val=0, esb_val=0, dsb_val=0, k_inf_val=0, ls_select=0, k_corrected=0,
-                        img1_bytes=None, img2_bytes=None):
+                        img1_bytes=None, img2_bytes=None,
+                        img1_original=None, img2_original=None,
+                        img1_sliders=None, img2_sliders=None):
     import base64
     return {
         "version": "1.0",
@@ -226,8 +228,26 @@ def collect_design_data(project_name, pavement_type, num_layers, layers_data, w1
         "nomograph": {"mr_val": mr_val, "esb_val": esb_val, "dsb_val": dsb_val,
                       "k_inf_val": k_inf_val, "ls_select": ls_select, "k_corrected": k_corrected},
         "nomograph_images": {
-            "img1_b64": base64.b64encode(img1_bytes).decode('utf-8') if img1_bytes else None,
-            "img2_b64": base64.b64encode(img2_bytes).decode('utf-8') if img2_bytes else None,
+            # รูปที่วาดเส้นแล้ว (สำหรับรายงาน)
+            "img1_b64":          base64.b64encode(img1_bytes).decode()    if img1_bytes    else None,
+            "img2_b64":          base64.b64encode(img2_bytes).decode()    if img2_bytes    else None,
+            # รูปต้นฉบับ (สำหรับโหลดกลับมาวาดเส้นใหม่)
+            "img1_original_b64": base64.b64encode(img1_original).decode() if img1_original else None,
+            "img2_original_b64": base64.b64encode(img2_original).decode() if img2_original else None,
+        },
+        "slider_positions": {
+            # Tab 2: Composite k∞
+            "gx1": img1_sliders.get("gx1"), "gy1": img1_sliders.get("gy1"),
+            "gx2": img1_sliders.get("gx2"), "gy2": img1_sliders.get("gy2"),
+            "s1_sx": img1_sliders.get("s1_sx"),
+            "s1_sy_esb": img1_sliders.get("s1_sy_esb"),
+            "s1_sy_mr": img1_sliders.get("s1_sy_mr"),
+            # Tab 3: Loss of Support
+            "_ls_x1": img2_sliders.get("_ls_x1"), "_ls_y1": img2_sliders.get("_ls_y1"),
+            "_ls_x2": img2_sliders.get("_ls_x2"), "_ls_y2": img2_sliders.get("_ls_y2"),
+            "k_pos_x": img2_sliders.get("k_pos_x"),
+            "axis_left": img2_sliders.get("axis_left"),
+            "axis_bottom": img2_sliders.get("axis_bottom"),
         }
     }
 
@@ -1614,13 +1634,27 @@ def main():
                         # Nomograph images (base64 → bytes)
                         import base64
                         nomo_imgs = loaded.get('nomograph_images', {})
-                        img1_b64 = nomo_imgs.get('img1_b64')
-                        img2_b64 = nomo_imgs.get('img2_b64')
+                        img1_b64      = nomo_imgs.get('img1_b64')
+                        img2_b64      = nomo_imgs.get('img2_b64')
+                        img1_orig_b64 = nomo_imgs.get('img1_original_b64')
+                        img2_orig_b64 = nomo_imgs.get('img2_original_b64')
                         if img1_b64:
-                            st.session_state['img1_bytes'] = base64.b64decode(img1_b64)
+                            st.session_state['img1_bytes']    = base64.b64decode(img1_b64)
                         if img2_b64:
-                            st.session_state['img2_bytes'] = base64.b64decode(img2_b64)
-                        n_imgs = sum([1 for x in [img1_b64, img2_b64] if x])
+                            st.session_state['img2_bytes']    = base64.b64decode(img2_b64)
+                        # รูปต้นฉบับ → ใช้สำหรับวาดเส้นใหม่โดยไม่ทับซ้อน
+                        if img1_orig_b64:
+                            st.session_state['img1_original'] = base64.b64decode(img1_orig_b64)
+                        if img2_orig_b64:
+                            st.session_state['img2_original'] = base64.b64decode(img2_orig_b64)
+                        # Slider positions (Tab 2 & 3)
+                        sliders = loaded.get('slider_positions', {})
+                        for k in ['gx1','gy1','gx2','gy2','s1_sx','s1_sy_esb','s1_sy_mr',
+                                  '_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']:
+                            if sliders.get(k) is not None:
+                                st.session_state[k] = sliders[k]
+
+                        n_imgs = sum(1 for x in [img1_b64, img2_b64] if x)
                         img_msg = f" + โหลดรูป Nomograph {n_imgs} รูป ✅" if n_imgs else " (ไม่มีรูป Nomograph)"
                         
                         st.success(f"✅ โหลดข้อมูลสำเร็จ!{img_msg}")
@@ -1873,9 +1907,14 @@ def main():
         st.header("2️⃣ หาค่า Composite Modulus of Subgrade Reaction (k∞)")
         uploaded_file = st.file_uploader("📂 อัปโหลดภาพ Figure 3.3 (Composite k)", type=['png', 'jpg', 'jpeg'], key='uploader_1')
 
-        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปจาก JSON → โหลดเข้า PIL
-        if uploaded_file is None and st.session_state.get('img1_bytes'):
-            uploaded_file = io.BytesIO(st.session_state['img1_bytes'])
+        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปต้นฉบับจาก JSON → ใช้รูปต้นฉบับ
+        if uploaded_file is None and st.session_state.get('img1_original'):
+            uploaded_file = io.BytesIO(st.session_state['img1_original'])
+        elif uploaded_file is not None:
+            # upload ใหม่ → บันทึกต้นฉบับ
+            raw = uploaded_file.read()
+            st.session_state['img1_original'] = raw
+            uploaded_file = io.BytesIO(raw)
 
         if uploaded_file is not None:
             image = Image.open(uploaded_file).convert("RGB")
@@ -1931,9 +1970,14 @@ def main():
         st.info("ใช้กราฟ Figure 3.4 เพื่อปรับค่า k∞ กรณีที่มีการสูญเสียการรองรับ (LS > 0)")
         uploaded_file_2 = st.file_uploader("📂 อัปโหลดภาพ Figure 3.4 (LS Correction)", type=['png', 'jpg', 'jpeg'], key='uploader_2')
 
-        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปจาก JSON → โหลดเข้า PIL
-        if uploaded_file_2 is None and st.session_state.get('img2_bytes'):
-            uploaded_file_2 = io.BytesIO(st.session_state['img2_bytes'])
+        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปต้นฉบับจาก JSON → ใช้รูปต้นฉบับ
+        if uploaded_file_2 is None and st.session_state.get('img2_original'):
+            uploaded_file_2 = io.BytesIO(st.session_state['img2_original'])
+        elif uploaded_file_2 is not None:
+            # upload ใหม่ → บันทึกต้นฉบับ
+            raw2 = uploaded_file_2.read()
+            st.session_state['img2_original'] = raw2
+            uploaded_file_2 = io.BytesIO(raw2)
 
         if uploaded_file_2 is not None:
             img2 = Image.open(uploaded_file_2).convert("RGB")
@@ -2050,6 +2094,12 @@ def main():
                 k_corrected=st.session_state.get('k_corr_input', 300),
                 img1_bytes=st.session_state.get('img1_bytes'),
                 img2_bytes=st.session_state.get('img2_bytes'),
+                img1_original=st.session_state.get('img1_original'),
+                img2_original=st.session_state.get('img2_original'),
+                img1_sliders={k: st.session_state.get(k) for k in
+                              ['gx1','gy1','gx2','gy2','s1_sx','s1_sy_esb','s1_sy_mr']},
+                img2_sliders={k: st.session_state.get(k) for k in
+                              ['_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']},
             )
             json_bytes = save_project_to_json(project_data)
             proj_name = project_data['project_info']['project_name'] or 'AASHTO_Project'
