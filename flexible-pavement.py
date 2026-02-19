@@ -1656,7 +1656,9 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         res_run.bold = True
         res_run.font.color.rgb = RGBColor(0, 112, 0) if layer['is_ok'] else RED
 
+    # ------------------------------------------------------------------
     # สรุป SN รวม
+    # ------------------------------------------------------------------
     doc.add_paragraph()
     sum_p = doc.add_paragraph()
     sum_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
@@ -1668,7 +1670,102 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
          bold=True, size=15,
          color=RGBColor(0, 112, 0) if design_check.get('passed') else RED)
 
-    # รูปตัดขวาง
+    # ------------------------------------------------------------------
+    # ตารางสรุปโครงสร้างชั้นทาง (รูปแบบ Section 8)
+    # ------------------------------------------------------------------
+    doc.add_paragraph()
+
+    # หัวข้อสรุป
+    surf_name = calc_results['layers'][0]['material'] if calc_results.get('layers') else 'ผิวทางลาดยาง'
+    surf_p = doc.add_paragraph()
+    surf_p.paragraph_format.space_before = Pt(6)
+    surf_p.paragraph_format.space_after  = Pt(4)
+    _run(surf_p, f'รูปแบบที่: {surf_name}', bold=True)
+
+    # สร้างรายการชั้นทาง
+    structure_rows = []
+    row_num = 1
+    ac_sub = calc_results.get('ac_sublayers', None)
+    first_layer = calc_results['layers'][0] if calc_results.get('layers') else None
+
+    def _short_name(mat_name):
+        return (mat_name
+            .replace('พื้นทางหินคลุกผสมซีเมนต์ UCS 24.5 ksc.', 'หินคลุกผสมซีเมนต์ UCS \u2265 24.5 ksc')
+            .replace('พื้นทางหินคลุก CBR 80%',                  'หินคลุก CBR \u2265 80%')
+            .replace('พื้นทางซีเมนต์ CTB',                      'ซีเมนต์ CTB')
+            .replace('พื้นทางดินซีเมนต์ UCS 17.5 ksc.',         'ดินซีเมนต์ UCS \u2265 17.5 ksc')
+            .replace('พื้นทางวัสดุหมุนเวียน (Recycling)',       'วัสดุหมุนเวียน (Recycling)')
+            .replace('รองพื้นทางวัสดุมวลรวม CBR 25%',           'รองพื้นทางวัสดุมวลรวม CBR \u2265 25%')
+        )
+
+    if ac_sub is not None and first_layer:
+        for key, label in [('wearing', 'Wearing Course'), ('binder', 'Binder Course'), ('base', 'Base Course')]:
+            if ac_sub.get(key, 0) > 0:
+                structure_rows.append((row_num, label, f"{ac_sub[key]:.0f}"))
+                row_num += 1
+        for layer in calc_results['layers'][1:]:
+            structure_rows.append((row_num, _short_name(layer['material']),
+                                   f"{layer['design_thickness_cm']:.0f}"))
+            row_num += 1
+    else:
+        for layer in calc_results.get('layers', []):
+            structure_rows.append((row_num, _short_name(layer['material']),
+                                   f"{layer['design_thickness_cm']:.0f}"))
+            row_num += 1
+
+    # แถวดินคันทาง
+    cbr_val = inputs.get('CBR', 3.0)
+    structure_rows.append((row_num, 'ดินคันทาง', f'CBR \u2265 {cbr_val:.1f} %'))
+
+    # สร้างตาราง 3 คอลัมน์
+    from docx.oxml import OxmlElement as _OxmlElement
+    from docx.oxml.ns import qn as _qn
+
+    num_rows_tbl = 1 + len(structure_rows)
+    sum_tbl = doc.add_table(rows=num_rows_tbl, cols=3)
+    sum_tbl.style = 'Table Grid'
+    sum_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    for r in sum_tbl.rows:
+        r.cells[0].width = Cm(2.0)
+        r.cells[1].width = Cm(10.0)
+        r.cells[2].width = Cm(4.0)
+
+    # Header row (สีฟ้าอ่อน BDD7EE)
+    for j, hdr_txt in enumerate(['ลำดับ', 'ชนิดวัสดุ', 'ความหนา (ซม.)']):
+        cell = sum_tbl.rows[0].cells[j]
+        cell.text = ''
+        p = cell.paragraphs[0]
+        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p, hdr_txt, bold=True)
+        shd = _OxmlElement('w:shd')
+        shd.set(_qn('w:val'), 'clear')
+        shd.set(_qn('w:color'), 'auto')
+        shd.set(_qn('w:fill'), 'BDD7EE')
+        cell._tc.get_or_add_tcPr().append(shd)
+
+    # Data rows
+    for i, (num, mat_name, thickness) in enumerate(structure_rows):
+        row = sum_tbl.rows[i + 1]
+        # ลำดับ
+        row.cells[0].text = ''
+        p0 = row.cells[0].paragraphs[0]
+        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p0, str(num))
+        # ชนิดวัสดุ
+        row.cells[1].text = ''
+        p1 = row.cells[1].paragraphs[0]
+        p1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        _run(p1, mat_name)
+        # ความหนา
+        row.cells[2].text = ''
+        p2 = row.cells[2].paragraphs[0]
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p2, thickness)
+
+    # ------------------------------------------------------------------
+    # รูปตัดขวาง + caption ใต้รูป
+    # ------------------------------------------------------------------
     doc.add_paragraph()
     fig_bytes_intro = get_figure_as_bytes(fig)
     doc.add_picture(fig_bytes_intro, width=Inches(5.5))
