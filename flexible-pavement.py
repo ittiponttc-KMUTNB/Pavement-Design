@@ -1174,6 +1174,142 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
     doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
     # ========================================
+    # SECTION 8: สรุปโครงสร้างชั้นทางที่ออกแบบ
+    # ========================================
+    heading2_8 = doc.add_heading('8. สรุปโครงสร้างชั้นทางที่ออกแบบด้วยวิธี AASHTO 1993', level=2)
+    for run in heading2_8.runs:
+        set_thai_font(run, size_pt=16, bold=True)
+
+    # --- สร้างรายการชั้นทาง ---
+    structure_rows = []  # [(ลำดับ, ชนิดวัสดุ, ความหนา ซม.)]
+    row_num = 1
+
+    # ชั้นที่ 1: AC — แยกชั้นย่อย (ถ้ามี)
+    ac_sub = calc_results.get('ac_sublayers', None)
+    first_layer = calc_results['layers'][0] if calc_results['layers'] else None
+
+    if ac_sub is not None and first_layer:
+        if ac_sub.get('wearing', 0) > 0:
+            structure_rows.append((row_num, 'Wearing Course', f"{ac_sub['wearing']:.0f}"))
+            row_num += 1
+        if ac_sub.get('binder', 0) > 0:
+            structure_rows.append((row_num, 'Binder Course', f"{ac_sub['binder']:.0f}"))
+            row_num += 1
+        if ac_sub.get('base', 0) > 0:
+            structure_rows.append((row_num, 'Base Course', f"{ac_sub['base']:.0f}"))
+            row_num += 1
+        # ชั้นที่ 2 เป็นต้นไป
+        for layer in calc_results['layers'][1:]:
+            mat_name = layer['material']
+            # แปลงชื่อวัสดุให้สั้นลงตามรูปแบบ
+            short = mat_name
+            short = short.replace('พื้นทางหินคลุกผสมซีเมนต์ UCS 24.5 ksc.', 'หินคลุกผสมซีเมนต์ UCS ≥ 24.5 ksc')
+            short = short.replace('พื้นทางหินคลุก CBR 80%', 'หินคลุก CBR ≥ 80%')
+            short = short.replace('พื้นทางซีเมนต์ CTB', 'ซีเมนต์ CTB')
+            short = short.replace('พื้นทางดินซีเมนต์ UCS 17.5 ksc.', 'ดินซีเมนต์ UCS ≥ 17.5 ksc')
+            short = short.replace('พื้นทางวัสดุหมุนเวียน (Recycling)', 'วัสดุหมุนเวียน (Recycling)')
+            short = short.replace('รองพื้นทางวัสดุมวลรวม CBR 25%', 'รองพื้นทางวัสดุมวลรวม CBR ≥ 25%')
+            short = short.replace('วัสดุคัดเลือก ก', 'วัสดุคัดเลือก ก')
+            structure_rows.append((row_num, short, f"{layer['design_thickness_cm']:.0f}"))
+            row_num += 1
+    else:
+        # ไม่มี sublayer — แสดงทุกชั้นปกติ
+        for layer in calc_results['layers']:
+            mat_name = layer['material']
+            short = mat_name
+            short = short.replace('ผิวทางลาดยาง AC', 'ผิวทางลาดยาง AC')
+            short = short.replace('ผิวทางลาดยาง PMA', 'ผิวทางลาดยาง PMA')
+            short = short.replace('พื้นทางหินคลุกผสมซีเมนต์ UCS 24.5 ksc.', 'หินคลุกผสมซีเมนต์ UCS ≥ 24.5 ksc')
+            short = short.replace('พื้นทางหินคลุก CBR 80%', 'หินคลุก CBR ≥ 80%')
+            short = short.replace('พื้นทางซีเมนต์ CTB', 'ซีเมนต์ CTB')
+            short = short.replace('พื้นทางดินซีเมนต์ UCS 17.5 ksc.', 'ดินซีเมนต์ UCS ≥ 17.5 ksc')
+            short = short.replace('พื้นทางวัสดุหมุนเวียน (Recycling)', 'วัสดุหมุนเวียน (Recycling)')
+            short = short.replace('รองพื้นทางวัสดุมวลรวม CBR 25%', 'รองพื้นทางวัสดุมวลรวม CBR ≥ 25%')
+            short = short.replace('วัสดุคัดเลือก ก', 'วัสดุคัดเลือก ก')
+            structure_rows.append((row_num, short, f"{layer['design_thickness_cm']:.0f}"))
+            row_num += 1
+
+    # เพิ่มแถวดินคันทาง
+    cbr_val = inputs.get('CBR', 3.0)
+    structure_rows.append((row_num, 'ดินคันทาง', f'CBR ≥ {cbr_val:.1f} %'))
+
+    # --- หัวข้อย่อย: ชื่อชั้นผิวทาง ---
+    surface_mat_name = calc_results['layers'][0]['material'] if calc_results['layers'] else 'ผิวทางลาดยาง'
+    sub_heading = doc.add_heading(f'รูปแบบที่: {surface_mat_name}', level=3)
+    for run in sub_heading.runs:
+        set_thai_font(run, size_pt=15, bold=True)
+
+    # --- สร้างตาราง ---
+    num_rows = 1 + len(structure_rows)  # header + data rows
+    summary_table = doc.add_table(rows=num_rows, cols=3)
+    summary_table.style = 'Table Grid'
+    summary_table.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+    # Set column widths
+    for row in summary_table.rows:
+        row.cells[0].width = Cm(2.0)
+        row.cells[1].width = Cm(10.0)
+        row.cells[2].width = Cm(4.0)
+
+    # Header row
+    header_texts = ['ลำดับ', 'ชนิดวัสดุ', 'ความหนา (ซม.)']
+    for j, text in enumerate(header_texts):
+        cell = summary_table.rows[0].cells[j]
+        cell.text = ''
+        para = cell.paragraphs[0]
+        para.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        run = para.add_run(text)
+        set_thai_font(run, size_pt=15, bold=True)
+        # Header shading (สีฟ้าอ่อน)
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+        shading = OxmlElement('w:shd')
+        shading.set(qn('w:val'), 'clear')
+        shading.set(qn('w:color'), 'auto')
+        shading.set(qn('w:fill'), '4472C4')  # สีฟ้า
+        cell.paragraphs[0].runs[0].font.color.rgb = RGBColor(255, 255, 255)
+        tc_pr = cell._tc.get_or_add_tcPr()
+        tc_pr.append(shading)
+
+    # Data rows
+    for i, (num, mat_name, thickness) in enumerate(structure_rows):
+        row_idx = i + 1
+        row = summary_table.rows[row_idx]
+
+        # ลำดับ
+        cell0 = row.cells[0]
+        cell0.text = ''
+        p0 = cell0.paragraphs[0]
+        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r0 = p0.add_run(str(num))
+        set_thai_font(r0, size_pt=15)
+
+        # ชนิดวัสดุ
+        cell1 = row.cells[1]
+        cell1.text = ''
+        p1 = cell1.paragraphs[0]
+        p1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        r1 = p1.add_run(mat_name)
+        set_thai_font(r1, size_pt=15)
+
+        # ความหนา
+        cell2 = row.cells[2]
+        cell2.text = ''
+        p2 = cell2.paragraphs[0]
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r2 = p2.add_run(thickness)
+        set_thai_font(r2, size_pt=15)
+
+    # --- รูปตัดโครงสร้างชั้นทาง ---
+    doc.add_paragraph()
+    add_thai_paragraph(doc, 'รูปตัดโครงสร้างชั้นทาง', size_pt=15, bold=True,
+                       alignment=WD_ALIGN_PARAGRAPH.CENTER)
+
+    fig_bytes_section8 = get_figure_as_bytes(fig)
+    doc.add_picture(fig_bytes_section8, width=Inches(5))
+    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+    # ========================================
     # Footer
     # ========================================
     doc.add_paragraph()
