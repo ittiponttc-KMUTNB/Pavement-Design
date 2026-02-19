@@ -888,8 +888,9 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
     _sc(row.cells[0], str(row_num),          align=WD_ALIGN_PARAGRAPH.CENTER)
     _sc(row.cells[1], 'ดินคันทาง')
     mr_psi = int(1500 * cbr_subgrade if cbr_subgrade < 10 else 1000 + 555 * cbr_subgrade)
+    mr_mpa = round(mr_psi / 145.038)
     _sc(row.cells[2], f'CBR \u2265 {cbr_subgrade:.1f} %', align=WD_ALIGN_PARAGRAPH.CENTER)
-    _sc(row.cells[3], f'{mr_psi:,} ({mr_psi:,} psi)', align=WD_ALIGN_PARAGRAPH.CENTER)
+    _sc(row.cells[3], f'{mr_mpa:,} ({mr_psi:,} psi)', align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
 
