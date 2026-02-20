@@ -33,7 +33,7 @@ ZR_TABLE = {
     96: -1.751, 97: -1.881, 98: -2.054, 99: -2.327
 }
 
-J_VALUES = {"JRCP": 2.8, "JPCP": 2.8, "JRCP/JPCP": 2.8, "CRCP": 2.5}
+J_VALUES = {"JRCP": 2.8, "JPCP": 2.8, "JRCP/JPCP": 2.8, "CRCP": 2.6}
 CD_DEFAULT = 1.0
 
 MATERIAL_MODULUS = {
@@ -1814,7 +1814,7 @@ def main():
                 | ประเภทถนน | J (AC Shoulder_Yes) | J (AC Shoulder_No) | J (Tied P.C.C_Yes) | J (Tied P.C.C_No) |
                 |-----------|---------------------|--------------------|--------------------|-------------------|
                 | 1. JRCP/JPCP | 3.2 | 3.8-4.4 | 2.5-3.1 (Mid 2.8) | 3.6-4.2 |
-                | 2. CRCP | 2.9-3.2 | N/A | 2.3-2.9 (Mid 2.5) | N/A |
+                | 2. CRCP | 2.9-3.2 | N/A | 2.3-2.9 (Mid 2.6) | N/A |
                 
                 **หมายเหตุ:** ค่า J ต่ำ = การถ่ายแรงดี = รองรับ ESAL ได้มากขึ้น
                 
@@ -2225,9 +2225,9 @@ def main():
                     )
                     crcp_j_manual = st.number_input(
                         "Load Transfer J (CRCP)", 2.0, 4.5,
-                        value=st.session_state.get('rpt_crcp_j', 2.5),
+                        value=st.session_state.get('rpt_crcp_j', 2.6),
                         step=0.1, format="%.1f", key='rpt_crcp_j',
-                        help="ค่าแนะนำ CRCP = 2.5 (มี Tied shoulder)"
+                        help="ค่าแนะนำ CRCP = 2.6 (มี Tied shoulder)"
                     )
                     # Sc ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
                     crcp_sc_use = st.session_state.get('calc_sc', 600)
@@ -2385,7 +2385,7 @@ def main():
                 # ── ข้อมูล CRCP (ค่าแยกจาก JPCP) ──────────────────────────
                 crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
                 crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
-                crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.5)
+                crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.6)
                 crcp_cd_use  = st.session_state.get('rpt_crcp_cd', cd_r)
                 crcp_sc_use  = sc_r        # ใช้ร่วมกับ JPCP
                 crcp_cbr_use = cbr_r       # ใช้ร่วมกับ JPCP
