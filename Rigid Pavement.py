@@ -2102,8 +2102,8 @@ def main():
                               ['_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']},
             )
             json_bytes = save_project_to_json(project_data)
-            proj_name = project_data['project_info']['project_name'] or 'AASHTO_Project'
-            st.download_button("📥 ดาวน์โหลดไฟล์ JSON", json_bytes, f"{proj_name}_{datetime.now().strftime('%Y%m%d_%H%M')}.json", "application/json")
+            proj_name = project_data['project_info']['project_name'] or 'Project'
+            st.download_button("📥 ดาวน์โหลดไฟล์ JSON", json_bytes, f"{proj_name}_rigid_cal_{datetime.now().strftime('%Y%m%d_%H%M')}.json", "application/json")
             st.success("สร้างไฟล์บันทึกสำเร็จ!")
     
     # =========================================================
