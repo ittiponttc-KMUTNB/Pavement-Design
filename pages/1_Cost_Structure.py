@@ -149,6 +149,9 @@ MATERIAL_LIBRARY = {
 def _parse_json_details_to_layers(details):
     """แปลง JSON details → (layers, joints) format ที่ app ใช้ภายใน"""
     layers, joints = [], []
+    # ชื่อวัสดุพื้นทาง/รองพื้นทางที่ราคาเป็น บาท/ลบ.ม.
+    BASE_KEYWORDS = ['crushed rock', 'soil aggregate', 'soil cement', 'cement modified',
+                     'cement treated', 'selected material', 'sand embankment']
     for item in details:
         name = item.get('รายการ', '')
         unit_raw = item.get('หน่วย', 'ตร.ม.')
@@ -165,7 +168,11 @@ def _parse_json_details_to_layers(details):
         except:
             thick_val = 1.0
             unit_val = 'cm'
-        qty_unit = 'sq.m' if 'ตร.ม.' in unit_raw else 'cu.m'
+        # กำหนด qty_unit ตามชนิดวัสดุ ไม่ใช่ตามหน่วยใน JSON
+        # (JSON บันทึกพื้นทางเป็น ตร.ม. แต่ app ใช้ sq.m สำหรับทุกอย่าง)
+        name_lower = name.lower()
+        is_base_material = any(kw in name_lower for kw in BASE_KEYWORDS)
+        qty_unit = 'cu.m' if is_base_material else 'sq.m'
         layers.append({
             'name': name, 'thickness': thick_val, 'unit': unit_val,
             'quantity': qty, 'qty_unit': qty_unit, 'unit_cost': unit_cost,
@@ -241,6 +248,17 @@ def get_default_jrcp2_layers():
         {'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น', 'quantity': 22000, 'qty_unit': 'sq.m', 'unit_cost': 78},
         {'name': 'Cement Modified Crushed Rock', 'thickness': 20, 'unit': 'cm', 'quantity': 4400, 'qty_unit': 'cu.m', 'unit_cost': 914},
         {'name': 'Sand Embankment', 'thickness': 50, 'unit': 'cm', 'quantity': 11000, 'qty_unit': 'cu.m', 'unit_cost': 361},
+    ]
+
+def get_default_jrcp2_joints():
+    """รอยต่อสำหรับ JRCP2 - ปริมาณต่อ 1 กม."""
+    _d = st.session_state.get('loaded_project', {}).get('construction', {}).get('JRCP2', {})
+    if _d.get('details'):
+        _, joints = _parse_json_details_to_layers(_d['details'])
+        if joints: return joints
+    return [
+        {'name': 'Transverse Joint @10m', 'quantity': 2200, 'qty_unit': 'm', 'unit_cost': 430},
+        {'name': 'Longitudinal Joint', 'quantity': 4000, 'qty_unit': 'm', 'unit_cost': 120},
     ]
 
 def get_default_crcp1_layers():
@@ -391,7 +409,12 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
     
     for layer in layers:
         name_lower = layer['name'].lower()
-        if any(x in name_lower for x in ['wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime', 'geotextile', 'steel', 'ksc']):
+        if any(x in name_lower for x in [
+            'wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime',
+            'geotextile', 'steel', 'ksc',
+            'ac base', 'ac interlayer', 'interlayer',   # ชื่อจาก JSON save
+            'ac wearing', 'ac binder',
+        ]):
             surface_layers.append(layer)
         else:
             base_layers.append(layer)
@@ -416,7 +439,9 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
         # กำหนดว่าเป็นชั้นไหน
         is_wearing = 'wearing' in name_lower
         is_binder = 'binder' in name_lower
-        is_ac_base = 'asphalt' in name_lower and 'base' in name_lower
+        is_ac_base = ('asphalt' in name_lower and 'base' in name_lower) or \
+                     ('ac base' in name_lower) or \
+                     ('interlayer' in name_lower)
         is_concrete = 'concrete' in name_lower or 'ksc' in name_lower
         
         with cols[0]:
@@ -439,10 +464,18 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
                 )
             elif is_concrete:
                 # Dropdown เลือก JPCP, JRCP, CRCP
-                if 'jrcp' in key_prefix:
-                    default_idx = 1  # JRCP
+                # อ่าน type จากชื่อ layer ที่มาจาก JSON ก่อน เช่น "350 Ksc. Cubic Type Concrete (JPCP)"
+                name_upper = layer['name'].upper()
+                if 'JPCP' in name_upper:
+                    default_idx = 0
+                elif 'JRCP' in name_upper:
+                    default_idx = 1
+                elif 'CRCP' in name_upper:
+                    default_idx = 2
+                elif 'jrcp' in key_prefix:
+                    default_idx = 1
                 elif 'crcp' in key_prefix:
-                    default_idx = 2  # CRCP
+                    default_idx = 2
                 else:
                     default_idx = 0  # JPCP
                 selected_type = st.selectbox(
@@ -579,11 +612,17 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
             default_name = material_names[0]
             default_thick = 20.0
         
-        # หา index ของวัสดุ default
+        # หา index ของวัสดุ default — รองรับทั้งชื่อตรงและ partial match จาก JSON
         try:
             default_idx = material_names.index(default_name)
         except ValueError:
+            # ลอง partial match (ชื่อจาก JSON อาจยาวกว่า)
             default_idx = 0
+            dn_lower = default_name.lower()
+            for mi, mn in enumerate(material_names):
+                if mn.lower() in dn_lower or dn_lower in mn.lower():
+                    default_idx = mi
+                    break
         
         with cols[0]:
             selected = st.selectbox("วัสดุ", material_names, index=default_idx,
@@ -723,7 +762,7 @@ def generate_word_report_table(project_info, structure_type, structure_name, cbr
     base_layers = []
     for layer in layers:
         name_lower = layer['name'].lower()
-        if any(x in name_lower for x in ['wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime', 'geotextile', 'steel']):
+        if any(x in name_lower for x in ['wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime', 'geotextile', 'steel', 'ac base', 'ac interlayer', 'interlayer']):
             surface_layers.append(layer)
         else:
             base_layers.append(layer)
@@ -1527,7 +1566,7 @@ def main():
             with st.expander(f"● {jrcp2_name}", expanded=True):
                 jrcp2_layers = render_layer_editor(get_default_jrcp2_layers(), "jrcp2", total_width, road_length, v=v)
                 jrcp2_layer_cost, jrcp2_layer_details = calculate_layer_cost(jrcp2_layers, road_length)
-                jrcp2_joints, jrcp2_include_joints = render_joint_editor(get_default_jrcp1_joints(), "jrcp2", area_per_km, road_length, v=v)
+                jrcp2_joints, jrcp2_include_joints = render_joint_editor(get_default_jrcp2_joints(), "jrcp2", area_per_km, road_length, v=v)
                 jrcp2_joint_cost, jrcp2_joint_details = calculate_joint_cost(jrcp2_joints, road_length)
                 
                 # คำนวณ บาท/ตร.ม. ตาม checkbox
