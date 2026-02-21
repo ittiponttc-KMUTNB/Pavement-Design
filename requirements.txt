@@ -4,7 +4,6 @@ docxcompose>=1.4.0
 lxml>=4.9.0
 numpy>=1.24.0
 pandas>=2.0.0
-plotly>=5.14.0
 openpyxl>=3.1.0
 Pillow>=10.0.0
 matplotlib>=3.7.0
