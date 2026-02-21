@@ -217,6 +217,48 @@ def get_default_crcp2_layers():
     ]
 
 
+def convert_json_details_to_layers(details):
+    """แปลงข้อมูล details จาก JSON กลับเป็น layers format ที่ app ใช้ภายใน"""
+    layers = []
+    joints = []
+    for item in details:
+        qty_unit_raw = item.get('หน่วย', 'ตร.ม.')
+        # ตรวจสอบว่าเป็น Joint หรือไม่
+        name = item.get('รายการ', '')
+        if 'Joint' in name or qty_unit_raw == 'm':
+            # เป็น joint
+            joints.append({
+                'name': name,
+                'quantity': item.get('ปริมาณ', 0),
+                'qty_unit': qty_unit_raw,
+                'unit_cost': item.get('ราคา/หน่วย', 0),
+            })
+            continue
+        
+        # แปลงหน่วยปริมาณ
+        qty_unit = 'sq.m' if 'ตร.ม.' in qty_unit_raw else 'cu.m'
+        
+        # แยก thickness และ unit จากความหนา เช่น "28.0 cm", "1.0 ชั้น", "2.0 Layer"
+        thickness_str = str(item.get('ความหนา', '1'))
+        try:
+            parts = thickness_str.split()
+            thick_val = float(parts[0])
+            unit_val = parts[1] if len(parts) > 1 else 'cm'
+        except:
+            thick_val = 1.0
+            unit_val = 'cm'
+        
+        layers.append({
+            'name': name,
+            'thickness': thick_val,
+            'unit': unit_val,
+            'quantity': item.get('ปริมาณ', 22000),
+            'qty_unit': qty_unit,
+            'unit_cost': item.get('ราคา/หน่วย', 0),
+        })
+    return layers, joints
+
+
 def calculate_quantity(thickness_cm, width_m, length_km, qty_unit):
     """คำนวณปริมาณจากความหนา ความกว้าง และความยาว"""
     area = width_m * length_km * 1000  # ตร.ม.
@@ -961,55 +1003,32 @@ def main():
         )
         
         if uploaded_json is not None:
-            # อ่านไฟล์และเก็บใน session_state ทันที (อ่านได้ครั้งเดียว)
-            if 'json_preview' not in st.session_state or st.session_state.get('json_file_name') != uploaded_json.name:
-                try:
-                    uploaded_json.seek(0)
-                    raw = uploaded_json.read().decode('utf-8')
-                    loaded_data = json.loads(raw)
-                    st.session_state['json_preview'] = loaded_data
-                    st.session_state['json_file_name'] = uploaded_json.name
-                except Exception as e:
-                    st.error(f"❌ ไม่สามารถอ่านไฟล์ได้: {e}")
-                    st.session_state.pop('json_preview', None)
-            
-            if 'json_preview' in st.session_state:
-                loaded_data = st.session_state['json_preview']
+            try:
+                loaded_data = json.loads(uploaded_json.read().decode('utf-8'))
                 st.success("✅ โหลดไฟล์สำเร็จ!")
                 
+                # แสดงข้อมูลที่โหลด
                 if 'project_info' in loaded_data:
                     st.info(f"📌 โครงการ: {loaded_data['project_info'].get('name', '-')}")
                     st.info(f"📅 บันทึกเมื่อ: {loaded_data.get('saved_at', '-')}")
                 
-                # กดปุ่มนำเข้าข้อมูล
+                # เก็บข้อมูลใน session_state
                 if st.button("📥 นำเข้าข้อมูล", key="import_json"):
                     if 'project_info' in loaded_data:
                         st.session_state['loaded_project'] = loaded_data
-                        # Restore construction data (layers) ถ้ามี
-                        if 'construction' in loaded_data:
-                            st.session_state['loaded_construction'] = loaded_data['construction']
-                        
-                        # Clear widget keys ที่เกี่ยวข้องกับ layer editor 
-                        # เพื่อให้ Streamlit ใช้ค่าจาก JSON แทนค่าเดิม
-                        keys_to_clear = [k for k in st.session_state.keys() 
-                                        if any(prefix in k for prefix in [
-                                            'ac1_', 'ac2_', 'jrcp1_', 'jrcp2_', 
-                                            'crcp1_', 'crcp2_', 'ac1_show', 'ac2_show',
-                                            'jrcp1_show', 'jrcp2_show', 'crcp1_show', 'crcp2_show',
-                                            'ac1_name', 'ac2_name', 'jrcp1_name', 'jrcp2_name',
-                                            'crcp1_name', 'crcp2_name',
-                                        ])]
-                        for k in keys_to_clear:
+                        # สร้าง import version ใหม่เพื่อ force refresh widget keys
+                        import hashlib, time
+                        st.session_state['import_version'] = hashlib.md5(
+                            str(time.time()).encode()
+                        ).hexdigest()[:8]
+                        # ล้าง widget keys เก่าที่เกี่ยวกับ layers
+                        keys_to_del = [k for k in list(st.session_state.keys())
+                                       if any(p in k for p in ['_st_', '_sb_', '_mat_', '_ctype_', '_bmat_', '_bthk_'])]
+                        for k in keys_to_del:
                             del st.session_state[k]
-                        
-                        # ลบ preview เพื่อไม่ให้แสดงซ้ำ
-                        st.session_state.pop('json_preview', None)
-                        st.session_state.pop('json_file_name', None)
                         st.rerun()
-        else:
-            # ถ้าลบไฟล์ออก ให้ลบ preview ด้วย
-            st.session_state.pop('json_preview', None)
-            st.session_state.pop('json_file_name', None)
+            except Exception as e:
+                st.error(f"❌ ไม่สามารถอ่านไฟล์ได้: {e}")
         
         st.divider()
         
@@ -1423,42 +1442,41 @@ def main():
         st.header("กำหนดโครงสร้างชั้นทาง")
         st.info("💡 แก้ไขชื่อ ความหนา และราคาต่อหน่วยได้ตามต้องการ | ✅ เลือกโครงสร้างที่ต้องการแสดงในรายงาน")
         
+        # ดึง layers จาก JSON ถ้ามี
+        loaded_construction = st.session_state.get('loaded_project', {}).get('construction', {})
+        import_version = st.session_state.get('import_version', 'default')
+        
+        def get_layers_from_json_or_default(key, default_fn):
+            """ดึง layers จาก JSON หรือใช้ default"""
+            if loaded_construction and key in loaded_construction:
+                layers, _ = convert_json_details_to_layers(loaded_construction[key].get('details', []))
+                return layers if layers else default_fn()
+            return default_fn()
+        
+        def get_joints_from_json_or_default(key, default_fn):
+            """ดึง joints จาก JSON หรือใช้ default"""
+            if loaded_construction and key in loaded_construction:
+                _, joints = convert_json_details_to_layers(loaded_construction[key].get('details', []))
+                return joints if joints else default_fn()
+            return default_fn()
+        
+        if loaded_construction:
+            st.success("✅ กำลังใช้ข้อมูลจากไฟล์ JSON ที่โหลด")
+        
         # คำนวณพื้นที่ต่อ กม.
         # total_width รวมทั้ง 2 ทิศทางไว้แล้ว (num_lanes = lanes_per_direction * 2)
         area_per_km = total_width * 1000  # ตร.ม./กม.
-        
-        # ดึง loaded_construction ถ้ามี (จาก JSON upload)
-        lc = st.session_state.get('loaded_construction', {})
-        
-        # Helper: ดึง layers จาก loaded_construction หรือใช้ default
-        def get_layers(struct_key, default_func):
-            if struct_key in lc and lc[struct_key].get('layers'):
-                return lc[struct_key]['layers']
-            return default_func()
-        
-        def get_loaded_name(struct_key, default_name):
-            if struct_key in lc and lc[struct_key].get('name'):
-                return lc[struct_key]['name']
-            return default_name
-        
-        def get_loaded_show(struct_key, default_val=True):
-            if struct_key in lc:
-                return lc[struct_key].get('show', default_val)
-            return default_val
-        
-        # แสดงข้อความถ้าโหลดข้อมูลจาก JSON
-        if lc:
-            st.success("📂 กำลังใช้ข้อมูลจากไฟล์ JSON ที่นำเข้า")
         
         # ===== AC Pavement =====
         st.subheader("🔵 ผิวทางแอสฟัลต์คอนกรีต (AC)")
         col1, col2 = st.columns(2)
         
         with col1:
-            ac1_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('AC1', True), key="ac1_show")
-            ac1_name = st.text_input("ชื่อโครงสร้าง AC1", value=get_loaded_name('AC1', "AC1: แอสฟัลต์บนหินคลุก"), key="ac1_name")
+            ac1_show = st.checkbox("แสดงในรายงาน", value=True, key="ac1_show")
+            ac1_name = st.text_input("ชื่อโครงสร้าง AC1", value="AC1: แอสฟัลต์บนหินคลุก", key="ac1_name")
             with st.expander(f"● {ac1_name}", expanded=True):
-                ac1_layers = render_layer_editor(get_layers('AC1', get_default_ac1_layers), "ac1", total_width, road_length)
+                ac1_init_layers = get_layers_from_json_or_default('AC1', get_default_ac1_layers)
+                ac1_layers = render_layer_editor(ac1_init_layers, f"ac1_{import_version}", total_width, road_length)
                 ac1_cost, ac1_details = calculate_layer_cost(ac1_layers, road_length)
                 ac1_cost_per_km = ac1_cost / road_length / 1_000_000
                 ac1_cost_per_sqm = ac1_cost / (area_per_km * road_length)
@@ -1466,10 +1484,11 @@ def main():
                 st.markdown(f'<div class="cost-box">💰 <b>ค่าก่อสร้าง:</b> {ac1_cost_per_sqm:.2f} บาท/ตร.ม.</div>', unsafe_allow_html=True)
         
         with col2:
-            ac2_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('AC2', True), key="ac2_show")
-            ac2_name = st.text_input("ชื่อโครงสร้าง AC2", value=get_loaded_name('AC2', "AC2: แอสฟัลต์บนหินคลุกผสมซีเมนต์"), key="ac2_name")
+            ac2_show = st.checkbox("แสดงในรายงาน", value=True, key="ac2_show")
+            ac2_name = st.text_input("ชื่อโครงสร้าง AC2", value="AC2: แอสฟัลต์บนหินคลุกผสมซีเมนต์", key="ac2_name")
             with st.expander(f"● {ac2_name}", expanded=True):
-                ac2_layers = render_layer_editor(get_layers('AC2', get_default_ac2_layers), "ac2", total_width, road_length)
+                ac2_init_layers = get_layers_from_json_or_default('AC2', get_default_ac2_layers)
+                ac2_layers = render_layer_editor(ac2_init_layers, f"ac2_{import_version}", total_width, road_length)
                 ac2_cost, ac2_details = calculate_layer_cost(ac2_layers, road_length)
                 ac2_cost_per_km = ac2_cost / road_length / 1_000_000
                 ac2_cost_per_sqm = ac2_cost / (area_per_km * road_length)
@@ -1481,12 +1500,14 @@ def main():
         col3, col4 = st.columns(2)
         
         with col3:
-            jrcp1_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('JRCP1', True), key="jrcp1_show")
-            jrcp1_name = st.text_input("ชื่อโครงสร้าง JPCP/JRCP (1)", value=get_loaded_name('JRCP1', "JPCP/JRCP (1): คอนกรีตบนดินซีเมนต์"), key="jrcp1_name")
+            jrcp1_show = st.checkbox("แสดงในรายงาน", value=True, key="jrcp1_show")
+            jrcp1_name = st.text_input("ชื่อโครงสร้าง JPCP/JRCP (1)", value="JPCP/JRCP (1): คอนกรีตบนดินซีเมนต์", key="jrcp1_name")
             with st.expander(f"● {jrcp1_name}", expanded=True):
-                jrcp1_layers = render_layer_editor(get_layers('JRCP1', get_default_jrcp1_layers), "jrcp1", total_width, road_length)
+                jrcp1_init_layers = get_layers_from_json_or_default('JRCP1', get_default_jrcp1_layers)
+                jrcp1_init_joints = get_joints_from_json_or_default('JRCP1', get_default_jrcp1_joints)
+                jrcp1_layers = render_layer_editor(jrcp1_init_layers, f"jrcp1_{import_version}", total_width, road_length)
                 jrcp1_layer_cost, jrcp1_layer_details = calculate_layer_cost(jrcp1_layers, road_length)
-                jrcp1_joints, jrcp1_include_joints = render_joint_editor(get_default_jrcp1_joints(), "jrcp1", area_per_km, road_length)
+                jrcp1_joints, jrcp1_include_joints = render_joint_editor(jrcp1_init_joints, f"jrcp1_{import_version}", area_per_km, road_length)
                 jrcp1_joint_cost, jrcp1_joint_details = calculate_joint_cost(jrcp1_joints, road_length)
                 
                 # คำนวณ บาท/ตร.ม. ตาม checkbox
@@ -1506,12 +1527,14 @@ def main():
                 st.markdown(f'<div class="cost-box">💰 <b>ค่าก่อสร้าง:</b> {jrcp1_cost_per_sqm:.2f} บาท/ตร.ม. {joints_note}</div>', unsafe_allow_html=True)
         
         with col4:
-            jrcp2_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('JRCP2', True), key="jrcp2_show")
-            jrcp2_name = st.text_input("ชื่อโครงสร้าง JPCP/JRCP (2)", value=get_loaded_name('JRCP2', "JPCP/JRCP (2): คอนกรีตบนหินคลุกผสมซีเมนต์"), key="jrcp2_name")
+            jrcp2_show = st.checkbox("แสดงในรายงาน", value=True, key="jrcp2_show")
+            jrcp2_name = st.text_input("ชื่อโครงสร้าง JPCP/JRCP (2)", value="JPCP/JRCP (2): คอนกรีตบนหินคลุกผสมซีเมนต์", key="jrcp2_name")
             with st.expander(f"● {jrcp2_name}", expanded=True):
-                jrcp2_layers = render_layer_editor(get_layers('JRCP2', get_default_jrcp2_layers), "jrcp2", total_width, road_length)
+                jrcp2_init_layers = get_layers_from_json_or_default('JRCP2', get_default_jrcp2_layers)
+                jrcp2_init_joints = get_joints_from_json_or_default('JRCP2', get_default_jrcp1_joints)
+                jrcp2_layers = render_layer_editor(jrcp2_init_layers, f"jrcp2_{import_version}", total_width, road_length)
                 jrcp2_layer_cost, jrcp2_layer_details = calculate_layer_cost(jrcp2_layers, road_length)
-                jrcp2_joints, jrcp2_include_joints = render_joint_editor(get_default_jrcp1_joints(), "jrcp2", area_per_km, road_length)
+                jrcp2_joints, jrcp2_include_joints = render_joint_editor(jrcp2_init_joints, f"jrcp2_{import_version}", area_per_km, road_length)
                 jrcp2_joint_cost, jrcp2_joint_details = calculate_joint_cost(jrcp2_joints, road_length)
                 
                 # คำนวณ บาท/ตร.ม. ตาม checkbox
@@ -1535,10 +1558,11 @@ def main():
         col5, col6 = st.columns(2)
         
         with col5:
-            crcp1_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('CRCP1', True), key="crcp1_show")
-            crcp1_name = st.text_input("ชื่อโครงสร้าง CRCP1", value=get_loaded_name('CRCP1', "CRCP1: คอนกรีตเสริมเหล็กต่อเนื่องบนดินซีเมนต์"), key="crcp1_name")
+            crcp1_show = st.checkbox("แสดงในรายงาน", value=True, key="crcp1_show")
+            crcp1_name = st.text_input("ชื่อโครงสร้าง CRCP1", value="CRCP1: คอนกรีตเสริมเหล็กต่อเนื่องบนดินซีเมนต์", key="crcp1_name")
             with st.expander(f"● {crcp1_name}", expanded=True):
-                crcp1_layers = render_layer_editor(get_layers('CRCP1', get_default_crcp1_layers), "crcp1", total_width, road_length)
+                crcp1_init_layers = get_layers_from_json_or_default('CRCP1', get_default_crcp1_layers)
+                crcp1_layers = render_layer_editor(crcp1_init_layers, f"crcp1_{import_version}", total_width, road_length)
                 crcp1_cost, crcp1_details = calculate_layer_cost(crcp1_layers, road_length)
                 crcp1_cost_per_km = crcp1_cost / road_length / 1_000_000
                 crcp1_cost_per_sqm = crcp1_cost / (area_per_km * road_length)
@@ -1546,10 +1570,11 @@ def main():
                 st.markdown(f'<div class="cost-box">💰 <b>ค่าก่อสร้าง:</b> {crcp1_cost_per_sqm:.2f} บาท/ตร.ม.</div>', unsafe_allow_html=True)
         
         with col6:
-            crcp2_show = st.checkbox("แสดงในรายงาน", value=get_loaded_show('CRCP2', True), key="crcp2_show")
-            crcp2_name = st.text_input("ชื่อโครงสร้าง CRCP2", value=get_loaded_name('CRCP2', "CRCP2: คอนกรีตเสริมเหล็กต่อเนื่องบน CMCR"), key="crcp2_name")
+            crcp2_show = st.checkbox("แสดงในรายงาน", value=True, key="crcp2_show")
+            crcp2_name = st.text_input("ชื่อโครงสร้าง CRCP2", value="CRCP2: คอนกรีตเสริมเหล็กต่อเนื่องบน CMCR", key="crcp2_name")
             with st.expander(f"● {crcp2_name}", expanded=True):
-                crcp2_layers = render_layer_editor(get_layers('CRCP2', get_default_crcp2_layers), "crcp2", total_width, road_length)
+                crcp2_init_layers = get_layers_from_json_or_default('CRCP2', get_default_crcp2_layers)
+                crcp2_layers = render_layer_editor(crcp2_init_layers, f"crcp2_{import_version}", total_width, road_length)
                 crcp2_cost, crcp2_details = calculate_layer_cost(crcp2_layers, road_length)
                 crcp2_cost_per_km = crcp2_cost / road_length / 1_000_000
                 crcp2_cost_per_sqm = crcp2_cost / (area_per_km * road_length)
@@ -1739,13 +1764,8 @@ def main():
                             'project_info': st.session_state['project_info'],
                             'construction': {
                                 k: {
-                                    'name': v.get('name', k),
                                     'cost': v.get('cost', 0),
-                                    'cost_sqm': v.get('cost_sqm', 0),
-                                    'details': v.get('details', []),
-                                    'layers': v.get('layers', []),
-                                    'joints': v.get('joints', None),
-                                    'show': v.get('show', True),
+                                    'details': v.get('details', [])
                                 } for k, v in st.session_state.get('construction', {}).items()
                             },
                             'saved_at': datetime.now().isoformat()
