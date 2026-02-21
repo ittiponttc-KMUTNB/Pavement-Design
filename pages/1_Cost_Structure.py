@@ -555,9 +555,10 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, version=0)
         })
     material_names = list(base_materials.keys())
     
-    # จำนวนชั้นพื้นทาง (สูงสุด 5 ชั้น)
-    num_base = st.number_input("จำนวนชั้นพื้นทาง/รองพื้นทาง", value=len(base_layers), 
-                                min_value=1, max_value=5, key=f"{key_prefix}_num_base_v{version}")
+    # จำนวนชั้นพื้นทาง (สูงสุด 5 ชั้น) — ถ้า JSON ไม่มี base layer ให้ใช้ 0 ได้
+    default_num_base = max(len(base_layers), 0)
+    num_base = st.number_input("จำนวนชั้นพื้นทาง/รองพื้นทาง", value=default_num_base,
+                                min_value=0, max_value=5, key=f"{key_prefix}_num_base_v{version}")
     
     cols = st.columns([3, 1, 1.2, 1.2, 1.2])
     cols[0].markdown("วัสดุ")
