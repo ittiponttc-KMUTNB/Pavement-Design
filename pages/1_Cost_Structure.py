@@ -412,7 +412,7 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
         if any(x in name_lower for x in [
             'wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime',
             'geotextile', 'steel',
-            'ac base', 'ac interlayer', 'interlayer',   # ชื่อจาก JSON save
+            'ac base',              # AC Base Course จาก JSON
             'ac wearing', 'ac binder',
         ]):
             surface_layers.append(layer)
@@ -763,7 +763,7 @@ def generate_word_report_table(project_info, structure_type, structure_name, cbr
     base_layers = []
     for layer in layers:
         name_lower = layer['name'].lower()
-        if any(x in name_lower for x in ['wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime', 'geotextile', 'steel', 'ac base', 'ac interlayer', 'interlayer']):
+        if any(x in name_lower for x in ['wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime', 'geotextile', 'steel', 'ac base', 'ac wearing', 'ac binder']):
             surface_layers.append(layer)
         else:
             base_layers.append(layer)
