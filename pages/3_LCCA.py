@@ -1056,38 +1056,59 @@ def main():
     has_maint = 'maintenance_to_lcca' in st.session_state
 
     if has_cost or has_maint:
-        st.warning("📬 **มีข้อมูลจากโปรแกรม Cost Pavement** — กรุณาเลือกโครงสร้างที่ต้องการใช้")
+        st.warning("📬 **มีข้อมูลจากโปรแกรม Cost Pavement**")
 
         if has_cost:
             cost_map = st.session_state['cost_to_lcca']
 
-            # ----- จัดกลุ่มตาม prefix: AC→Flexible, JRCP/JPCP→JPCP, CRCP→CRCP -----
-            groups = {
-                'AC (Flexible)':   {},   # AC1, AC2 ...
-                'JPCP/JRCP':       {},   # JRCP1, JRCP2, JPCP1 ...
-                'CRCP':            {},   # CRCP1, CRCP2 ...
+            # ===== จัดกลุ่มด้วย "ชื่อโครงสร้าง" (AC, JPCP, JRCP, CRCP) =====
+            # LCCA 4 ทางเลือก
+            LCCA_SLOTS = {
+                'AC':   {'ชื่อ': 'ผิวทางยืดหยุ่น (AC)', 'ประเภท': 'Flexible'},
+                'JPCP': {'ชื่อ': 'JPCP',                 'ประเภท': 'JPCP'},
+                'JRCP': {'ชื่อ': 'JRCP',                 'ประเภท': 'JRCP'},
+                'CRCP': {'ชื่อ': 'CRCP',                 'ประเภท': 'CRCP'},
             }
-            for key, info in cost_map.items():
-                k = key.strip().upper()
-                # ดึงชื่อแสดง
+
+            # จัดกลุ่มตาม ชื่อโครงสร้าง (ที่ cost pavement ส่งมา)
+            # key=ชื่อโครงสร้าง (AC/JPCP/JRCP/CRCP), value=list of {รหัส, display, info}
+            groups = {}
+            for raw_key, info in cost_map.items():
                 if isinstance(info, dict):
-                    label = info.get('ชื่อโครงสร้าง', info.get('name', key))
+                    struct_name = info.get('ชื่อโครงสร้าง', info.get('name', '')).strip().upper()
+                    label = info.get('ชื่อโครงสร้าง', info.get('name', raw_key))
                     cost_val = info.get('ต้นทุนก่อสร้าง', info.get('cost', info.get('cost_sqm', 0)))
                 else:
-                    label = key
+                    struct_name = raw_key.strip().upper()
+                    label = raw_key
                     cost_val = float(info)
-                display = f"{key} — {label} ({cost_val:,.0f} บาท/ตร.ม.)"
 
-                if k.startswith('AC') or 'FLEXIBLE' in k:
-                    groups['AC (Flexible)'][key] = {'display': display, 'info': info}
-                elif 'CRCP' in k:
-                    groups['CRCP'][key] = {'display': display, 'info': info}
-                elif 'JRCP' in k or 'JPCP' in k:
-                    groups['JPCP/JRCP'][key] = {'display': display, 'info': info}
-                else:
-                    groups['AC (Flexible)'][key] = {'display': display, 'info': info}
+                # จับคู่ struct_name กับ LCCA slot
+                slot_key = None
+                for sk in LCCA_SLOTS:
+                    if sk == struct_name or sk in struct_name or struct_name in sk:
+                        slot_key = sk
+                        break
+                # fallback: ดูจาก raw_key (รหัส)
+                if slot_key is None:
+                    rk = raw_key.strip().upper()
+                    if rk.startswith('AC') or 'FLEXIBLE' in rk:
+                        slot_key = 'AC'
+                    elif 'CRCP' in rk:
+                        slot_key = 'CRCP'
+                    elif 'JRCP' in rk:
+                        slot_key = 'JRCP'
+                    elif 'JPCP' in rk:
+                        slot_key = 'JPCP'
+                    else:
+                        slot_key = 'AC'  # default
 
-            # ----- แสดงตาราง preview -----
+                display = f"{raw_key} — {label} ({cost_val:,.0f} บาท/ตร.ม.)"
+                groups.setdefault(slot_key, []).append({
+                    'raw_key': raw_key, 'display': display, 'info': info
+                })
+
+            # ===== แสดงตาราง preview =====
             with st.expander("📋 ข้อมูลทั้งหมดจาก Cost Pavement", expanded=False):
                 preview_rows = []
                 for k, v in cost_map.items():
@@ -1101,48 +1122,45 @@ def main():
                         preview_rows.append({"รหัส": k, "ชื่อโครงสร้าง": k, "ต้นทุน (บาท/ตร.ม.)": f"{float(v):,.2f}"})
                 st.dataframe(preview_rows, use_container_width=True, hide_index=True)
 
-            # ----- Dropdown เลือกตัวแทนกลุ่ม 4 ทางเลือก -----
-            st.markdown("##### 🔽 เลือกโครงสร้างที่จะใช้เป็นตัวแทนแต่ละประเภท")
-            st.caption("ไม่ต้องการใช้กลุ่มไหน ให้เลือก \"— ไม่ใช้ —\"")
-
+            # ===== Dropdown เลือกตัวแทน 4 ทางเลือก =====
             NO_SELECT = "— ไม่ใช้ —"
-            selections = {}   # group_name → selected key
+            selections = {}  # slot_key → raw_key
 
-            # แมปทางเลือก LCCA 4 ตัว
-            lcca_map = {
-                'AC (Flexible)':  {'ชื่อ': 'ผิวทางยืดหยุ่น (AC)', 'ประเภท': 'Flexible'},
-                'JPCP/JRCP':      {'ชื่อ': 'JPCP',                 'ประเภท': 'JPCP'},
-                'CRCP':           {'ชื่อ': 'CRCP',                 'ประเภท': 'CRCP'},
-            }
+            # นับจำนวน slot ที่มีหลายตัวเลือก
+            has_multi = any(len(items) > 1 for items in groups.values())
 
-            cols_sel = st.columns(3)
-            for idx, (grp_name, items) in enumerate(groups.items()):
+            if has_multi:
+                st.markdown("##### 🔽 เลือกโครงสร้างที่จะใช้เป็นตัวแทนแต่ละประเภท")
+                st.caption("กลุ่มที่มีหลายตัวเลือก กรุณาเลือก — ไม่ต้องการใช้กลุ่มไหนให้เลือก \"— ไม่ใช้ —\"")
+
+            cols_sel = st.columns(4)
+            for idx, slot_key in enumerate(LCCA_SLOTS):
+                items = groups.get(slot_key, [])
                 with cols_sel[idx]:
                     if len(items) == 0:
-                        st.info(f"**{grp_name}**: ไม่มีข้อมูล")
-                        selections[grp_name] = None
+                        st.caption(f"**{slot_key}**")
+                        st.info("ไม่มีข้อมูล")
+                        selections[slot_key] = None
                     elif len(items) == 1:
                         # มีตัวเดียว → เลือกอัตโนมัติ
-                        only_key = list(items.keys())[0]
-                        st.success(f"**{grp_name}**")
-                        st.write(f"✅ {items[only_key]['display']}")
-                        selections[grp_name] = only_key
+                        st.caption(f"**{slot_key}**")
+                        st.success(f"✅ {items[0]['display']}")
+                        selections[slot_key] = items[0]['raw_key']
                     else:
-                        # มีหลายตัว → ให้เลือก
-                        options = [NO_SELECT] + [items[k]['display'] for k in items]
+                        # มีหลายตัว → ให้เลือก dropdown
+                        options = [NO_SELECT] + [it['display'] for it in items]
                         chosen = st.selectbox(
-                            f"**{grp_name}**",
+                            f"**{slot_key}**",
                             options=options,
-                            index=1,  # default เลือกตัวแรก
-                            key=f"_cost_sel_{grp_name}"
+                            index=1,
+                            key=f"_cost_sel_{slot_key}"
                         )
                         if chosen == NO_SELECT:
-                            selections[grp_name] = None
+                            selections[slot_key] = None
                         else:
-                            # หา key จาก display
-                            for k, v in items.items():
-                                if v['display'] == chosen:
-                                    selections[grp_name] = k
+                            for it in items:
+                                if it['display'] == chosen:
+                                    selections[slot_key] = it['raw_key']
                                     break
 
         # ----- ปุ่มรับค่า / ปฏิเสธ -----
@@ -1150,55 +1168,46 @@ def main():
         col_accept, col_reject = st.columns(2)
 
         with col_accept:
-            if st.button("✅ รับค่าและนำไปใช้ (4 ทางเลือก)", type="primary", use_container_width=True):
+            if st.button("✅ รับค่าและนำไปใช้", type="primary", use_container_width=True):
                 updated = 0
 
                 if has_cost:
                     cost_map = st.session_state.pop('cost_to_lcca')
 
-                    for grp_name, sel_key in selections.items():
-                        if sel_key is None:
+                    for slot_key, sel_raw_key in selections.items():
+                        if sel_raw_key is None:
                             continue
-                        info = cost_map.get(sel_key)
+                        info = cost_map.get(sel_raw_key)
                         if info is None:
                             continue
 
                         # ดึงค่าจาก info
                         if isinstance(info, dict):
-                            new_cost = info.get('ต้นทุนก่อสร้าง', info.get('cost', info.get('cost_sqm', 0)))
+                            new_cost  = info.get('ต้นทุนก่อสร้าง', info.get('cost', info.get('cost_sqm', 0)))
                             new_thick = info.get('ความหนา', info.get('thickness', None))
                             new_area  = info.get('พื้นที่', info.get('area', None))
-                            new_name_suffix = info.get('ชื่อโครงสร้าง', info.get('name', sel_key))
                         else:
                             new_cost = float(info)
                             new_thick = None
                             new_area  = None
-                            new_name_suffix = sel_key
 
                         if new_cost <= 0:
                             continue
 
-                        # หาทางเลือกที่ตรงกับกลุ่ม
-                        target_name = lcca_map[grp_name]['ชื่อ']
-                        target_type = lcca_map[grp_name]['ประเภท']
+                        # หาทางเลือกที่ตรงกับ slot
+                        target_name = LCCA_SLOTS[slot_key]['ชื่อ']
+                        target_type = LCCA_SLOTS[slot_key]['ประเภท']
 
-                        found = False
                         for ท in st.session_state.ทางเลือกทั้งหมด:
-                            if ท.ประเภท == target_type or ท.ชื่อ == target_name:
+                            if ท.ประเภท == target_type:
                                 ท.ต้นทุนก่อสร้าง = float(new_cost)
                                 if new_thick is not None:
                                     ท.ความหนา = float(new_thick)
                                 if new_area is not None:
                                     ท.พื้นที่ = float(new_area)
-                                # อัปเดตชื่อให้แสดงที่มา
-                                ท.ชื่อ = f"{target_name} [{sel_key}]"
-                                found = True
+                                ท.ชื่อ = f"{target_name} [{sel_raw_key}]"
                                 updated += 1
                                 break
-
-                        # ถ้าไม่เจอทางเลือกที่ match → ข้าม (ไม่สร้างใหม่)
-                        if not found:
-                            st.warning(f"⚠️ ไม่พบทางเลือก {target_name} ในรายการ")
 
                 # รับค่าบำรุงรักษา (ถ้ามี)
                 if has_maint:
