@@ -411,7 +411,7 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
         name_lower = layer['name'].lower()
         if any(x in name_lower for x in [
             'wearing', 'binder', 'asphalt', 'concrete', 'tack', 'prime',
-            'geotextile', 'steel', 'ksc',
+            'geotextile', 'steel',
             'ac base', 'ac interlayer', 'interlayer',   # ชื่อจาก JSON save
             'ac wearing', 'ac binder',
         ]):
@@ -591,8 +591,9 @@ def render_layer_editor(layers, key_prefix, total_width, road_length, v=0):
     material_names = list(base_materials.keys())
     
     # จำนวนชั้นพื้นทาง (สูงสุด 5 ชั้น)
-    num_base = st.number_input("จำนวนชั้นพื้นทาง/รองพื้นทาง", value=len(base_layers), 
-                                min_value=1, max_value=5, key=f"{key_prefix}_num_base_v{v}")
+    num_base_default = len(base_layers) if len(base_layers) > 0 else 0
+    num_base = st.number_input("จำนวนชั้นพื้นทาง/รองพื้นทาง", value=num_base_default, 
+                                min_value=0, max_value=5, key=f"{key_prefix}_num_base_v{v}")
     
     cols = st.columns([3, 1, 1.2, 1.2, 1.2])
     cols[0].markdown("วัสดุ")
