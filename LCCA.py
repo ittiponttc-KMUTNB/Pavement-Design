@@ -821,9 +821,25 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
             set_run_font(run, size=sz, bold=True)
         return p
 
-    def add_body_para(text='', bold=False, italic=False):
-        """เพิ่ม paragraph ธรรมดา ฟอนต์ TH SarabunPSK 14pt"""
+    def add_body_para(text='', bold=False, italic=False, first_line_indent=True):
+        """
+        เพิ่ม paragraph ธรรมดา ฟอนต์ TH SarabunPSK 14pt
+        ใช้ thaiDistribute justification + firstLine indent เหมือน Word ต้นฉบับ
+        """
         p = doc.add_paragraph()
+        pPr = p._p.get_or_add_pPr()
+
+        # Thai distribution justify
+        jc = OxmlElement('w:jc')
+        jc.set(qn('w:val'), 'thaiDistribute')
+        pPr.append(jc)
+
+        # First-line indent 720 twips (0.5 inch) — เหมือนต้นฉบับ
+        if first_line_indent:
+            ind = OxmlElement('w:ind')
+            ind.set(qn('w:firstLine'), '720')
+            pPr.append(ind)
+
         if text:
             run = p.add_run(text)
             set_run_font(run, size=SZ_BODY, bold=bold, italic=italic)
@@ -887,7 +903,7 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     add_heading_para(f"{sub(2)}  สูตรมูลค่าปัจจุบัน (Present Worth)", level=2)
     add_body_para('สูตรแปลงต้นทุนในอนาคตมาเป็นมูลค่าปัจจุบัน:')
 
-    # สูตร italic
+    # สูตร — Times New Roman 11pt, ไม่มี indent
     p_formula = doc.add_paragraph()
     run_f = p_formula.add_run('PW = FV × (1 + i)^(-n)')
     run_f.font.name = 'Times New Roman'
@@ -909,6 +925,7 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     add_heading_para(f"{sub(3)}  สูตรต้นทุนเฉลี่ยรายปี (EAC)", level=2)
     add_body_para('สูตรแปลงมูลค่าปัจจุบันรวมเป็นต้นทุนเฉลี่ยต่อปี:')
 
+    # สูตร — Times New Roman 11pt, ไม่มี indent
     p_formula2 = doc.add_paragraph()
     run_f2 = p_formula2.add_run('EAC = PW × [i × (1 + i)^n] / [(1 + i)^n - 1]')
     run_f2.font.name = 'Times New Roman'
@@ -1047,6 +1064,12 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
 
     # สร้างข้อความสรุป แบบเดียวกับ Word ต้นฉบับ
     p_summary = doc.add_paragraph()
+    # Thai distribution + first-line indent
+    pPr_s = p_summary._p.get_or_add_pPr()
+    jc_s = OxmlElement('w:jc'); jc_s.set(qn('w:val'), 'thaiDistribute')
+    pPr_s.append(jc_s)
+    ind_s = OxmlElement('w:ind'); ind_s.set(qn('w:firstLine'), '720')
+    pPr_s.append(ind_s)
     summary_text = (
         f'จากการวิเคราะห์ต้นทุนตลอดวงจรชีวิตของทางเลือกผิวทาง {len(สรุป)} ประเภท'
         f' พบว่า '
