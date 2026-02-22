@@ -783,9 +783,10 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     from docx.oxml import OxmlElement
 
     FONT = 'TH SarabunPSK'
-    SZ_H1  = Pt(16)   # Heading1  32 half-pt = 16pt
-    SZ_H2  = Pt(13)   # Heading2  26 half-pt = 13pt
-    SZ_BODY = Pt(14)  # Normal    28 half-pt = 14pt
+    SZ_H1      = Pt(15)   # Heading1  → 15pt
+    SZ_H2      = Pt(15)   # Heading2  → 15pt
+    SZ_BODY    = Pt(14)   # Normal    → 14pt
+    SZ_FORMULA = Pt(11)   # สมการ Times New Roman 11pt
 
     if ข้อมูลโครงการ is None:
         ข้อมูลโครงการ = {}
@@ -889,7 +890,9 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     # สูตร italic
     p_formula = doc.add_paragraph()
     run_f = p_formula.add_run('PW = FV × (1 + i)^(-n)')
-    set_run_font(run_f, size=SZ_BODY, italic=True)
+    run_f.font.name = 'Times New Roman'
+    run_f.font.size = SZ_FORMULA
+    run_f.font.italic = True
 
     add_body_para('โดยที่:')
     for line in [
@@ -908,7 +911,9 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
 
     p_formula2 = doc.add_paragraph()
     run_f2 = p_formula2.add_run('EAC = PW × [i × (1 + i)^n] / [(1 + i)^n - 1]')
-    set_run_font(run_f2, size=SZ_BODY, italic=True)
+    run_f2.font.name = 'Times New Roman'
+    run_f2.font.size = SZ_FORMULA
+    run_f2.font.italic = True
 
     add_body_para('โดยที่:')
     for line in [
@@ -924,22 +929,14 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     # ═══════════════════════════════════════════════════════
     add_heading_para(f"{sub(4)}  ข้อมูลของโครงการสำหรับการคำนวณ", level=1)
 
-    # ฟิลด์ข้อมูลโครงการ
+    # แสดงเฉพาะค่าจำเป็น 3 รายการ
     ฟิลด์_proj = [
-        ('ชื่อโครงการ', ข้อมูลโครงการ.get('ชื่อโครงการ', ชื่อโครงการ)),
-        ('สายทาง / เส้นทาง', ข้อมูลโครงการ.get('สายทาง', '-')),
-        ('ตอน', ข้อมูลโครงการ.get('ตอน', '-')),
-        ('ที่ตั้งโครงการ', ข้อมูลโครงการ.get('ที่ตั้ง', '-')),
-        ('ความยาวโครงการ (กม.)', ข้อมูลโครงการ.get('ความยาว', '-')),
-        ('ผู้รับผิดชอบ / ผู้จัดทำ', ข้อมูลโครงการ.get('ผู้รับผิดชอบ', '-')),
-        ('วันที่วิเคราะห์', datetime.now().strftime("%d/%m/%Y")),
         ('ระยะเวลาวิเคราะห์', f'{ระยะวิเคราะห์} ปี'),
-        ('อัตราคิดลด', f'{อัตราคิดลด*100:.1f}%'),
-        ('จำนวนทางเลือก', f'{len(สรุป)} ทางเลือก'),
+        ('อัตราคิดลด',          f'{อัตราคิดลด*100:.1f}%'),
+        ('จำนวนทางเลือก',       f'{len(สรุป)} ทางเลือก'),
     ]
 
     for label, value in ฟิลด์_proj:
-        # แสดงเป็น paragraph ธรรมดา เหมือน Word ต้นฉบับ ข้อที่ 4.8.4
         p = doc.add_paragraph()
         run_label = p.add_run(f'{label}: ')
         set_run_font(run_label, size=SZ_BODY)
