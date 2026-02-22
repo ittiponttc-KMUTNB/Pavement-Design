@@ -1023,9 +1023,21 @@ def สร้างรายงาน_Word_ที่ปรึกษา(
     # ═══════════════════════════════════════════════════════
     add_heading_para(f"{sub(8)}  รายละเอียดกระแสเงินสดแต่ละทางเลือก", level=1)
 
+    # สร้าง map ชื่อ → ประเภท เพื่อใช้ตั้งชื่อ sub-heading
+    ประเภทแมพ = {ท.ชื่อ: ท.ประเภท for ท in ทางเลือกทั้งหมด}
+
+    def ชื่อ_sub_heading(ชื่อ: str) -> str:
+        """สร้างชื่อ sub-heading พร้อม prefix ตามประเภทผิวทาง"""
+        ประเภท = ประเภทแมพ.get(ชื่อ, '')
+        if 'Flexible' in ประเภท or 'ยืดหยุ่น' in ประเภท:
+            return f"ผิวทางยืดหยุ่น (AC)"
+        else:
+            # JPCP, JRCP, CRCP → "ผิวทางคอนกรีตแบบ XXXX"
+            return f"ผิวทางคอนกรีตแบบ {ชื่อ}"
+
     for idx_alt, (ชื่อทางเลือก, cf_table) in enumerate(กระแสเงินสด.items()):
-        # Sub-heading ชื่อทางเลือก (heading 2)
-        add_heading_para(ชื่อทางเลือก, level=2)
+        # Sub-heading พร้อม prefix ตามประเภทผิวทาง
+        add_heading_para(ชื่อ_sub_heading(ชื่อทางเลือก), level=2)
 
         table_cf = doc.add_table(rows=1, cols=5)
         set_table_style(table_cf)
