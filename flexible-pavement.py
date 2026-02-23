@@ -1588,87 +1588,175 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
 
     _body_para([
         ('        การคำนวณความหนาขั้นต่ำของแต่ละชั้น ใช้หลักการว่า Structural Number (SN) '
-         'ที่จุดใดๆ ต้องมากกว่าหรือเท่ากับ SN ที่ต้องการ โดยคำนวณจากค่า M\u1d63 ของชั้นถัดไป', False),
+         'ที่จุดใดๆ ต้องมากกว่าหรือเท่ากับ SN ที่ต้องการ โดยคำนวณจากค่า M\u1d63 '
+         'ของชั้นถัดไป', False),
     ], indent_cm=1.25)
 
-    # --- ชั้นทีละชั้น ---
+    # ---------------------------------------------------------------
+    # Helper สำหรับเขียน equation paragraph (Times New Roman)
+    # ---------------------------------------------------------------
+    def _eq_para(text, size=11, bold=False, italic=True,
+                 align=WD_ALIGN_PARAGRAPH.CENTER, color=None):
+        p = doc.add_paragraph()
+        p.alignment = align
+        p.paragraph_format.space_before = Pt(2)
+        p.paragraph_format.space_after  = Pt(2)
+        r = p.add_run(text)
+        r.font.name  = 'Times New Roman'
+        r.font.size  = Pt(size)
+        r.bold       = bold
+        r.italic     = italic
+        if color:
+            r.font.color.rgb = color
+        try:
+            r._element.rPr.rFonts.set(qn('w:cs'), 'Times New Roman')
+        except Exception:
+            pass
+        return p
+
+    def _label_para(text, indent_cm=1.5):
+        """ป้ายชื่อ เช่น 'ข้อมูลวัสดุ:' — TH SarabunPSK bold"""
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent  = Cm(indent_cm)
+        p.paragraph_format.space_before = Pt(4)
+        p.paragraph_format.space_after  = Pt(1)
+        _run(p, text, bold=True)
+        return p
+
+    def _bullet_para(text, indent_cm=2.0):
+        """bullet ข้อมูลวัสดุ — TH SarabunPSK ธรรมดา"""
+        p = doc.add_paragraph()
+        p.paragraph_format.left_indent = Cm(indent_cm)
+        p.paragraph_format.space_after = Pt(1)
+        _run(p, text)
+        return p
+
+    GREEN = RGBColor(0, 112, 0)
+
+    # ================================================================
+    # วนซ้ำทีละชั้น — รูปแบบตรงกับภาพตัวอย่าง
+    # ================================================================
     for layer in calc_results.get('layers', []):
-        sn_at = layer['sn_required_at_layer']
+        sn_at    = layer['sn_required_at_layer']
         layer_no = layer['layer_no']
+        a_i      = layer['a_i']
+        m_i      = layer['m_i']
+        d_in     = layer['design_thickness_inch']
+        d_cm     = layer['design_thickness_cm']
+        d_min_in = layer['min_thickness_inch']
+        d_min_cm = layer['min_thickness_cm']
+        sn_cont  = layer['sn_contribution']
+        sn_cum   = layer['cumulative_sn']
+        is_ok    = layer['is_ok']
 
-        # หัวข้อชั้น
-        sub_p = doc.add_paragraph()
-        sub_p.paragraph_format.space_before = Pt(6)
-        sub_p.paragraph_format.space_after  = Pt(2)
-        sub_p.paragraph_format.left_indent  = Cm(1.0)
-        _run(sub_p, f'ชั้นที่ {layer_no}: {layer["material"]}', bold=True, underline=True)
+        # ----------------------------------------------------------
+        # หัวข้อชั้น  "ชั้นที่ N: ชื่อวัสดุ"
+        # ----------------------------------------------------------
+        doc.add_paragraph()
+        hdr_p = doc.add_paragraph()
+        hdr_p.paragraph_format.space_before = Pt(6)
+        hdr_p.paragraph_format.space_after  = Pt(3)
+        hdr_p.paragraph_format.left_indent  = Cm(1.0)
+        _run(hdr_p, f'ชั้นที่ {layer_no}: {layer["material"]}',
+             bold=True, underline=True, size=15)
 
-        # ข้อมูลวัสดุ
-        mat_p = doc.add_paragraph()
-        mat_p.paragraph_format.left_indent = Cm(2.0)
-        mat_p.paragraph_format.space_after = Pt(2)
-        _run(mat_p,
-             f'M\u1d63 = {layer["mr_psi"]:,} psi = {layer["mr_mpa"]:,} MPa   '
-             f'| a{layer_no} = {layer["a_i"]:.2f}   '
-             f'| m{layer_no} = {layer["m_i"]:.2f}')
+        # ----------------------------------------------------------
+        # ข้อมูลวัสดุ:
+        # ----------------------------------------------------------
+        _label_para('ข้อมูลวัสดุ:')
+        _bullet_para(f'\u2022  Mr = {layer["mr_psi"]:,} psi  =  {layer["mr_mpa"]:,} MPa')
+        _bullet_para(f'\u2022  Layer Coefficient (a{layer_no})  =  {a_i:.2f}')
+        _bullet_para(f'\u2022  Drainage Coefficient (m{layer_no})  =  {m_i:.2f}')
 
-        # SN required
-        sn_p = doc.add_paragraph()
-        sn_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        sn_run = sn_p.add_run(f'SN{layer_no} = {sn_at:.2f}   (จากสมการ AASHTO 1993)')
-        sn_run.font.name = 'Times New Roman'
-        sn_run.font.size = Pt(11)
-        sn_run.bold = True
+        # ----------------------------------------------------------
+        # การคำนวณ SN:
+        # ----------------------------------------------------------
+        _label_para('การคำนวณ SN:')
+        _eq_para(
+            f'จากสมการ AASHTO 1993:   SN\u2080{layer_no} = {sn_at:.2f}',
+            bold=True, italic=False
+        )
 
-        # สูตรความหนา
-        formula_p = doc.add_paragraph()
-        formula_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        # ----------------------------------------------------------
+        # การคำนวณความหนาขั้นต่ำ:
+        # ----------------------------------------------------------
+        _label_para('การคำนวณความหนาขั้นต่ำ:')
+
         if layer_no == 1:
-            formula_txt = (f'D\u2081 \u2265 SN\u2081 / (a\u2081 \u00d7 m\u2081) = '
-                           f'{sn_at:.2f} / ({layer["a_i"]:.2f} \u00d7 {layer["m_i"]:.2f}) = '
-                           f'{layer["min_thickness_inch"]:.2f} \u0e19\u0e34\u0e49\u0e27 = '
-                           f'{layer["min_thickness_cm"]:.1f} \u0e0b\u0e21.')
+            formula_txt = (
+                f'D\u2081 \u2265 SN\u2081 / (a\u2081 \u00d7 m\u2081)'
+                f'  =  {sn_at:.2f} / ({a_i:.2f} \u00d7 {m_i:.2f})'
+                f'  =  {d_min_in:.2f} \u0e19\u0e34\u0e49\u0e27  =  {d_min_cm:.1f} \u0e0b\u0e21.'
+            )
         else:
             prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
-            formula_txt = (f'D{layer_no} \u2265 (SN{layer_no} \u2212 SN{layer_no-1}) / '
-                           f'(a{layer_no} \u00d7 m{layer_no}) = '
-                           f'({sn_at:.2f} \u2212 {prev_sn:.2f}) / ({layer["a_i"]:.2f} \u00d7 {layer["m_i"]:.2f}) = '
-                           f'{layer["min_thickness_inch"]:.2f} \u0e19\u0e34\u0e49\u0e27 = '
-                           f'{layer["min_thickness_cm"]:.1f} \u0e0b\u0e21.')
-        f_run = formula_p.add_run(formula_txt)
-        f_run.font.name = 'Times New Roman'
-        f_run.font.size = Pt(11)
-        f_run.italic = True
+            formula_txt = (
+                f'D{layer_no} \u2265 (SN{layer_no} \u2212 SN{layer_no-1}) / (a{layer_no} \u00d7 m{layer_no})'
+                f'  =  ({sn_at:.2f} \u2212 {prev_sn:.2f}) / ({a_i:.2f} \u00d7 {m_i:.2f})'
+                f'  =  {d_min_in:.2f} \u0e19\u0e34\u0e49\u0e27  =  {d_min_cm:.1f} \u0e0b\u0e21.'
+            )
+        _eq_para(formula_txt, italic=True)
 
-        # ความหนาที่เลือก + SN contribution
-        res_p = doc.add_paragraph()
-        res_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        res_p.paragraph_format.space_after = Pt(2)
-        status_sym = '\u2713 OK' if layer['is_ok'] else '\u2717 NG'
-        res_run = res_p.add_run(
-            f'D{layer_no}(design) = {layer["design_thickness_cm"]:.0f} \u0e0b\u0e21.   '
-            f'| \u0394SN{layer_no} = {layer["sn_contribution"]:.3f}   '
-            f'| \u03a3SN = {layer["cumulative_sn"]:.2f}   '
-            f'| {status_sym}'
+        # D(min) บรรทัดแยก
+        _eq_para(
+            f'D{layer_no}(min)  =  {d_min_in:.2f} \u0e19\u0e34\u0e49\u0e27  \u2013  {d_min_cm:.1f} \u0e0b\u0e21.',
+            bold=True, italic=False
         )
-        res_run.font.name = 'Times New Roman'
-        res_run.font.size = Pt(11)
-        res_run.bold = True
-        res_run.font.color.rgb = RGBColor(0, 112, 0) if layer['is_ok'] else RED
+
+        # ----------------------------------------------------------
+        # เลือกใช้ความหนา:
+        # ----------------------------------------------------------
+        _label_para('เลือกใช้ความหนา:')
+        _eq_para(
+            f'D{layer_no}(design)  =  {d_cm:.0f} \u0e0b\u0e21. ({d_in:.2f} \u0e19\u0e34\u0e49\u0e27)',
+            bold=True, italic=False
+        )
+
+        # ----------------------------------------------------------
+        # SN contribution:
+        # ----------------------------------------------------------
+        _label_para('SN contribution:')
+        _eq_para(
+            f'\u0394SN{layer_no} = a{layer_no} \u00d7 D{layer_no} \u00d7 m{layer_no}'
+            f'  =  {a_i:.2f} \u00d7 {d_in:.2f} \u00d7 {m_i:.2f}  =  {sn_cont:.3f}',
+            italic=True
+        )
+        _eq_para(
+            f'\u03a3SN  =  {sn_cum:.2f}',
+            bold=True, italic=False
+        )
+
+        # ----------------------------------------------------------
+        # สถานะ:  ✓ OK  หรือ  ✗ NG
+        # ----------------------------------------------------------
+        status_txt  = '\u2713 OK' if is_ok else '\u2717 NG'
+        status_note = (f'ความหนาเพียงพอ ({d_cm:.0f} \u2265 {d_min_cm:.1f} ซม.)'
+                       if is_ok else
+                       f'ต้องเพิ่มความหนาอีก {d_min_cm - d_cm:.1f} ซม.')
+        _eq_para(
+            f'\u0e2a\u0e16\u0e32\u0e19\u0e30:  {status_txt}  \u2014  {status_note}',
+            bold=True, italic=False,
+            color=GREEN if is_ok else RED
+        )
 
     # ------------------------------------------------------------------
-    # สรุป SN รวม
+    # สรุปผลการออกแบบ
     # ------------------------------------------------------------------
     doc.add_paragraph()
-    sum_p = doc.add_paragraph()
-    sum_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sum_p.paragraph_format.space_before = Pt(6)
-    _run(sum_p,
-         f'SN_required = {sn_req:.2f}   |   SN_provided = {sn_prov:.2f}   |   '
-         f'Safety Margin = {design_check.get("safety_margin", sn_prov - sn_req):.2f}   |   '
-         f'ผลการออกแบบ: {passed_txt}',
-         bold=True, size=15,
-         color=RGBColor(0, 112, 0) if design_check.get('passed') else RED)
+    safety_margin = design_check.get('safety_margin', sn_prov - sn_req)
+    _label_para('สรุปผลการออกแบบ:', indent_cm=1.0)
+    _eq_para(
+        f'SN required  =  {sn_req:.2f}   |   '
+        f'SN provided  =  {sn_prov:.2f}   |   '
+        f'Safety Margin  =  {safety_margin:.2f}',
+        bold=True, italic=False
+    )
+    _eq_para(
+        f'\u0e1c\u0e25\u0e01\u0e32\u0e23\u0e2d\u0e2d\u0e01\u0e41\u0e1a\u0e1a:  '
+        f'{"✓ ผ่านเกณฑ์ (OK)" if design_check.get("passed") else "✗ ไม่ผ่านเกณฑ์ (NG)"}',
+        bold=True, italic=False,
+        color=GREEN if design_check.get('passed') else RED
+    )
 
     # ------------------------------------------------------------------
     # ตารางสรุปโครงสร้างชั้นทาง (รูปแบบ Section 8)
