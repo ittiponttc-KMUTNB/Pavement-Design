@@ -1703,11 +1703,9 @@ def main():
         status_placeholders = {}
 
         # ===== Global m panel =====
-        # อ่านค่า m ปัจจุบันจาก session_state โดยตรง (ไม่ผ่านตัวแปร widget)
-        # เพื่อหลีกเลี่ยงปัญหา Streamlit อ่านค่าเก่าก่อน rerun
-        if 'global_m_value' not in st.session_state:
-            st.session_state['global_m_value'] = 1.00
-
+        # หลักการ: ใช้ st.session_state flag "apply_global_m" 
+        # เพื่อแยก logic การ apply ออกจาก widget rendering
+        # ไม่ใช้ rerun() เพื่อหลีกเลี่ยงการ reset widget values
         with st.container():
             st.markdown(
                 '<div style="background:#EFF6FF;border:1.5px solid #3B82F6;border-radius:8px;'
@@ -1717,29 +1715,22 @@ def main():
             )
             gcol1, gcol2 = st.columns([2, 1])
             with gcol1:
-                # ใช้ on_change callback เพื่อบันทึกค่าทันทีที่เปลี่ยน
-                def _sync_global_m():
-                    st.session_state['global_m_value'] = st.session_state['_global_m_widget']
-
-                st.number_input(
+                global_m = st.number_input(
                     "ค่า m สำหรับทุกชั้นทาง",
                     min_value=0.40, max_value=1.50,
-                    value=st.session_state['global_m_value'],
+                    value=float(st.session_state.get('global_m_value', 1.00)),
                     step=0.05, format="%.2f",
-                    key="_global_m_widget",
-                    on_change=_sync_global_m,
                     help="กรอกค่าแล้วกด 'ใช้เหมือนกันทุกชั้น' — ยังแก้ไขแต่ละชั้นได้ภายหลัง"
                 )
+                # บันทึกค่าล่าสุดทุก rerun (ไม่ใช้ key เพื่อหลีกเลี่ยง widget state conflict)
+                st.session_state['global_m_value'] = global_m
             with gcol2:
                 st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
                 if st.button("✅ ใช้เหมือนกันทุกชั้น", type="primary", use_container_width=True):
-                    # อ่านค่าจาก session_state โดยตรง — ได้ค่าล่าสุดเสมอ (1 ครั้งพอ)
-                    m_to_apply = st.session_state['global_m_value']
                     nl = st.session_state.get('input_num_layers', 4)
                     for idx in range(1, nl + 1):
-                        st.session_state[f'layer{idx}_m'] = m_to_apply
-                    st.toast(f"✅ ตั้งค่า m = {m_to_apply:.2f} ให้ทุกชั้นแล้ว", icon="✅")
-                    st.rerun()
+                        st.session_state[f'layer{idx}_m'] = global_m
+                    st.toast(f"✅ ตั้งค่า m = {global_m:.2f} ให้ทุกชั้นแล้ว", icon="✅")
 
         # ===== ชั้นที่ 1: ผิวทาง =====
         st.subheader("🔶 ชั้นที่ 1: ผิวทาง (Surface)")
