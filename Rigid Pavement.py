@@ -1480,7 +1480,7 @@ def create_full_word_report(
         _add_heading(doc, f'{h_jpcp_layer}  ชั้นโครงสร้างทางคอนกรีตประเภท JPCP/JRCP', level=2)
         fig_n = next_fig_num()
         caption = f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางผิวทางคอนกรีต แบบ JPCP/JRCP'
-        _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
+        _add_layer_table(doc, jpcp_layers_data, jpcp_d_cm, 'JPCP/JRCP',
                          fig_caption=caption,
                          cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
 
@@ -1536,7 +1536,7 @@ def create_full_word_report(
             fig_n = next_fig_num()
             _add_para(doc, f'รูปแบบที่ 1: ผิวทางคอนกรีต แบบ JPCP/JRCP  (รูปที่ {fig_prefix}{fig_n})', bold=True)
             _add_summary_layer_table(
-                doc, jpcp_layers_data, jpcp_d_cm, pavement_type,
+                doc, jpcp_layers_data, jpcp_d_cm, 'JPCP/JRCP',
                 fig_caption=f'รูปที่ {fig_prefix}{fig_n}  โครงสร้างชั้นทางรูปแบบที่ 1 ผิวทางคอนกรีต แบบ JPCP/JRCP',
                 cbr_subgrade=jpcp_subgrade.get('cbr', 3.0))
 
