@@ -2247,7 +2247,7 @@ def main():
                 st.download_button(
                     label="⬇️ ดาวน์โหลดรายงานแบบที่ปรึกษา (.docx)",
                     data=doc_intro_bytes,
-                    file_name=f"Flexible_Intro_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
+                    file_name=f"flexible_consult_{project_title}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True
                 )
@@ -2261,7 +2261,7 @@ def main():
                 st.download_button(
                     label="⬇️ ดาวน์โหลดรายงานแบบย่อ (.docx)",
                     data=doc_bytes,
-                    file_name=f"AASHTO_Flexible_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
+                    file_name=f"flexible_brief_{project_title}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                     use_container_width=True
                 )
