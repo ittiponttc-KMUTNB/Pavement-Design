@@ -465,17 +465,33 @@ def plot_sensitivity_cbr(W18, Zr, So, delta_psi, current_cbr):
         sn_values.append(sn if sn else np.nan)
 
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.plot(cbr_range, sn_values, 'b-', linewidth=2, label='SN required')
-    current_mr = 1500 * current_cbr
-    current_sn = calculate_sn_for_layer(W18, Zr, So, delta_psi, current_mr)
+    ax.plot(cbr_range, sn_values, 'b-', linewidth=2.5, label='SN required')
+
+    current_mr  = 1500 * current_cbr
+    current_sn  = calculate_sn_for_layer(W18, Zr, So, delta_psi, current_mr)
     if current_sn:
         ax.plot(current_cbr, current_sn, 'ro', markersize=12,
-                label=f'ปัจจุบัน: CBR={current_cbr}%, SN={current_sn:.2f}')
-    ax.set_xlabel('CBR (%)', fontsize=11)
-    ax.set_ylabel('SN Required', fontsize=11)
-    ax.set_title('Sensitivity: SN Required vs CBR\n(วิเคราะห์ผลกระทบของ CBR ดินเดิมต่อ SN)', fontsize=11, fontweight='bold')
+                label=f'Current: CBR={current_cbr:.1f}%, SN={current_sn:.2f}')
+        # annotate
+        ax.annotate(
+            f'CBR={current_cbr:.1f}%\nSN={current_sn:.2f}',
+            xy=(current_cbr, current_sn),
+            xytext=(current_cbr + 1.5, current_sn + 0.3),
+            fontsize=9,
+            arrowprops=dict(arrowstyle='->', color='red', lw=1.2),
+            color='red'
+        )
+
+    ax.set_xlabel('CBR (%)', fontsize=12)
+    ax.set_ylabel('SN Required', fontsize=12)
+    ax.set_title(
+        'Sensitivity: SN Required vs CBR\n'
+        '(Effect of Subgrade CBR on Required SN)',
+        fontsize=11, fontweight='bold'
+    )
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
+    ax.set_xlim(left=2)
     try:
         plt.tight_layout()
     except Exception:
@@ -491,14 +507,28 @@ def plot_sensitivity_w18(Zr, So, delta_psi, Mr, current_w18):
         sn_values.append(sn if sn else np.nan)
 
     fig, ax = plt.subplots(figsize=(7, 4))
-    ax.semilogx(w18_range, sn_values, 'g-', linewidth=2, label='SN required')
+    ax.semilogx(w18_range, sn_values, 'g-', linewidth=2.5, label='SN required')
+
     current_sn = calculate_sn_for_layer(current_w18, Zr, So, delta_psi, Mr)
     if current_sn:
         ax.semilogx(current_w18, current_sn, 'ro', markersize=12,
-                     label=f'ปัจจุบัน: W18={current_w18/1e6:.2f}M, SN={current_sn:.2f}')
-    ax.set_xlabel('W₁₈ (ESALs)', fontsize=11)
-    ax.set_ylabel('SN Required', fontsize=11)
-    ax.set_title('Sensitivity: SN Required vs W₁₈\n(วิเคราะห์ผลกระทบของปริมาณจราจรสะสมต่อ SN)', fontsize=11, fontweight='bold')
+                    label=f'Current: W18={current_w18/1e6:.2f}M, SN={current_sn:.2f}')
+        ax.annotate(
+            f'W18={current_w18/1e6:.2f}M\nSN={current_sn:.2f}',
+            xy=(current_w18, current_sn),
+            xytext=(current_w18 * 0.15, current_sn + 0.4),
+            fontsize=9,
+            arrowprops=dict(arrowstyle='->', color='red', lw=1.2),
+            color='red'
+        )
+
+    ax.set_xlabel('W18 (ESALs)', fontsize=12)
+    ax.set_ylabel('SN Required', fontsize=12)
+    ax.set_title(
+        'Sensitivity: SN Required vs W18\n'
+        '(Effect of Cumulative Traffic Load on Required SN)',
+        fontsize=11, fontweight='bold'
+    )
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     try:
@@ -1939,20 +1969,18 @@ def main():
 
         # ===== SENSITIVITY ANALYSIS =====
         st.markdown("---")
-        st.subheader("📈 Sensitivity Analysis — วิเคราะห์ความไวของการออกแบบ")
-        st.caption("กราฟแสดงผลกระทบของตัวแปรหลักต่อ SN_required ช่วยในการตัดสินใจออกแบบ")
+        st.subheader("📈 Sensitivity Analysis")
+        st.caption("🔴 Red dot = current design value  |  กราฟแสดงผลกระทบของตัวแปรหลักต่อ SN_required")
 
         sens_col1, sens_col2 = st.columns(2)
         with sens_col1:
             fig_cbr = plot_sensitivity_cbr(W18, Zr, So, delta_psi, CBR)
             st.pyplot(fig_cbr)
             plt.close(fig_cbr)
-            st.caption("🔴 จุดแดง = ค่า CBR ปัจจุบัน")
         with sens_col2:
             fig_w18 = plot_sensitivity_w18(Zr, So, delta_psi, Mr, W18)
             st.pyplot(fig_w18)
             plt.close(fig_w18)
-            st.caption("🔴 จุดแดง = ค่า W₁₈ ปัจจุบัน")
 
     # ========================================
     # TAB 4: REPORT & EXPORT
