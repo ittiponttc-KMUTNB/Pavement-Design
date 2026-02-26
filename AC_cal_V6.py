@@ -897,38 +897,69 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
 
     for layer in calc_results['layers']:
         doc.add_paragraph()
-        hdr_p = add_thai_paragraph(doc,
-            f'ชั้นที่ {layer["layer_no"]}: {short_material_name(layer["material"])}',
+        ln   = layer['layer_no']
+        a_i  = layer['a_i']
+        m_i  = layer['m_i']
+        d_in = layer['design_thickness_inch']
+        d_cm = layer['design_thickness_cm']
+        sn_at     = layer['sn_required_at_layer']
+        d_min_in  = layer['min_thickness_inch']
+        d_min_cm  = layer['min_thickness_cm']
+        sn_cont   = layer['sn_contribution']
+        sn_cum    = layer['cumulative_sn']
+        is_ok     = layer['is_ok']
+
+        add_thai_paragraph(doc,
+            f'ชั้นที่ {ln}: {short_material_name(layer["material"])}',
             size_pt=15, bold=True)
         add_thai_paragraph(doc,
             f'  • Mr = {layer["mr_psi"]:,} psi = {layer["mr_mpa"]:,} MPa\n'
-            f'  • a{layer["layer_no"]} = {layer["a_i"]:.2f}   m{layer["layer_no"]} = {layer["m_i"]:.2f}',
+            f'  • a_{ln} = {a_i:.2f}   m_{ln} = {m_i:.2f}',
             size_pt=15)
+
+        # --- SN จากสมการ AASHTO (Times New Roman 11pt) ---
         add_thai_paragraph(doc, 'การคำนวณ SN:', size_pt=15, bold=True)
-        sn_at = layer['sn_required_at_layer']
         add_equation_paragraph(doc,
-            f'SN₀{layer["layer_no"]} = {sn_at:.2f}', size_pt=11, bold=True, italic=False)
-        add_thai_paragraph(doc, 'ความหนาขั้นต่ำ:', size_pt=15, bold=True)
-        if layer['layer_no'] == 1:
-            formula = (f'D₁ ≥ SN₁/(a₁×m₁) = {sn_at:.2f}/({layer["a_i"]:.2f}×{layer["m_i"]:.2f})'
-                       f' = {layer["min_thickness_inch"]:.2f} นิ้ว = {layer["min_thickness_cm"]:.1f} ซม.')
+            f'จากสมการ AASHTO 1993:   SN_{ln} = {sn_at:.2f}',
+            size_pt=11, bold=True, italic=True)
+
+        # --- ความหนาขั้นต่ำ + แทนค่าตัวเลข ---
+        add_thai_paragraph(doc, 'การคำนวณความหนาขั้นต่ำ:', size_pt=15, bold=True)
+        if ln == 1:
+            add_equation_paragraph(doc,
+                f'D_1 >= SN_1 / (a_1 x m_1)',
+                size_pt=11, italic=True)
+            add_equation_paragraph(doc,
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} x {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                size_pt=11, bold=True, italic=False)
         else:
-            prev_sn = calc_results['layers'][layer['layer_no']-2]['cumulative_sn']
-            formula = (f'D{layer["layer_no"]} ≥ (SN{layer["layer_no"]}-{prev_sn:.2f})/'
-                       f'(a{layer["layer_no"]}×m{layer["layer_no"]})'
-                       f' = {layer["min_thickness_inch"]:.2f} นิ้ว = {layer["min_thickness_cm"]:.1f} ซม.')
-        add_equation_paragraph(doc, formula, size_pt=11, italic=True)
-        add_thai_paragraph(doc, 'ความหนาที่เลือก:', size_pt=15, bold=True)
+            prev_sn = calc_results['layers'][ln-2]['cumulative_sn']
+            add_equation_paragraph(doc,
+                f'D_{ln} >= (SN_{ln} - SN_{ln-1}) / (a_{ln} x m_{ln})',
+                size_pt=11, italic=True)
+            add_equation_paragraph(doc,
+                f'D_{ln} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} x {m_i:.2f})'
+                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                size_pt=11, bold=True, italic=False)
+
+        # --- ความหนาที่เลือก ---
+        add_thai_paragraph(doc, 'เลือกใช้ความหนา:', size_pt=15, bold=True)
         add_equation_paragraph(doc,
-            f'D{layer["layer_no"]}(design) = {layer["design_thickness_cm"]:.0f} ซม.'
-            f' ({layer["design_thickness_inch"]:.2f} นิ้ว)', size_pt=11, bold=True, italic=False)
+            f'D_{ln}(design)  =  {d_cm:.0f} cm  ({d_in:.2f} in)',
+            size_pt=11, bold=True, italic=False)
+
+        # --- SN contribution + แทนค่าตัวเลข ---
         add_thai_paragraph(doc, 'SN contribution:', size_pt=15, bold=True)
         add_equation_paragraph(doc,
-            f'ΔSN{layer["layer_no"]} = {layer["a_i"]:.2f}×{layer["design_thickness_inch"]:.2f}'
-            f'×{layer["m_i"]:.2f} = {layer["sn_contribution"]:.3f}    ΣSN = {layer["cumulative_sn"]:.2f}',
-            size_pt=11, italic=False)
-        status = '✓ OK — ความหนาเพียงพอ' if layer['is_ok'] else f'✗ NG — ต้องเพิ่มอีก {layer["min_thickness_cm"]-layer["design_thickness_cm"]:.1f} ซม.'
-        p = add_equation_paragraph(doc, f'สถานะ: {status}', size_pt=11, bold=True, italic=False)
+            f'ΔSN_{ln} = a_{ln} x D_{ln} x m_{ln}'
+            f'  =  {a_i:.2f} x {d_in:.2f} x {m_i:.2f}  =  {sn_cont:.3f}',
+            size_pt=11, italic=True)
+        add_equation_paragraph(doc,
+            f'ΣSN  =  {sn_cum:.2f}',
+            size_pt=11, bold=True, italic=False)
+
+        status = '✓ OK — ความหนาเพียงพอ' if is_ok else f'✗ NG — ต้องเพิ่มอีก {d_min_cm - d_cm:.1f} cm'
+        add_equation_paragraph(doc, f'สถานะ: {status}', size_pt=11, bold=True, italic=False)
 
     # Section 5: SN Summary Table
     h2_5 = doc.add_heading('5. ตารางสรุปการคำนวณ Structural Number', level=2)
@@ -1126,6 +1157,26 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
             pass
         return r
 
+    def _eq(para, text, size=11, bold=False, italic=True):
+        """Times New Roman 11pt สำหรับสมการ"""
+        r = para.add_run(text)
+        r.font.name = 'Times New Roman'
+        r.font.size = Pt(size)
+        r.bold = bold
+        r.italic = italic
+        try:
+            r._element.rPr.rFonts.set(qn('w:cs'), 'Times New Roman')
+        except Exception:
+            pass
+        return r
+
+    def _eq_para(text, indent_cm=2.0, bold=False, italic=True, align=WD_ALIGN_PARAGRAPH.LEFT):
+        """Paragraph สมการ Times New Roman 11pt"""
+        p = _para(indent_cm=indent_cm)
+        p.alignment = align
+        _eq(p, text, bold=bold, italic=italic)
+        return p
+
     def _heading(text, level, size):
         h = doc.add_heading(text, level=level)
         for run in h.runs:
@@ -1210,16 +1261,29 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     _run(p_meth, 'การออกแบบโครงสร้างถนนใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures '
          'ตามมาตรฐานกรมทางหลวง โดยใช้สมการหลักดังนี้')
 
-    p_eq = _para(indent_cm=2.0)
-    p_eq.alignment = WD_ALIGN_PARAGRAPH.LEFT
-    _run(p_eq,
-         'log\u2081\u2080(W\u2081\u2088) = Z\u1D63\u00B7S\u2080 + 9.36\u00B7log\u2081\u2080(SN+1) - 0.20\n'
-         '              + log\u2081\u2080(\u0394PSI/2.7) / [0.4 + 1094/(SN+1)^5.19]\n'
-         '              + 2.32\u00B7log\u2081\u2080(M\u1D63) - 8.07',
-         italic=True, size=13)
+    _eq_para(
+        'log10(W18) = Zr·So + 9.36·log10(SN+1) - 0.20\n'
+        '                   + log10(ΔPSI/2.7) / [0.4 + 1094/(SN+1)^5.19]\n'
+        '                   + 2.32·log10(Mr) - 8.07',
+        indent_cm=2.5, italic=True
+    )
 
     # ===== {sec_no}.2 ข้อมูลนำเข้า + ตาราง =====
     _heading(f'{sec_no}.2  ข้อมูลนำเข้า (Design Inputs)', level=3, size=15)
+    p_intro2 = _para(indent_cm=0, space_before=4)
+    p_intro2.paragraph_format.first_line_indent = Cm(1.25)
+    set_thai_distribute(p_intro2)
+    _run(p_intro2,
+         'ในการออกแบบโครงสร้างถนนยืดหยุ่น การกำหนดค่าพารามิเตอร์นำเข้า (Design Inputs) ถือเป็น'
+         'ขั้นตอนสำคัญที่มีผลโดยตรงต่อความถูกต้องและความน่าเชื่อถือของแบบโครงสร้างถนนที่ต้องการ '
+         'เนื่องจากค่าพารามิเตอร์แต่ละตัวสะท้อนให้เห็นสภาพการใช้งานจริงของโครงสร้างถนน '
+         'ได้แก่ ปริมาณการจราจรตลอดอายุการใช้งาน ระดับความน่าเชื่อถือที่ยอมรับได้ '
+         'รวมถึงคุณสมบัติของดินรองรับในพื้นที่โครงการ สำหรับโครงการนี้ '
+         'ที่ปรึกษาได้กำหนดค่าพารามิเตอร์หลักที่ใช้ในการออกแบบตามแนวทางของ AASHTO '
+         'ซึ่งประกอบด้วยข้อมูลด้านความสามารถในการรับน้ำหนักของโครงสร้างชั้นทาง '
+         'ปริมาณจราจรที่โครงสร้างถนนต้องรองรับตลอดอายุการใช้งาน '
+         'รวมถึงคุณสมบัติของชั้นดินที่ต้องซ่อมบำรุงหรือปรับปรุงใหม่ '
+         f'รวมถึงคุณสมบัติของดินชั้นรองรับ รายละเอียดของค่าพารามิเตอร์ทั้งหมดแสดงในตารางที่ {tbl_inp}')
     p_tbl1_cap = _para(indent_cm=0, space_before=4)
     p_tbl1_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     _run(p_tbl1_cap, f'ตารางที่ {tbl_inp}  {tbl_cap_inp}', bold=True)
@@ -1247,6 +1311,14 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
 
     # ===== {sec_no}.3 คุณสมบัติวัสดุ + ตาราง =====
     _heading(f'{sec_no}.3  คุณสมบัติวัสดุชั้นทาง', level=3, size=15)
+    p_intro3 = _para(indent_cm=0, space_before=4)
+    p_intro3.paragraph_format.first_line_indent = Cm(1.25)
+    set_thai_distribute(p_intro3)
+    _run(p_intro3,
+         'วัสดุโครงสร้างชั้นทางแต่ละชนิดมีค่าสัมประสิทธิ์ชั้นทาง (Layer Coefficient) '
+         'และค่าสัมประสิทธิ์การระบายน้ำ (Drainage Coefficient) '
+         'โดยที่ปรึกษาเลือกใช้วัสดุและแสดงค่าสัมประสิทธิ์รวมถึงค่าโมดูลัสของวัสดุ'
+         f'ต่าง ๆ ดังแสดงในตารางที่ {tbl_mat}')
     p_tbl2_cap = _para(indent_cm=0, space_before=4)
     p_tbl2_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
     _run(p_tbl2_cap, f'ตารางที่ {tbl_mat}  {tbl_cap_mat}', bold=True)
@@ -1290,6 +1362,12 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
 
     # ===== {sec_no}.4 ขั้นตอนการคำนวณ =====
     _heading(f'{sec_no}.4  ขั้นตอนการคำนวณความหนาชั้นทาง', level=3, size=15)
+    p_intro4 = _para(indent_cm=0, space_before=4)
+    p_intro4.paragraph_format.first_line_indent = Cm(1.25)
+    set_thai_distribute(p_intro4)
+    _run(p_intro4,
+         'การคำนวณความหนาขั้นต่ำของแต่ละชั้น ใช้หลักการว่า Structural Number (SN) ที่จุดใด ๆ '
+         'ต้องมากกว่าหรือเท่ากับ SN ที่ต้องการ โดยคำนวณจากค่า M\u1D63 ของชั้นถัดไป')
 
     for layer in calc_results.get('layers', []):
         sn_at    = layer['sn_required_at_layer']
@@ -1317,48 +1395,68 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
              f'\u2022 Layer Coefficient (a{layer_no}) = {a_i:.2f}\n'
              f'\u2022 Drainage Coefficient (m{layer_no}) = {m_i:.2f}')
 
+        # --- การคำนวณ SN ---
         p_sn = _para(indent_cm=1.5)
         _run(p_sn, 'การคำนวณ SN:', bold=True)
-        p_eq = _para(indent_cm=2.0)
-        p_eq.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        _run(p_eq, f'จากสมการ AASHTO 1993:   SN\u2080{layer_no} = {sn_at:.2f}', bold=True, italic=True)
+        # SN_N notation (ไม่ใช้ subscript 0)
+        _eq_para(f'จากสมการ AASHTO 1993:   SN_{layer_no} = {sn_at:.2f}',
+                 indent_cm=2.0, bold=True, italic=True)
 
+        # --- ความหนาขั้นต่ำ พร้อมแทนค่าตัวเลข ---
         p_th = _para(indent_cm=1.5)
         _run(p_th, 'การคำนวณความหนาขั้นต่ำ:', bold=True)
         if layer_no == 1:
-            formula_txt = (
-                f'D\u2081 \u2265 SN\u2081 / (a\u2081 \u00d7 m\u2081)'
-                f'  =  {sn_at:.2f} / ({a_i:.2f} \u00d7 {m_i:.2f})'
-                f'  =  {d_min_in:.2f} \u0e19\u0e34\u0e49\u0e27  =  {d_min_cm:.1f} \u0e0b\u0e21.'
+            # สมการทั่วไป
+            _eq_para(
+                f'D_1 >= SN_1 / (a_1 x m_1)',
+                indent_cm=2.5, italic=True
+            )
+            # แทนค่าตัวเลข
+            _eq_para(
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} x {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                indent_cm=2.5, bold=True, italic=False
             )
         else:
             prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
-            formula_txt = (
-                f'D{layer_no} \u2265 (SN{layer_no} \u2212 SN{layer_no-1}) / (a{layer_no} \u00d7 m{layer_no})'
-                f'  =  ({sn_at:.2f} \u2212 {prev_sn:.2f}) / ({a_i:.2f} \u00d7 {m_i:.2f})'
-                f'  =  {d_min_in:.2f} \u0e19\u0e34\u0e49\u0e27  =  {d_min_cm:.1f} \u0e0b\u0e21.'
+            # สมการทั่วไป
+            _eq_para(
+                f'D_{layer_no} >= (SN_{layer_no} - SN_{layer_no-1}) / (a_{layer_no} x m_{layer_no})',
+                indent_cm=2.5, italic=True
             )
-        p_f = _para(indent_cm=2.0)
-        _run(p_f, formula_txt, italic=True)
+            # แทนค่าตัวเลข
+            _eq_para(
+                f'D_{layer_no} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} x {m_i:.2f})'
+                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                indent_cm=2.5, bold=True, italic=False
+            )
 
+        # --- ความหนาที่เลือกใช้ ---
         p_d = _para(indent_cm=1.5)
         _run(p_d, 'เลือกใช้ความหนา:', bold=True)
-        p_d2 = _para(indent_cm=2.0)
-        _run(p_d2,
-             f'D{layer_no}(design)  =  {d_cm:.0f} ซม. ({d_in:.2f} นิ้ว)', bold=True)
+        _eq_para(
+            f'D_{layer_no}(design)  =  {d_cm:.0f} cm  ({d_in:.2f} in)',
+            indent_cm=2.5, bold=True, italic=False
+        )
 
+        # --- SN contribution พร้อมแทนค่า ---
         p_sn2 = _para(indent_cm=1.5)
         _run(p_sn2, 'SN contribution:', bold=True)
-        p_sn3 = _para(indent_cm=2.0)
-        _run(p_sn3,
-             f'\u0394SN{layer_no} = {a_i:.2f} \u00d7 {d_in:.2f} \u00d7 {m_i:.2f} = {sn_cont:.3f}    '
-             f'\u03a3SN = {sn_cum:.2f}', italic=True)
+        _eq_para(
+            f'ΔSN_{layer_no} = a_{layer_no} x D_{layer_no} x m_{layer_no}'
+            f'  =  {a_i:.2f} x {d_in:.2f} x {m_i:.2f}  =  {sn_cont:.3f}',
+            indent_cm=2.5, italic=True
+        )
+        _eq_para(
+            f'ΣSN  =  {sn_cum:.2f}',
+            indent_cm=2.5, bold=True, italic=False
+        )
 
-        status_txt  = '\u2713 OK' if is_ok else '\u2717 NG'
-        status_note = (f'ความหนาเพียงพอ ({d_cm:.0f} \u2265 {d_min_cm:.1f} ซม.)'
-                       if is_ok else f'ต้องเพิ่มความหนาอีก {d_min_cm - d_cm:.1f} ซม.')
+        # --- สถานะ ---
+        status_txt  = '✓ OK' if is_ok else '✗ NG'
+        status_note = (f'ความหนาเพียงพอ ({d_cm:.0f} ≥ {d_min_cm:.1f} cm)'
+                       if is_ok else f'ต้องเพิ่มความหนาอีก {d_min_cm - d_cm:.1f} cm')
         p_st = _para(indent_cm=2.0)
-        _run(p_st, f'สถานะ:  {status_txt}  \u2014  {status_note}',
+        _run(p_st, f'สถานะ:  {status_txt}  —  {status_note}',
              bold=True, color=GREEN if is_ok else RED)
 
     # สรุปผล
