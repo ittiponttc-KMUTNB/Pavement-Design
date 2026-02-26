@@ -935,10 +935,10 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
         else:
             prev_sn = calc_results['layers'][ln-2]['cumulative_sn']
             add_equation_paragraph(doc,
-                f'D_{ln} >= (SN_{ln} - SN_{ln-1}) / (a_{ln} × m_{ln})',
+                f'D_{ln} >= (SN_{ln} − SN_{ln-1}) / (a_{ln} × m_{ln})',
                 size_pt=11, italic=True)
             add_equation_paragraph(doc,
-                f'D_{ln} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
+                f'D_{ln} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
                 f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 size_pt=11, bold=True, italic=False)
 
@@ -1420,12 +1420,12 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
             prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
             # สมการทั่วไป
             _eq_para(
-                f'D_{layer_no} >= (SN_{layer_no} - SN_{layer_no-1}) / (a_{layer_no} × m_{layer_no})',
+                f'D_{layer_no} >= (SN_{layer_no} − SN_{layer_no-1}) / (a_{layer_no} × m_{layer_no})',
                 indent_cm=2.5, italic=True
             )
             # แทนค่าตัวเลข
             _eq_para(
-                f'D_{layer_no} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
+                f'D_{layer_no} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
                 f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 indent_cm=2.5, bold=True, italic=False
             )
