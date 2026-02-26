@@ -38,7 +38,7 @@ CD_DEFAULT = 1.0
 
 MATERIAL_MODULUS = {
     "รองผิวทางคอนกรีตด้วย AC": 2500, "รองผิวทางคอนกรีตด้วย PMA(AC)": 3700,
-    "พื้นทางซีเมนต์ CTB": 1200, "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": 850,
+    "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)": 1200, "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": 850,
     "หินคลุก CBR 80%": 350, "ดินซีเมนต์ UCS 17.5 ksc": 350,
     "วัสดุหมุนเวียน (Recycling)": 850, "รองพื้นทางวัสดุมวลรวม CBR 25%": 150,
     "วัสดุคัดเลือก ก": 100, "ดินถมคันทาง / ดินเดิม": 100, "กำหนดเอง...": 100,
@@ -116,7 +116,7 @@ def draw_arrow_fixed(draw, start, end, color, width=4, arrow_size=15):
 def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
     THAI_TO_ENG = {
         "รองผิวทางคอนกรีตด้วย AC": "AC Interlayer", "รองผิวทางคอนกรีตด้วย PMA(AC)": "PMA Interlayer",
-        "พื้นทางซีเมนต์ CTB": "Cement Treated Base", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": "Mod.Crushed Rock ",
+        "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)": "Cement Treated Base", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": "Mod.Crushed Rock ",
         "หินคลุก CBR 80%": "Crushed Rock Base", "ดินซีเมนต์ UCS 17.5 ksc": "Soil Cement",
         "วัสดุหมุนเวียน (Recycling)": "Recycled Material", "รองพื้นทางวัสดุมวลรวม CBR 25%": "Aggregate Subbase",
         "วัสดุคัดเลือก ก": "Selected Material", "ดินถมคันทาง / ดินเดิม": "Subgrade",
@@ -124,7 +124,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
     }
     LAYER_COLORS = {
         "รองผิวทางคอนกรีตด้วย AC": "#2C3E50", "รองผิวทางคอนกรีตด้วย PMA(AC)": "#1A252F",
-        "พื้นทางซีเมนต์ CTB": "#7F8C8D", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": "#95A5A6",
+        "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)": "#7F8C8D", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc": "#95A5A6",
         "หินคลุก CBR 80%": "#BDC3C7", "ดินซีเมนต์ UCS 17.5 ksc": "#AAB7B8",
         "วัสดุหมุนเวียน (Recycling)": "#85929E", "รองพื้นทางวัสดุมวลรวม CBR 25%": "#FFCC99",
         "วัสดุคัดเลือก ก": "#E8DAEF", "ดินถมคันทาง / ดินเดิม": "#F5CBA7",
@@ -164,7 +164,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
         y_center_pos = y_bottom + display_h / 2
         display_name = THAI_TO_ENG.get(name, name)
         is_dark = name in ["รองผิวทางคอนกรีตด้วย AC", "รองผิวทางคอนกรีตด้วย PMA(AC)", "Concrete Slab",
-                          "พื้นทางซีเมนต์ CTB", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc", "วัสดุหมุนเวียน (Recycling)"]
+                          "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)", "หินคลุกผสมซีเมนต์ UCS 24.5 ksc", "วัสดุหมุนเวียน (Recycling)"]
         text_color = 'white' if is_dark else 'black'
         ax.text(x_center, y_center_pos, f"{thickness} cm", ha='center', va='center', fontsize=16, fontweight='bold', color=text_color)
         ax.text(x_start - 0.5, y_center_pos, display_name, ha='right', va='center', fontsize=14, fontweight='bold', color='black')
@@ -1705,7 +1705,7 @@ def main():
             
             default_layers = [
                 {"name": "รองผิวทางคอนกรีตด้วย AC", "thickness_cm": 5},
-                {"name": "พื้นทางซีเมนต์ CTB", "thickness_cm": 20},
+                {"name": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)", "thickness_cm": 20},
                 {"name": "หินคลุก CBR 80%", "thickness_cm": 15},
                 {"name": "รองพื้นทางวัสดุมวลรวม CBR 25%", "thickness_cm": 25},
                 {"name": "วัสดุคัดเลือก ก", "thickness_cm": 30},
