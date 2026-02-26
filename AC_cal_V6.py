@@ -927,18 +927,18 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
         add_thai_paragraph(doc, 'การคำนวณความหนาขั้นต่ำ:', size_pt=15, bold=True)
         if ln == 1:
             add_equation_paragraph(doc,
-                f'D_1 >= SN_1 / (a_1 x m_1)',
+                f'D_1 >= SN_1 / (a_1 × m_1)',
                 size_pt=11, italic=True)
             add_equation_paragraph(doc,
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} x {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 size_pt=11, bold=True, italic=False)
         else:
             prev_sn = calc_results['layers'][ln-2]['cumulative_sn']
             add_equation_paragraph(doc,
-                f'D_{ln} >= (SN_{ln} - SN_{ln-1}) / (a_{ln} x m_{ln})',
+                f'D_{ln} >= (SN_{ln} - SN_{ln-1}) / (a_{ln} × m_{ln})',
                 size_pt=11, italic=True)
             add_equation_paragraph(doc,
-                f'D_{ln} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} x {m_i:.2f})'
+                f'D_{ln} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
                 f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 size_pt=11, bold=True, italic=False)
 
@@ -951,8 +951,8 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
         # --- SN contribution + แทนค่าตัวเลข ---
         add_thai_paragraph(doc, 'SN contribution:', size_pt=15, bold=True)
         add_equation_paragraph(doc,
-            f'ΔSN_{ln} = a_{ln} x D_{ln} x m_{ln}'
-            f'  =  {a_i:.2f} x {d_in:.2f} x {m_i:.2f}  =  {sn_cont:.3f}',
+            f'ΔSN_{ln} = a_{ln} × D_{ln} × m_{ln}'
+            f'  =  {a_i:.2f} × {d_in:.2f} × {m_i:.2f}  =  {sn_cont:.3f}',
             size_pt=11, italic=True)
         add_equation_paragraph(doc,
             f'ΣSN  =  {sn_cum:.2f}',
@@ -1408,24 +1408,24 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         if layer_no == 1:
             # สมการทั่วไป
             _eq_para(
-                f'D_1 >= SN_1 / (a_1 x m_1)',
+                f'D_1 >= SN_1 / (a_1 × m_1)',
                 indent_cm=2.5, italic=True
             )
             # แทนค่าตัวเลข
             _eq_para(
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} x {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 indent_cm=2.5, bold=True, italic=False
             )
         else:
             prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
             # สมการทั่วไป
             _eq_para(
-                f'D_{layer_no} >= (SN_{layer_no} - SN_{layer_no-1}) / (a_{layer_no} x m_{layer_no})',
+                f'D_{layer_no} >= (SN_{layer_no} - SN_{layer_no-1}) / (a_{layer_no} × m_{layer_no})',
                 indent_cm=2.5, italic=True
             )
             # แทนค่าตัวเลข
             _eq_para(
-                f'D_{layer_no} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} x {m_i:.2f})'
+                f'D_{layer_no} >= ({sn_at:.2f} - {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
                 f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
                 indent_cm=2.5, bold=True, italic=False
             )
@@ -1442,8 +1442,8 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         p_sn2 = _para(indent_cm=1.5)
         _run(p_sn2, 'SN contribution:', bold=True)
         _eq_para(
-            f'ΔSN_{layer_no} = a_{layer_no} x D_{layer_no} x m_{layer_no}'
-            f'  =  {a_i:.2f} x {d_in:.2f} x {m_i:.2f}  =  {sn_cont:.3f}',
+            f'ΔSN_{layer_no} = a_{layer_no} × D_{layer_no} × m_{layer_no}'
+            f'  =  {a_i:.2f} × {d_in:.2f} × {m_i:.2f}  =  {sn_cont:.3f}',
             indent_cm=2.5, italic=True
         )
         _eq_para(
