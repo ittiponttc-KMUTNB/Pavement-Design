@@ -806,7 +806,7 @@ def _fmt_layer_name(name: str) -> str:
 def _add_esb_calculation(doc, layers_data, cbr_subgrade=3.0):
     """
     แสดงสมการและการคำนวณ Subbase Elastic Modulus (ESB)
-    สมการ: Times New Roman 11pt  |  ข้อความไทย: TH SarabunPSK 15pt
+    สมการ: Times New Roman 11pt  |  ข้อความ/ตัวเลข: TH SarabunPSK 15pt
     ESB = (Σ hi × Ei^(1/3) / Σ hi)^3
     """
     from docx.shared import Pt, Cm
@@ -820,42 +820,61 @@ def _add_esb_calculation(doc, layers_data, cbr_subgrade=3.0):
     TH_FONT = _get_font_name()
     TH_SIZE = Pt(15)
 
+    def _vert(run, mode):
+        rPr = run._r.get_or_add_rPr()
+        va = OxmlElement('w:vertAlign')
+        va.set(qn('w:val'), mode)
+        rPr.append(va)
+
     def _eq_run(p, text, sub=False, sup=False, bold=False):
         run = p.add_run(text)
         run.font.name = EQ_FONT
         run.font.size = EQ_SIZE
         run.bold = bold
-        if sub or sup:
-            rPr = run._r.get_or_add_rPr()
-            va = OxmlElement('w:vertAlign')
-            va.set(qn('w:val'), 'subscript' if sub else 'superscript')
-            rPr.append(va)
+        if sub:  _vert(run, 'subscript')
+        if sup:  _vert(run, 'superscript')
         return run
 
-    def _th_run(p, text, bold=False):
+    def _th_run(p, text, bold=False, size=None):
         run = p.add_run(text)
         run.font.name = TH_FONT
-        run.font.size = TH_SIZE
+        run.font.size = size or TH_SIZE
         run.bold = bold
         return run
 
-    def eq_line(indent_cm=1.5):
-        p = doc.add_paragraph()
-        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p.paragraph_format.left_indent = Cm(indent_cm)
-        p.paragraph_format.space_after = Pt(2)
-        return p
+    def _cell_fmt(cell, bg=None):
+        """padding + optional background"""
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '80'); m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+
+    def _set_col_w(row, widths):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(widths[i])); tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+    HEADER_BG = 'BDD7EE'
+    SUM_BG    = 'FFF2CC'
 
     # ── หัวข้อย่อย ────────────────────────────────────────────────────────
     p_head = doc.add_paragraph()
-    r_head = p_head.add_run('การคำนวณ Subbase Elastic Modulus (E')
-    r_head.font.name = TH_FONT; r_head.font.size = TH_SIZE; r_head.bold = True
-    r_sub = p_head.add_run('SB')
-    r_sub.font.name = EQ_FONT; r_sub.font.size = EQ_SIZE; r_sub.bold = True
-    rPr = r_sub._r.get_or_add_rPr()
-    va = OxmlElement('w:vertAlign'); va.set(qn('w:val'), 'subscript'); rPr.append(va)
-    r_close = p_head.add_run(')')
-    r_close.font.name = TH_FONT; r_close.font.size = TH_SIZE; r_close.bold = True
+    r = p_head.add_run('การคำนวณ Subbase Elastic Modulus (E')
+    r.font.name = TH_FONT; r.font.size = TH_SIZE; r.bold = True
+    r2 = p_head.add_run('SB')
+    r2.font.name = EQ_FONT; r2.font.size = EQ_SIZE; r2.bold = True
+    _vert(r2, 'subscript')
+    r3 = p_head.add_run(')')
+    r3.font.name = TH_FONT; r3.font.size = TH_SIZE; r3.bold = True
 
     # ── คำอธิบาย ──────────────────────────────────────────────────────────
     p_desc = doc.add_paragraph()
@@ -863,169 +882,184 @@ def _add_esb_calculation(doc, layers_data, cbr_subgrade=3.0):
     _th_run(p_desc, 'ค่า Subbase Elastic Modulus (E')
     r_sb = p_desc.add_run('SB')
     r_sb.font.name = EQ_FONT; r_sb.font.size = EQ_SIZE
-    rPr2 = r_sb._r.get_or_add_rPr()
-    va2 = OxmlElement('w:vertAlign'); va2.set(qn('w:val'), 'subscript'); rPr2.append(va2)
+    _vert(r_sb, 'subscript')
     _th_run(p_desc, ') คำนวณจากโมดูลัสเทียบเท่าของชั้นวัสดุรองพื้นทาง โดยใช้สมการดังนี้')
 
-    # ── สมการ ─────────────────────────────────────────────────────────────
-    p_eq = eq_line(indent_cm=2.0)
-    _eq_run(p_eq, 'E')
-    _eq_run(p_eq, 'SB', sub=True)
-    _eq_run(p_eq, ' = ')
-    _eq_run(p_eq, '\u239b'); _eq_run(p_eq, '\u03a3')
-    _eq_run(p_eq, 'h'); _eq_run(p_eq, 'i', sub=True)
-    _eq_run(p_eq, ' \u00d7 E'); _eq_run(p_eq, 'i', sub=True)
+    # ── สมการ (2 บรรทัด จัดให้อ่านง่าย) ──────────────────────────────────
+    #  บรรทัดที่ 1:  E_SB  =  ( Σ hᵢ × Eᵢ^(1/3) )^3
+    #  บรรทัดที่ 2:               ────────────────
+    #                               Σ hᵢ
+    # ใช้เส้นขีดด้วยตัวอักษร overline แทนเส้นหาร เพื่อหลีกเลี่ยงปัญหาตัวอักษรพิเศษ
+
+    # บรรทัดสมการเดียว แบบ inline fraction ที่อ่านได้:
+    #   E_SB = [ Σ(hᵢ × Eᵢ^(1/3)) / Σhᵢ ]^3
+    p_eq = doc.add_paragraph()
+    p_eq.alignment = WD_ALIGN_PARAGRAPH.LEFT
+    p_eq.paragraph_format.left_indent = Cm(2.0)
+    p_eq.paragraph_format.space_before = Pt(4)
+    p_eq.paragraph_format.space_after  = Pt(4)
+
+    _eq_run(p_eq, 'E'); _eq_run(p_eq, 'SB', sub=True)
+    _eq_run(p_eq, '  =  [  \u03a3 ( h')       # Σ ( h
+    _eq_run(p_eq, 'i', sub=True)
+    _eq_run(p_eq, '  \u00d7  E')              # × E
+    _eq_run(p_eq, 'i', sub=True)
     _eq_run(p_eq, '1/3', sup=True)
-    _eq_run(p_eq, ' / \u03a3'); _eq_run(p_eq, 'h'); _eq_run(p_eq, 'i', sub=True)
-    _eq_run(p_eq, '\u239e')
+    _eq_run(p_eq, ' )  /  \u03a3 h')          # ) / Σ h
+    _eq_run(p_eq, 'i', sub=True)
+    _eq_run(p_eq, '  ]')
     _eq_run(p_eq, '3', sup=True)
 
-    # ── "โดยที่:" ─────────────────────────────────────────────────────────
+    # ── "โดยที่:" + ตารางสัญลักษณ์ ────────────────────────────────────────
     p_by = doc.add_paragraph()
     _th_run(p_by, 'โดยที่:')
 
-    # ตารางสัญลักษณ์ขนาดเล็ก
-    HEADER_BG = 'BDD7EE'
-    col_w = [1200, 5800, 1200]
-    tbl = doc.add_table(rows=1, cols=3)
-    tbl.style = 'Table Grid'
-    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+    cw_sym = [1400, 5200, 1600]
+    tbl_sym = doc.add_table(rows=1, cols=3)
+    tbl_sym.style = 'Table Grid'
+    tbl_sym.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    def _set_w(row):
-        for i, cell in enumerate(row.cells):
-            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-            tcW = OxmlElement('w:tcW')
-            tcW.set(qn('w:w'), str(col_w[i])); tcW.set(qn('w:type'), 'dxa')
-            tcPr.append(tcW)
+    def _sym_hdr(cell, text):
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        r = p.add_run(text); r.font.name = TH_FONT; r.font.size = TH_SIZE; r.bold = True
+        _cell_fmt(cell, bg=HEADER_BG)
 
-    def _sc(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT,
-            bg=None, font=EQ_FONT, fsize=EQ_SIZE):
+    def _sym_row(cell, text, align=WD_ALIGN_PARAGRAPH.LEFT, font=TH_FONT, fsize=None, bg=None):
         cell.text = ''
         p = cell.paragraphs[0]; p.alignment = align
-        run = p.add_run(text)
-        run.font.name = font; run.font.size = fsize; run.bold = bold
-        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-        tcMar = OxmlElement('w:tcMar')
-        for side in ['top','bottom','left','right']:
-            m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'), '80'); m.set(qn('w:type'), 'dxa')
-            tcMar.append(m)
-        tcPr.append(tcMar)
-        if bg:
-            shd = OxmlElement('w:shd')
-            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
-            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+        r = p.add_run(text); r.font.name = font; r.font.size = fsize or TH_SIZE
+        _cell_fmt(cell, bg=bg)
 
-    hdr = tbl.rows[0]; _set_w(hdr)
-    _sc(hdr.cells[0], 'สัญลักษณ์', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
-        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
-    _sc(hdr.cells[1], 'ความหมาย',  bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
-        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
-    _sc(hdr.cells[2], 'หน่วย',     bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
-        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+    hdr_s = tbl_sym.rows[0]; _set_col_w(hdr_s, cw_sym)
+    _sym_hdr(hdr_s.cells[0], 'สัญลักษณ์')
+    _sym_hdr(hdr_s.cells[1], 'ความหมาย')
+    _sym_hdr(hdr_s.cells[2], 'หน่วย')
 
     syms = [
-        ('E\u209B\u1D39', 'Subbase Elastic Modulus เทียบเท่า',    'MPa'),
-        ('h\u1D35',        'ความหนาของแต่ละชั้นวัสดุ',            'ซม.'),
-        ('E\u1D35',        'Modulus of Elasticity ของแต่ละชั้น',  'MPa'),
+        ('E_SB',  'Subbase Elastic Modulus เทียบเท่า',   'MPa'),
+        ('h_i',   'ความหนาของแต่ละชั้นวัสดุ',           'ซม.'),
+        ('E_i',   'Modulus of Elasticity ของแต่ละชั้น', 'MPa'),
     ]
     for sym, meaning, unit in syms:
-        row = tbl.add_row(); _set_w(row)
-        _sc(row.cells[0], sym,     align=WD_ALIGN_PARAGRAPH.CENTER)
-        _sc(row.cells[1], meaning, font=TH_FONT, fsize=TH_SIZE)
-        _sc(row.cells[2], unit,    align=WD_ALIGN_PARAGRAPH.CENTER, font=TH_FONT, fsize=TH_SIZE)
+        row_s = tbl_sym.add_row(); _set_col_w(row_s, cw_sym)
+        _sym_row(row_s.cells[0], sym,     align=WD_ALIGN_PARAGRAPH.CENTER, font=EQ_FONT, fsize=EQ_SIZE)
+        _sym_row(row_s.cells[1], meaning)
+        _sym_row(row_s.cells[2], unit,    align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
 
-    # ── ตารางแสดงการคำนวณทีละชั้น ────────────────────────────────────────
+    # ── ตารางคำนวณทีละชั้น ────────────────────────────────────────────────
     valid = [l for l in layers_data
              if l.get('thickness_cm', 0) > 0 and l.get('E_MPa', 0) > 0]
-
     if not valid:
         return
 
     p_calc_head = doc.add_paragraph()
-    _th_run(p_calc_head, 'การคำนวณแสดงในตารางดังนี้', bold=False)
+    _th_run(p_calc_head, 'การคำนวณแสดงในตารางดังนี้')
 
-    col_w2 = [400, 3600, 1400, 1400, 1600, 1672]
+    # คอลัมน์: ลำดับ | ชั้นวัสดุ | hᵢ(ซม.) | Eᵢ(MPa) | Eᵢ^(1/3) | hᵢ×Eᵢ^(1/3)
+    cw2 = [500, 3500, 1200, 1300, 1400, 1672]
     tbl2 = doc.add_table(rows=1, cols=6)
     tbl2.style = 'Table Grid'
     tbl2.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    def _set_w2(row):
-        for i, cell in enumerate(row.cells):
-            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-            tcW = OxmlElement('w:tcW')
-            tcW.set(qn('w:w'), str(col_w2[i])); tcW.set(qn('w:type'), 'dxa')
-            tcPr.append(tcW)
-
-    def _sc2(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER,
-             font=EQ_FONT, fsize=EQ_SIZE, bg=None):
+    def _td(cell, text, bold=False,
+            align=WD_ALIGN_PARAGRAPH.CENTER,
+            font=TH_FONT, fsize=None, bg=None):
+        """ตัวเลขและข้อความในตาราง — ใช้ TH SarabunPSK เป็น default"""
         cell.text = ''
         p = cell.paragraphs[0]; p.alignment = align
-        run = p.add_run(text)
-        run.font.name = font; run.font.size = fsize; run.bold = bold
-        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-        tcMar = OxmlElement('w:tcMar')
-        for side in ['top','bottom','left','right']:
-            m = OxmlElement(f'w:{side}')
-            m.set(qn('w:w'), '80'); m.set(qn('w:type'), 'dxa')
-            tcMar.append(m)
-        tcPr.append(tcMar)
-        if bg:
-            shd = OxmlElement('w:shd')
-            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
-            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+        r = p.add_run(text)
+        r.font.name = font
+        r.font.size = fsize or TH_SIZE
+        r.bold = bold
+        _cell_fmt(cell, bg=bg)
 
-    # Header
-    hdr2 = tbl2.rows[0]; _set_w2(hdr2)
-    headers2 = ['ลำดับ', 'ชั้นวัสดุ', 'hᵢ (ซม.)', 'Eᵢ (MPa)', 'hᵢ × Eᵢ^(1/3)', 'Eᵢ^(1/3)']
-    th_cols = {0, 1, 2, 3, 4, 5}
-    for j, (cell, htext) in enumerate(zip(hdr2.cells, headers2)):
-        _sc2(cell, htext, bold=True, bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+    # Header — ชื่อคอลัมน์ใช้ TH Sarabun + superscript ใน Times NR
+    hdr2 = tbl2.rows[0]; _set_col_w(hdr2, cw2)
 
-    # แถวข้อมูล
-    sum_h = 0.0
-    sum_hE = 0.0
+    def _hdr_cell(cell, parts, bg=HEADER_BG):
+        """parts = list of (text, font, size, sup, sub)"""
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _cell_fmt(cell, bg=bg)
+        for text, font, fsize, sup, sub in parts:
+            r = p.add_run(text)
+            r.font.name = font; r.font.size = fsize; r.bold = True
+            if sup: _vert(r, 'superscript')
+            if sub: _vert(r, 'subscript')
+
+    _hdr_cell(hdr2.cells[0], [('ลำดับ', TH_FONT, TH_SIZE, False, False)])
+    _hdr_cell(hdr2.cells[1], [('ชั้นวัสดุ', TH_FONT, TH_SIZE, False, False)])
+    _hdr_cell(hdr2.cells[2], [('h', EQ_FONT, EQ_SIZE, False, False),
+                               ('i', EQ_FONT, EQ_SIZE, False, True),
+                               (' (ซม.)', TH_FONT, TH_SIZE, False, False)])
+    _hdr_cell(hdr2.cells[3], [('E', EQ_FONT, EQ_SIZE, False, False),
+                               ('i', EQ_FONT, EQ_SIZE, False, True),
+                               (' (MPa)', TH_FONT, TH_SIZE, False, False)])
+    _hdr_cell(hdr2.cells[4], [('E', EQ_FONT, EQ_SIZE, False, False),
+                               ('i', EQ_FONT, EQ_SIZE, False, True),
+                               ('1/3', EQ_FONT, EQ_SIZE, True, False)])
+    _hdr_cell(hdr2.cells[5], [('h', EQ_FONT, EQ_SIZE, False, False),
+                               ('i', EQ_FONT, EQ_SIZE, False, True),
+                               (' \u00d7 E', EQ_FONT, EQ_SIZE, False, False),
+                               ('i', EQ_FONT, EQ_SIZE, False, True),
+                               ('1/3', EQ_FONT, EQ_SIZE, True, False)])
+
+    # แถวข้อมูล — ตัวเลขใช้ TH SarabunPSK ทั้งหมด
+    sum_h = 0.0; sum_hE = 0.0
     for idx, layer in enumerate(valid, start=1):
-        h  = layer['thickness_cm']
-        E  = layer['E_MPa']
+        h   = layer['thickness_cm']
+        E   = layer['E_MPa']
         E13 = E ** (1/3)
-        hE = h * E13
-        sum_h  += h
-        sum_hE += hE
-        row2 = tbl2.add_row(); _set_w2(row2)
-        _sc2(row2.cells[0], str(idx))
-        _sc2(row2.cells[1], _fmt_layer_name(layer.get('name','')),
-             align=WD_ALIGN_PARAGRAPH.LEFT, font=TH_FONT, fsize=TH_SIZE)
-        _sc2(row2.cells[2], f'{h}')
-        _sc2(row2.cells[3], f'{E:,}')
-        _sc2(row2.cells[4], f'{hE:,.2f}')
-        _sc2(row2.cells[5], f'{E13:.4f}')
+        hE  = h * E13
+        sum_h += h; sum_hE += hE
+        row2 = tbl2.add_row(); _set_col_w(row2, cw2)
+        _td(row2.cells[0], str(idx))
+        _td(row2.cells[1], _fmt_layer_name(layer.get('name','')),
+            align=WD_ALIGN_PARAGRAPH.LEFT)
+        _td(row2.cells[2], f'{h:,}')
+        _td(row2.cells[3], f'{E:,}')
+        _td(row2.cells[4], f'{E13:.4f}')
+        _td(row2.cells[5], f'{hE:,.2f}')
 
     # แถวรวม
-    row_sum = tbl2.add_row(); _set_w2(row_sum)
-    _sc2(row_sum.cells[0], '',   bg='FFF2CC')
-    _sc2(row_sum.cells[1], 'รวม (Σ)', bold=True, bg='FFF2CC',
-         font=TH_FONT, fsize=TH_SIZE, align=WD_ALIGN_PARAGRAPH.RIGHT)
-    _sc2(row_sum.cells[2], f'{sum_h:.0f}', bold=True, bg='FFF2CC')
-    _sc2(row_sum.cells[3], '',   bg='FFF2CC')
-    _sc2(row_sum.cells[4], f'{sum_hE:,.2f}', bold=True, bg='FFF2CC')
-    _sc2(row_sum.cells[5], '',   bg='FFF2CC')
+    row_sum = tbl2.add_row(); _set_col_w(row_sum, cw2)
+    _td(row_sum.cells[0], '',        bg=SUM_BG)
+    _td(row_sum.cells[1], 'รวม (\u03a3)', bold=True,
+        align=WD_ALIGN_PARAGRAPH.RIGHT, bg=SUM_BG)
+    _td(row_sum.cells[2], f'{sum_h:.0f}',    bold=True, bg=SUM_BG)
+    _td(row_sum.cells[3], '',        bg=SUM_BG)
+    _td(row_sum.cells[4], '',        bg=SUM_BG)
+    _td(row_sum.cells[5], f'{sum_hE:,.2f}', bold=True, bg=SUM_BG)
 
-    # ── ผลลัพธ์ ESB ───────────────────────────────────────────────────────
+    # ── ผลลัพธ์ ESB (MPa + psi) ───────────────────────────────────────────
     if sum_h > 0:
-        esb = (sum_hE / sum_h) ** 3
+        esb_mpa = (sum_hE / sum_h) ** 3
+        esb_psi = esb_mpa * 145.038
+
         doc.add_paragraph()
-        p_result = doc.add_paragraph()
-        p_result.alignment = WD_ALIGN_PARAGRAPH.LEFT
-        p_result.paragraph_format.left_indent = Cm(1.5)
-        _th_run(p_result, 'ดังนั้น  ')
-        _eq_run(p_result, 'E'); _eq_run(p_result, 'SB', sub=True)
-        _eq_run(p_result, f'  =  ({sum_hE:,.2f} / {sum_h:.0f})')
-        _eq_run(p_result, '3', sup=True)
-        _eq_run(p_result, f'  =  {esb:,.2f}')
-        _th_run(p_result, '  MPa')
+
+        # บรรทัดที่ 1: แสดง step-by-step
+        p_r1 = doc.add_paragraph()
+        p_r1.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p_r1.paragraph_format.left_indent = Cm(1.5)
+        _th_run(p_r1, 'แทนค่า  ')
+        _eq_run(p_r1, 'E'); _eq_run(p_r1, 'SB', sub=True)
+        _eq_run(p_r1, f'  =  [ {sum_hE:,.2f} / {sum_h:.0f} ]')
+        _eq_run(p_r1, '3', sup=True)
+
+        # บรรทัดที่ 2: ผลลัพธ์ + หน่วย MPa และ psi
+        p_r2 = doc.add_paragraph()
+        p_r2.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p_r2.paragraph_format.left_indent = Cm(1.5)
+        _th_run(p_r2, 'ดังนั้น  ')
+        _eq_run(p_r2, 'E'); _eq_run(p_r2, 'SB', sub=True)
+        _eq_run(p_r2, f'  =  {esb_mpa:,.2f}')
+        _th_run(p_r2, '  MPa')
+        _eq_run(p_r2, f'  =  {esb_psi:,.0f}')
+        _th_run(p_r2, '  psi', bold=True)
 
     doc.add_paragraph()
 
