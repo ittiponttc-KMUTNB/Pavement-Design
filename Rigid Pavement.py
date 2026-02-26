@@ -2261,6 +2261,71 @@ def main():
                     f"CBR={crcp_cbr_use:.1f}%"
                 )
 
+                # ── ผลตรวจสอบ CRCP แบบ real-time ──────────────────────────
+                st.markdown("---")
+                st.subheader(f"🎯 ผลตรวจสอบ CRCP D = {st.session_state.get('rpt_crcp_d', 28)} ซม.")
+
+                # ดึงค่าพารามิเตอร์สำหรับคำนวณ
+                _crcp_d_cm   = st.session_state.get('rpt_crcp_d', 28)
+                _crcp_d_inch = round(_crcp_d_cm / 2.54)
+                _crcp_k      = st.session_state.get('rpt_crcp_k', 200)
+                _crcp_j      = st.session_state.get('rpt_crcp_j', 2.6)
+                _crcp_cd     = st.session_state.get('rpt_crcp_cd', st.session_state.get('calc_cd', 1.0))
+                _crcp_sc     = st.session_state.get('calc_sc', 600)
+                _crcp_fc     = st.session_state.get('calc_fc', 350)
+                _crcp_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_crcp_fc))
+                _crcp_pt     = st.session_state.get('calc_pt', 2.0)
+                _crcp_zr     = get_zr_value(st.session_state.get('calc_reliability', 90))
+                _crcp_so     = st.session_state.get('calc_so', 0.35)
+                _crcp_dpsi   = 4.5 - _crcp_pt
+                _crcp_w18_req = st.session_state.get('calc_w18', 500000)
+
+                _log_w18_crcp, _w18_crcp = calculate_aashto_rigid_w18(
+                    _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                    _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k
+                )
+                _passed_crcp, _ratio_crcp = check_design(_crcp_w18_req, _w18_crcp)
+
+                # แสดงผล metrics
+                _mc1, _mc2, _mc3 = st.columns(3)
+                with _mc1:
+                    st.metric("D ที่เลือก", f"{_crcp_d_cm} ซม. ({_crcp_d_inch} นิ้ว)")
+                with _mc2:
+                    st.metric("W₁₈ รองรับได้", f"{_w18_crcp:,.0f}",
+                              delta=f"{_w18_crcp - _crcp_w18_req:+,.0f}")
+                with _mc3:
+                    st.metric("อัตราส่วน (Capacity/Demand)", f"{_ratio_crcp:.2f}")
+
+                _mc4, _mc5 = st.columns(2)
+                with _mc4:
+                    st.metric("log₁₀(W₁₈)", f"{_log_w18_crcp:.4f}")
+                with _mc5:
+                    st.metric("W₁₈ ที่ต้องการ", f"{_crcp_w18_req:,.0f}")
+
+                if _passed_crcp:
+                    st.success(f"✅ **CRCP ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้ {_w18_crcp:,.0f} ESALs  (อัตราส่วน = {_ratio_crcp:.2f})")
+                else:
+                    st.error(f"❌ **CRCP ไม่ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้เพียง {_w18_crcp:,.0f} ESALs  (ต้องการ {_crcp_w18_req:,.0f})  อัตราส่วน = {_ratio_crcp:.2f}")
+
+                # ตารางเปรียบเทียบความหนา CRCP
+                with st.expander("📊 ตารางเปรียบเทียบความหนา CRCP (20–40 ซม.)", expanded=False):
+                    _crcp_rows = []
+                    for _d_cm in [20, 22, 25, 28, 30, 32, 35, 38, 40]:
+                        _d_in = round(_d_cm / 2.54)
+                        _lw, _wc = calculate_aashto_rigid_w18(
+                            _d_in, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                            _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k
+                        )
+                        _p, _r = check_design(_crcp_w18_req, _wc)
+                        _crcp_rows.append({
+                            'D (ซม.)': _d_cm, 'D (นิ้ว)': _d_in,
+                            'log₁₀(W₁₈)': f"{_lw:.4f}",
+                            'W₁₈ รองรับได้': f"{_wc:,.0f}",
+                            'อัตราส่วน': f"{_r:.2f}",
+                            'ผล': "✅ ผ่าน" if _p else "❌ ไม่ผ่าน"
+                        })
+                    st.dataframe(pd.DataFrame(_crcp_rows), use_container_width=True, hide_index=True)
+
         with col_preview:
             st.subheader("👁️ ตัวอย่างโครงสร้างรายงาน")
             prev_lines = [
