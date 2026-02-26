@@ -959,7 +959,8 @@ def _add_esb_calculation(doc, layers_data, cbr_subgrade=3.0):
     _th_run(p_calc_head, 'การคำนวณแสดงในตารางดังนี้')
 
     # คอลัมน์: ลำดับ | ชั้นวัสดุ | hᵢ(ซม.) | Eᵢ(MPa) | Eᵢ^(1/3) | hᵢ×Eᵢ^(1/3)
-    cw2 = [500, 3500, 1200, 1300, 1400, 1672]
+    # 9070 DXA ≈ เต็มหน้า A4 (margin 2.5cm สองข้าง) — คอลัมน์ตัวเลข 4 คอลัมน์เท่ากัน
+    cw2 = [570, 2900, 1400, 1400, 1400, 1400]
     tbl2 = doc.add_table(rows=1, cols=6)
     tbl2.style = 'Table Grid'
     tbl2.alignment = WD_TABLE_ALIGNMENT.LEFT
