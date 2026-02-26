@@ -803,6 +803,233 @@ def _fmt_layer_name(name: str) -> str:
     import re
     return re.sub(r'CBR\s+(\d+\.?\d*)\s*%', r'CBR ≥ \1%', name)
 
+def _add_esb_calculation(doc, layers_data, cbr_subgrade=3.0):
+    """
+    แสดงสมการและการคำนวณ Subbase Elastic Modulus (ESB)
+    สมการ: Times New Roman 11pt  |  ข้อความไทย: TH SarabunPSK 15pt
+    ESB = (Σ hi × Ei^(1/3) / Σ hi)^3
+    """
+    from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+
+    EQ_FONT = 'Times New Roman'
+    EQ_SIZE = Pt(11)
+    TH_FONT = _get_font_name()
+    TH_SIZE = Pt(15)
+
+    def _eq_run(p, text, sub=False, sup=False, bold=False):
+        run = p.add_run(text)
+        run.font.name = EQ_FONT
+        run.font.size = EQ_SIZE
+        run.bold = bold
+        if sub or sup:
+            rPr = run._r.get_or_add_rPr()
+            va = OxmlElement('w:vertAlign')
+            va.set(qn('w:val'), 'subscript' if sub else 'superscript')
+            rPr.append(va)
+        return run
+
+    def _th_run(p, text, bold=False):
+        run = p.add_run(text)
+        run.font.name = TH_FONT
+        run.font.size = TH_SIZE
+        run.bold = bold
+        return run
+
+    def eq_line(indent_cm=1.5):
+        p = doc.add_paragraph()
+        p.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p.paragraph_format.left_indent = Cm(indent_cm)
+        p.paragraph_format.space_after = Pt(2)
+        return p
+
+    # ── หัวข้อย่อย ────────────────────────────────────────────────────────
+    p_head = doc.add_paragraph()
+    r_head = p_head.add_run('การคำนวณ Subbase Elastic Modulus (E')
+    r_head.font.name = TH_FONT; r_head.font.size = TH_SIZE; r_head.bold = True
+    r_sub = p_head.add_run('SB')
+    r_sub.font.name = EQ_FONT; r_sub.font.size = EQ_SIZE; r_sub.bold = True
+    rPr = r_sub._r.get_or_add_rPr()
+    va = OxmlElement('w:vertAlign'); va.set(qn('w:val'), 'subscript'); rPr.append(va)
+    r_close = p_head.add_run(')')
+    r_close.font.name = TH_FONT; r_close.font.size = TH_SIZE; r_close.bold = True
+
+    # ── คำอธิบาย ──────────────────────────────────────────────────────────
+    p_desc = doc.add_paragraph()
+    p_desc.alignment = WD_ALIGN_PARAGRAPH.THAI_JUSTIFY
+    _th_run(p_desc, 'ค่า Subbase Elastic Modulus (E')
+    r_sb = p_desc.add_run('SB')
+    r_sb.font.name = EQ_FONT; r_sb.font.size = EQ_SIZE
+    rPr2 = r_sb._r.get_or_add_rPr()
+    va2 = OxmlElement('w:vertAlign'); va2.set(qn('w:val'), 'subscript'); rPr2.append(va2)
+    _th_run(p_desc, ') คำนวณจากโมดูลัสเทียบเท่าของชั้นวัสดุรองพื้นทาง โดยใช้สมการดังนี้')
+
+    # ── สมการ ─────────────────────────────────────────────────────────────
+    p_eq = eq_line(indent_cm=2.0)
+    _eq_run(p_eq, 'E')
+    _eq_run(p_eq, 'SB', sub=True)
+    _eq_run(p_eq, ' = ')
+    _eq_run(p_eq, '\u239b'); _eq_run(p_eq, '\u03a3')
+    _eq_run(p_eq, 'h'); _eq_run(p_eq, 'i', sub=True)
+    _eq_run(p_eq, ' \u00d7 E'); _eq_run(p_eq, 'i', sub=True)
+    _eq_run(p_eq, '1/3', sup=True)
+    _eq_run(p_eq, ' / \u03a3'); _eq_run(p_eq, 'h'); _eq_run(p_eq, 'i', sub=True)
+    _eq_run(p_eq, '\u239e')
+    _eq_run(p_eq, '3', sup=True)
+
+    # ── "โดยที่:" ─────────────────────────────────────────────────────────
+    p_by = doc.add_paragraph()
+    _th_run(p_by, 'โดยที่:')
+
+    # ตารางสัญลักษณ์ขนาดเล็ก
+    HEADER_BG = 'BDD7EE'
+    col_w = [1200, 5800, 1200]
+    tbl = doc.add_table(rows=1, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    def _set_w(row):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(col_w[i])); tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+    def _sc(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.LEFT,
+            bg=None, font=EQ_FONT, fsize=EQ_SIZE):
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = align
+        run = p.add_run(text)
+        run.font.name = font; run.font.size = fsize; run.bold = bold
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '80'); m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+
+    hdr = tbl.rows[0]; _set_w(hdr)
+    _sc(hdr.cells[0], 'สัญลักษณ์', bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
+        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+    _sc(hdr.cells[1], 'ความหมาย',  bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
+        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+    _sc(hdr.cells[2], 'หน่วย',     bold=True, align=WD_ALIGN_PARAGRAPH.CENTER,
+        bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+
+    syms = [
+        ('E\u209B\u1D39', 'Subbase Elastic Modulus เทียบเท่า',    'MPa'),
+        ('h\u1D35',        'ความหนาของแต่ละชั้นวัสดุ',            'ซม.'),
+        ('E\u1D35',        'Modulus of Elasticity ของแต่ละชั้น',  'MPa'),
+    ]
+    for sym, meaning, unit in syms:
+        row = tbl.add_row(); _set_w(row)
+        _sc(row.cells[0], sym,     align=WD_ALIGN_PARAGRAPH.CENTER)
+        _sc(row.cells[1], meaning, font=TH_FONT, fsize=TH_SIZE)
+        _sc(row.cells[2], unit,    align=WD_ALIGN_PARAGRAPH.CENTER, font=TH_FONT, fsize=TH_SIZE)
+
+    doc.add_paragraph()
+
+    # ── ตารางแสดงการคำนวณทีละชั้น ────────────────────────────────────────
+    valid = [l for l in layers_data
+             if l.get('thickness_cm', 0) > 0 and l.get('E_MPa', 0) > 0]
+
+    if not valid:
+        return
+
+    p_calc_head = doc.add_paragraph()
+    _th_run(p_calc_head, 'การคำนวณแสดงในตารางดังนี้', bold=False)
+
+    col_w2 = [400, 3600, 1400, 1400, 1600, 1672]
+    tbl2 = doc.add_table(rows=1, cols=6)
+    tbl2.style = 'Table Grid'
+    tbl2.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    def _set_w2(row):
+        for i, cell in enumerate(row.cells):
+            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+            tcW = OxmlElement('w:tcW')
+            tcW.set(qn('w:w'), str(col_w2[i])); tcW.set(qn('w:type'), 'dxa')
+            tcPr.append(tcW)
+
+    def _sc2(cell, text, bold=False, align=WD_ALIGN_PARAGRAPH.CENTER,
+             font=EQ_FONT, fsize=EQ_SIZE, bg=None):
+        cell.text = ''
+        p = cell.paragraphs[0]; p.alignment = align
+        run = p.add_run(text)
+        run.font.name = font; run.font.size = fsize; run.bold = bold
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcMar = OxmlElement('w:tcMar')
+        for side in ['top','bottom','left','right']:
+            m = OxmlElement(f'w:{side}')
+            m.set(qn('w:w'), '80'); m.set(qn('w:type'), 'dxa')
+            tcMar.append(m)
+        tcPr.append(tcMar)
+        if bg:
+            shd = OxmlElement('w:shd')
+            shd.set(qn('w:val'), 'clear'); shd.set(qn('w:color'), 'auto')
+            shd.set(qn('w:fill'), bg); tcPr.append(shd)
+
+    # Header
+    hdr2 = tbl2.rows[0]; _set_w2(hdr2)
+    headers2 = ['ลำดับ', 'ชั้นวัสดุ', 'hᵢ (ซม.)', 'Eᵢ (MPa)', 'hᵢ × Eᵢ^(1/3)', 'Eᵢ^(1/3)']
+    th_cols = {0, 1, 2, 3, 4, 5}
+    for j, (cell, htext) in enumerate(zip(hdr2.cells, headers2)):
+        _sc2(cell, htext, bold=True, bg=HEADER_BG, font=TH_FONT, fsize=TH_SIZE)
+
+    # แถวข้อมูล
+    sum_h = 0.0
+    sum_hE = 0.0
+    for idx, layer in enumerate(valid, start=1):
+        h  = layer['thickness_cm']
+        E  = layer['E_MPa']
+        E13 = E ** (1/3)
+        hE = h * E13
+        sum_h  += h
+        sum_hE += hE
+        row2 = tbl2.add_row(); _set_w2(row2)
+        _sc2(row2.cells[0], str(idx))
+        _sc2(row2.cells[1], _fmt_layer_name(layer.get('name','')),
+             align=WD_ALIGN_PARAGRAPH.LEFT, font=TH_FONT, fsize=TH_SIZE)
+        _sc2(row2.cells[2], f'{h}')
+        _sc2(row2.cells[3], f'{E:,}')
+        _sc2(row2.cells[4], f'{hE:,.2f}')
+        _sc2(row2.cells[5], f'{E13:.4f}')
+
+    # แถวรวม
+    row_sum = tbl2.add_row(); _set_w2(row_sum)
+    _sc2(row_sum.cells[0], '',   bg='FFF2CC')
+    _sc2(row_sum.cells[1], 'รวม (Σ)', bold=True, bg='FFF2CC',
+         font=TH_FONT, fsize=TH_SIZE, align=WD_ALIGN_PARAGRAPH.RIGHT)
+    _sc2(row_sum.cells[2], f'{sum_h:.0f}', bold=True, bg='FFF2CC')
+    _sc2(row_sum.cells[3], '',   bg='FFF2CC')
+    _sc2(row_sum.cells[4], f'{sum_hE:,.2f}', bold=True, bg='FFF2CC')
+    _sc2(row_sum.cells[5], '',   bg='FFF2CC')
+
+    # ── ผลลัพธ์ ESB ───────────────────────────────────────────────────────
+    if sum_h > 0:
+        esb = (sum_hE / sum_h) ** 3
+        doc.add_paragraph()
+        p_result = doc.add_paragraph()
+        p_result.alignment = WD_ALIGN_PARAGRAPH.LEFT
+        p_result.paragraph_format.left_indent = Cm(1.5)
+        _th_run(p_result, 'ดังนั้น  ')
+        _eq_run(p_result, 'E'); _eq_run(p_result, 'SB', sub=True)
+        _eq_run(p_result, f'  =  ({sum_hE:,.2f} / {sum_h:.0f})')
+        _eq_run(p_result, '3', sup=True)
+        _eq_run(p_result, f'  =  {esb:,.2f}')
+        _th_run(p_result, '  MPa')
+
+    doc.add_paragraph()
+
+
 def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
                      cbr_subgrade=3.0, show_figure=False):
     """ตารางชั้นโครงสร้างทาง รูปแบบตามภาพ:
@@ -913,6 +1140,9 @@ def _add_layer_table(doc, layers_data, d_cm, pavement_type, fig_caption="",
     _sc(row.cells[3], f'{mr_mpa:,} ({mr_psi:,} psi)', align=WD_ALIGN_PARAGRAPH.CENTER)
 
     doc.add_paragraph()
+
+    # ── สมการและการคำนวณ ESB ──────────────────────────────────────────────
+    _add_esb_calculation(doc, layers_data, cbr_subgrade)
 
     # รูปตัดขวาง (แสดงเฉพาะเมื่อ show_figure=True)
     if show_figure:
