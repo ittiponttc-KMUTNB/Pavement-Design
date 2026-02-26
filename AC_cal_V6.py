@@ -1702,6 +1702,32 @@ def main():
         layer_data = []
         status_placeholders = {}
 
+        # ===== Global m panel =====
+        with st.container():
+            st.markdown(
+                '<div style="background:#EFF6FF;border:1.5px solid #3B82F6;border-radius:8px;padding:10px 16px 6px 16px;margin-bottom:12px;">'
+                '<b style="color:#1D4ED8;">🔧 กำหนดค่า m (Drainage Coefficient) เดียวกันทุกชั้น</b>'
+                '</div>', unsafe_allow_html=True
+            )
+            gcol1, gcol2 = st.columns([2, 1])
+            with gcol1:
+                global_m = st.number_input(
+                    "ค่า m สำหรับทุกชั้นทาง",
+                    min_value=0.40, max_value=1.50,
+                    value=st.session_state.get('global_m_value', 1.00),
+                    step=0.05, format="%.2f",
+                    key="global_m_value",
+                    help="กรอกค่าแล้วกด 'ใช้เหมือนกันทุกชั้น' — ยังแก้ไขแต่ละชั้นได้ภายหลัง"
+                )
+            with gcol2:
+                st.markdown("<div style='height:28px'></div>", unsafe_allow_html=True)
+                if st.button("✅ ใช้เหมือนกันทุกชั้น", type="primary", use_container_width=True):
+                    nl = st.session_state.get('input_num_layers', 4)
+                    for idx in range(1, nl + 1):
+                        st.session_state[f'layer{idx}_m'] = global_m
+                    st.toast(f"✅ ตั้งค่า m = {global_m:.2f} ให้ทุกชั้นแล้ว", icon="✅")
+                    st.rerun()
+
         # ===== ชั้นที่ 1: ผิวทาง =====
         st.subheader("🔶 ชั้นที่ 1: ผิวทาง (Surface)")
 
