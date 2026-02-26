@@ -1720,6 +1720,11 @@ def main():
                 # ใช้ค่าจาก session_state หรือ default
                 def_name = st.session_state.get(f'calc_layer_name_{i}', default_layers[i]["name"] if i < len(default_layers) else "กำหนดเอง...")
                 def_thick = st.session_state.get(f'calc_layer_thick_{i}', default_layers[i]["thickness_cm"] if i < len(default_layers) else 20)
+                # Migration: แปลงชื่อวัสดุเก่า → ชื่อใหม่
+                _name_migration = {
+                    "พื้นทางซีเมนต์ CTB": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)",
+                }
+                def_name = _name_migration.get(def_name, def_name)
                 def_idx = material_options.index(def_name) if def_name in material_options else len(material_options) - 1
                 
                 with col_a:
