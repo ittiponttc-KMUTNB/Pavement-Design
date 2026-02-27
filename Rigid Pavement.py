@@ -1866,7 +1866,8 @@ def main():
                         for i, layer in enumerate(layers_data):
                             st.session_state[f'calc_layer_name_{i}'] = layer.get('name', '')
                             st.session_state[f'calc_layer_thick_{i}'] = layer.get('thickness_cm', 0)
-                            st.session_state[f'calc_layer_E_{i}'] = layer.get('E_MPa', 100)
+                            layer_name = layer.get('name', '')
+                            st.session_state[f'calc_layer_E_{i}_{layer_name}'] = layer.get('E_MPa', 100)
                         
                         # Design Parameters
                         dp = loaded.get('design_parameters', {})
@@ -1996,9 +1997,9 @@ def main():
                 with col_b:
                     layer_thickness = st.number_input("ความหนา (ซม.)", 0, 100, def_thick, key=f"calc_layer_thick_{i}")
                 rec_mod = MATERIAL_MODULUS.get(layer_name, 100)
-                def_E = st.session_state.get(f'calc_layer_E_{i}', rec_mod)
+                def_E = st.session_state.get(f'calc_layer_E_{i}_{layer_name}', rec_mod)
                 with col_c:
-                    layer_modulus = st.number_input("E (MPa)", 10, 10000, def_E, key=f"calc_layer_E_{i}")
+                    layer_modulus = st.number_input("E (MPa)", 10, 10000, def_E, key=f"calc_layer_E_{i}_{layer_name}")
                 layers_data.append({"name": layer_name, "thickness_cm": layer_thickness, "E_MPa": layer_modulus})
             
             total_layer_cm = sum(l['thickness_cm'] for l in layers_data)
@@ -2341,7 +2342,7 @@ def main():
                 num_layers=st.session_state.get('calc_num_layers', 5),
                 layers_data=[{"name": st.session_state.get(f'calc_layer_name_{i}', ''),
                               "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
-                              "E_MPa": st.session_state.get(f'calc_layer_E_{i}', 100)}
+                              "E_MPa": st.session_state.get(f'calc_layer_E_{i}_{st.session_state.get(f"calc_layer_name_{i}", "")}', 100)}
                              for i in range(st.session_state.get('calc_num_layers', 5))],
                 w18_design=st.session_state.get('calc_w18', 500000),
                 pt=st.session_state.get('calc_pt', 2.0),
@@ -2653,7 +2654,7 @@ def main():
                         "name": st.session_state.get(f'calc_layer_name_{i}', ''),
                         "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
                         "E_MPa": st.session_state.get(
-                            f'calc_layer_E_{i}', 100
+                            f'calc_layer_E_{i}_{st.session_state.get(f"calc_layer_name_{i}", "")}', 100
                         )
                     }
                     for i in range(num_layers_r)
