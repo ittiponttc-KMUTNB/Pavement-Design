@@ -2004,7 +2004,7 @@ def main():
             
             total_layer_cm = sum(l['thickness_cm'] for l in layers_data)
             # Auto-fill DSB เข้า Tab 2 (ผู้ใช้แก้ไขได้เองใน Tab 2)
-            st.session_state['nomo_dsb'] = round(total_layer_cm / 2.54)
+            st.session_state['nomo_dsb'] = float(round(total_layer_cm / 2.54))
             st.markdown(f"**รวมความหนา {total_layer_cm:.0f} ซม. ({round(total_layer_cm/2.54)} นิ้ว)**")
             
             # คำนวณ E_equivalent
