@@ -6,8 +6,7 @@
 รวมโปรแกรม:
 1. การหาค่า k-value และปรับแก้ Loss of Support (LS) จาก Nomograph
 2. การคำนวณความหนาถนนคอนกรีตตาม AASHTO 1993
-การปรับปรุง
-1. ย้ายรูปแบบการตรวจสอบความหนาผิวทางไปcolumn 2 ฝั่งขวา
+
 พัฒนาสำหรับใช้ในการเรียนการสอน
 ภาควิชาครุศาสตร์โยธา มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ
 """
@@ -23,8 +22,20 @@ import io
 import json
 import pandas as pd
 
+# ── docx imports ─────────────────────────────────────────────────────────────
+try:
+    from docx import Document
+    from docx.shared import Inches, Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.oxml.ns import qn
+    from docx.oxml import OxmlElement
+    DOCX_AVAILABLE = True
+except ImportError:
+    DOCX_AVAILABLE = False
+
 # ============================================================
-# ค่าคงที่และตารางอ้างอิง AASHTO 1993
+# ค่าคงที่และตารางอ้างอิง AASHTO 1993  (ไม่เปลี่ยน)
 # ============================================================
 
 ZR_TABLE = {
@@ -50,7 +61,7 @@ LS_PRESETS = {
 }
 
 # ============================================================
-# ฟังก์ชันการคำนวณ
+# ฟังก์ชันการคำนวณ  (ไม่เปลี่ยนแปลงเลย)
 # ============================================================
 
 def convert_cube_to_cylinder(fc_cube_ksc):
@@ -91,6 +102,22 @@ def check_design(w18_required, w18_capacity):
     ratio = w18_capacity / w18_required if w18_required > 0 else float('inf')
     return (w18_capacity >= w18_required, ratio)
 
+def compute_comparison_table(w18_req, dpsi, pt, zr, so, sc, cd, j, ec, k_eff):
+    """คำนวณตารางเปรียบเทียบความหนา 20-40 ซม. — helper ลด code ซ้ำ"""
+    thicknesses = [20, 22, 25, 28, 30, 32, 35, 38, 40]
+    results = []
+    for d_cm in thicknesses:
+        d_inch = round(d_cm / 2.54)
+        log_w18, w18_cap = calculate_aashto_rigid_w18(d_inch, dpsi, pt, zr, so, sc, cd, j, ec, k_eff)
+        passed, ratio = check_design(w18_req, w18_cap)
+        results.append({'d_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
+                        'w18': w18_cap, 'passed': passed, 'ratio': ratio})
+    return results
+
+# ============================================================
+# ฟังก์ชัน draw arrow (ไม่เปลี่ยน)
+# ============================================================
+
 def draw_arrow_fixed(draw, start, end, color, width=4, arrow_size=15):
     draw.line([start, end], fill=color, width=width)
     dx = end[0] - start[0]
@@ -110,7 +137,7 @@ def draw_arrow_fixed(draw, start, end, color, width=4, arrow_size=15):
         draw.polygon([(x3, y3), (x4, y4), (x5, y5)], fill=color)
 
 # ============================================================
-# ฟังก์ชันสร้างรูปโครงสร้างชั้นทาง
+# ฟังก์ชันสร้างรูปโครงสร้างชั้นทาง (ไม่เปลี่ยน)
 # ============================================================
 
 def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
@@ -130,7 +157,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
         "วัสดุคัดเลือก ก": "#E8DAEF", "ดินถมคันทาง / ดินเดิม": "#F5CBA7",
         "กำหนดเอง...": "#FADBD8", "Concrete Slab": "#808080",
     }
-    
+
     valid_layers = [l for l in layers_data if l.get("thickness_cm", 0) > 0]
     all_layers = []
     if concrete_thickness_cm and concrete_thickness_cm > 0:
@@ -138,7 +165,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
     all_layers.extend(valid_layers)
     if not all_layers:
         return None
-    
+
     total_thickness = sum(l.get("thickness_cm", 0) for l in all_layers)
     min_display_height = 8
     fig, ax = plt.subplots(figsize=(12, 8))
@@ -147,7 +174,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
     display_heights = [max(l.get("thickness_cm", 0), min_display_height) for l in all_layers]
     total_display = sum(display_heights)
     y_current = total_display
-    
+
     for i, layer in enumerate(all_layers):
         thickness = layer.get("thickness_cm", 0)
         name = layer.get("name", f"Layer {i+1}")
@@ -171,7 +198,7 @@ def create_pavement_structure_figure(layers_data, concrete_thickness_cm=None):
         if e_mpa:
             ax.text(x_start + width + 0.5, y_center_pos, f"E = {e_mpa:,} MPa", ha='left', va='center', fontsize=12, color='#0066CC')
         y_current = y_bottom
-    
+
     ax.annotate('', xy=(x_start + width + 3.5, total_display), xytext=(x_start + width + 3.5, 0),
                 arrowprops=dict(arrowstyle='<->', color='red', lw=2))
     ax.text(x_start + width + 4, total_display / 2, f"Total\n{total_thickness} cm", ha='left', va='center', fontsize=14, color='red', fontweight='bold')
@@ -192,7 +219,7 @@ def save_figure_to_bytes(fig):
     return buf
 
 # ============================================================
-# ฟังก์ชัน Save/Load JSON
+# ฟังก์ชัน Save/Load JSON  (ไม่เปลี่ยน)
 # ============================================================
 
 def save_project_to_json(project_data):
@@ -228,21 +255,17 @@ def collect_design_data(project_name, pavement_type, num_layers, layers_data, w1
         "nomograph": {"mr_val": mr_val, "esb_val": esb_val, "dsb_val": dsb_val,
                       "k_inf_val": k_inf_val, "ls_select": ls_select, "k_corrected": k_corrected},
         "nomograph_images": {
-            # รูปที่วาดเส้นแล้ว (สำหรับรายงาน)
             "img1_b64":          base64.b64encode(img1_bytes).decode()    if img1_bytes    else None,
             "img2_b64":          base64.b64encode(img2_bytes).decode()    if img2_bytes    else None,
-            # รูปต้นฉบับ (สำหรับโหลดกลับมาวาดเส้นใหม่)
             "img1_original_b64": base64.b64encode(img1_original).decode() if img1_original else None,
             "img2_original_b64": base64.b64encode(img2_original).decode() if img2_original else None,
         },
         "slider_positions": {
-            # Tab 2: Composite k∞
             "gx1": img1_sliders.get("gx1"), "gy1": img1_sliders.get("gy1"),
             "gx2": img1_sliders.get("gx2"), "gy2": img1_sliders.get("gy2"),
             "s1_sx": img1_sliders.get("s1_sx"),
             "s1_sy_esb": img1_sliders.get("s1_sy_esb"),
             "s1_sy_mr": img1_sliders.get("s1_sy_mr"),
-            # Tab 3: Loss of Support
             "_ls_x1": img2_sliders.get("_ls_x1"), "_ls_y1": img2_sliders.get("_ls_y1"),
             "_ls_x2": img2_sliders.get("_ls_x2"), "_ls_y2": img2_sliders.get("_ls_y2"),
             "k_pos_x": img2_sliders.get("k_pos_x"),
@@ -250,11 +273,6 @@ def collect_design_data(project_name, pavement_type, num_layers, layers_data, w1
             "axis_bottom": img2_sliders.get("axis_bottom"),
         }
     }
-
-# ============================================================
-# ฟังก์ชันสร้างรายงาน Word
-# ============================================================
-
 def create_word_report(pavement_type, inputs, calculated_values, comparison_results, selected_d_cm,
                        main_result, layers_data=None, project_name="", structure_figure=None,
                        subgrade_info=None, e_equivalent_psi=0):
@@ -1825,1061 +1843,1035 @@ def create_full_word_report(
 
 
 # ============================================================
-# Main Application
+# CSS Styling
 # ============================================================
 
-def main():
-    st.set_page_config(page_title="AASHTO 1993 Rigid Pavement Design", page_icon="🛣️", layout="wide")
-    st.title("🛣️ Rigid Pavement Design Calculator (AASHTO 1993)")
-    st.markdown("**โปรแกรมออกแบบความหนาถนนคอนกรีต และหาค่า k-value พร้อมปรับแก้ Loss of Support**")
-    
-    # Initialize Session State
-    for key, val in [('k_inf_result', 500), ('img1_bytes', None), ('img2_bytes', None), ('last_uploaded_file', None)]:
-        if key not in st.session_state:
-            st.session_state[key] = val
-    
-    # Sidebar: JSON Save/Load
-    with st.sidebar:
-        # ── ลำดับขั้นตอน ──────────────────────────────────────────────────
-        st.header("🗺️ ลำดับขั้นตอนการใช้งาน")
-        steps = [
-            ("1️⃣", "AASHTO Calculator", "กรอกข้อมูล + เลือกความหนา"),
-            ("2️⃣", "Nomograph: k∞",     "อ่านค่า Composite k จากกราฟ"),
-            ("3️⃣", "Nomograph: LS",     "ปรับแก้ Loss of Support"),
-            ("4️⃣", "บันทึกโปรเจกต์",    "Save .json เพื่อโหลดใหม่ภายหลัง"),
-            ("5️⃣", "สร้างรายงาน",       "Export Word ฉบับสมบูรณ์"),
-        ]
-        for icon, title, desc in steps:
-            st.markdown(f"**{icon} {title}**  \n<small>{desc}</small>", unsafe_allow_html=True)
-        st.markdown("---")
+APP_CSS = """
+<style>
+/* ── Metric cards ────────────────────────────────────────── */
+[data-testid="metric-container"] {
+    background: linear-gradient(135deg, #1a3a5c 0%, #0d2137 100%);
+    border: 1px solid #2d6a9f;
+    border-radius: 10px;
+    padding: 14px 18px;
+    transition: box-shadow 0.2s ease;
+}
+[data-testid="metric-container"]:hover {
+    box-shadow: 0 4px 16px rgba(45,106,159,0.35);
+}
+[data-testid="stMetricLabel"]  { color: #90caf9 !important; font-size: 0.82rem !important; }
+[data-testid="stMetricValue"]  { color: #ffffff !important; font-size: 1.45rem !important; font-weight: 700 !important; }
+[data-testid="stMetricDelta"]  { font-size: 0.82rem !important; }
 
-        st.header("📁 จัดการโปรเจกต์")
-        st.subheader("📂 โหลดไฟล์โปรเจกต์")
+/* ── Pass / Fail result boxes ────────────────────────────── */
+.result-pass {
+    background: linear-gradient(135deg, #0d3b26, #1b5e3b);
+    border: 2px solid #2e7d52;
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: center;
+    margin: 12px 0;
+}
+.result-fail {
+    background: linear-gradient(135deg, #3b0d0d, #5e1b1b);
+    border: 2px solid #9e2020;
+    border-radius: 12px;
+    padding: 20px 24px;
+    text-align: center;
+    margin: 12px 0;
+}
+.result-pass h3, .result-fail h3 { margin: 0 0 6px 0; font-size: 1.3rem; color: #ffffff; }
+.result-pass p,  .result-fail p  { margin: 0; font-size: 0.95rem; color: #dddddd; }
+
+/* ── Section header accent ───────────────────────────────── */
+.section-header {
+    border-left: 4px solid #2196f3;
+    padding-left: 10px;
+    margin: 18px 0 8px 0;
+    color: #90caf9;
+    font-weight: 600;
+    font-size: 1.05rem;
+}
+
+/* ── Sidebar styling ─────────────────────────────────────── */
+[data-testid="stSidebar"] { background: #0d1b2a; }
+[data-testid="stSidebar"] .stMarkdown p { color: #b0c4de; }
+
+/* ── Tab font ────────────────────────────────────────────── */
+button[data-baseweb="tab"] { font-size: 0.88rem !important; }
+
+/* ── Info / success / error boxes ───────────────────────── */
+.stAlert { border-radius: 8px !important; }
+</style>
+"""
+
+# ============================================================
+# Helper: get layer E from session_state  (แก้ bug nested key)
+# ============================================================
+
+def _get_layer_E_key(i):
+    """key สำหรับ widget modulus ของชั้นที่ i — simple flat key"""
+    return f'calc_layer_E_{i}'
+
+
+def _collect_layers_from_session(num_layers):
+    """รวบรวม layers_data จาก session_state"""
+    return [
+        {
+            "name":         st.session_state.get(f'calc_layer_name_{i}', ''),
+            "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
+            "E_MPa":        st.session_state.get(_get_layer_E_key(i), 100),
+        }
+        for i in range(num_layers)
+    ]
+
+
+# ============================================================
+# Sidebar: JSON Load  (แยกออกมาเป็น function)
+# ============================================================
+
+def render_sidebar():
+    with st.sidebar:
+        st.markdown("## 📁 จัดการโปรเจกต์")
+        st.divider()
+        st.markdown("### 📂 โหลดไฟล์โปรเจกต์")
         uploaded_json = st.file_uploader("อัปโหลดไฟล์ .json", type=['json'], key='json_uploader')
-        
+
         if uploaded_json is not None:
             try:
-                # ตรวจสอบว่าเป็นไฟล์ใหม่หรือไม่
                 file_id = f"{uploaded_json.name}_{uploaded_json.size}"
                 if st.session_state.get('last_uploaded_file') != file_id:
                     st.session_state['last_uploaded_file'] = file_id
-                    
-                    # โหลดข้อมูลจาก JSON
                     loaded = load_project_from_json(uploaded_json)
                     if loaded:
-                        # อัพเดท session_state สำหรับทุก input field
-                        
-                        # Project Info
                         st.session_state['calc_project_name'] = loaded.get('project_info', {}).get('project_name', '')
-                        st.session_state['calc_pave_type'] = loaded.get('project_info', {}).get('pavement_type', 'JPCP')
-                        
-                        # Layers
-                        st.session_state['calc_num_layers'] = loaded.get('layers', {}).get('num_layers', 5)
+                        st.session_state['calc_pave_type']    = loaded.get('project_info', {}).get('pavement_type', 'JPCP')
+                        st.session_state['calc_num_layers']   = loaded.get('layers', {}).get('num_layers', 5)
                         layers_data = loaded.get('layers', {}).get('layers_data', [])
                         for i, layer in enumerate(layers_data):
-                            st.session_state[f'calc_layer_name_{i}'] = layer.get('name', '')
+                            st.session_state[f'calc_layer_name_{i}']  = layer.get('name', '')
                             st.session_state[f'calc_layer_thick_{i}'] = layer.get('thickness_cm', 0)
-                            layer_name = layer.get('name', '')
-                            st.session_state[f'calc_layer_E_{i}_{layer_name}'] = layer.get('E_MPa', 100)
-                        
-                        # Design Parameters
+                            st.session_state[_get_layer_E_key(i)]      = layer.get('E_MPa', 100)
                         dp = loaded.get('design_parameters', {})
-                        st.session_state['calc_w18'] = dp.get('w18_design', 500000)
-                        st.session_state['calc_pt'] = dp.get('pt', 2.0)
+                        st.session_state['calc_w18']         = dp.get('w18_design', 500000)
+                        st.session_state['calc_pt']          = dp.get('pt', 2.0)
                         st.session_state['calc_reliability'] = dp.get('reliability', 90)
-                        st.session_state['calc_so'] = dp.get('so', 0.35)
-                        st.session_state['calc_k_eff'] = dp.get('k_eff', 200)
-                        st.session_state['calc_ls'] = dp.get('ls_value', 1.0)
-                        st.session_state['calc_fc'] = dp.get('fc_cube', 350)
-                        st.session_state['calc_sc'] = dp.get('sc', 600)
-                        st.session_state['calc_j'] = dp.get('j_value', 2.8)
-                        st.session_state['calc_cd'] = dp.get('cd', 1.0)
-                        st.session_state['calc_d'] = dp.get('d_cm_selected', 30)
-                        
-                        # Subgrade
-                        st.session_state['calc_cbr'] = loaded.get('subgrade', {}).get('cbr_value', 4.0)
-                        
-                        # Nomograph
+                        st.session_state['calc_so']          = dp.get('so', 0.35)
+                        st.session_state['calc_k_eff']       = dp.get('k_eff', 200)
+                        st.session_state['calc_ls']          = dp.get('ls_value', 1.0)
+                        st.session_state['calc_fc']          = dp.get('fc_cube', 350)
+                        st.session_state['calc_sc']          = dp.get('sc', 600)
+                        st.session_state['calc_j']           = dp.get('j_value', 2.8)
+                        st.session_state['calc_cd']          = dp.get('cd', 1.0)
+                        st.session_state['calc_d']           = dp.get('d_cm_selected', 30)
+                        st.session_state['calc_cbr']         = loaded.get('subgrade', {}).get('cbr_value', 4.0)
                         nomo = loaded.get('nomograph', {})
-                        st.session_state['nomo_mr'] = nomo.get('mr_val', 7000)
-                        st.session_state['nomo_esb'] = nomo.get('esb_val', 50000)
-                        st.session_state['nomo_dsb'] = nomo.get('dsb_val', 6.0)
-                        st.session_state['nomo_k_inf'] = nomo.get('k_inf_val', 400)
-                        st.session_state['k_inf_result'] = nomo.get('k_inf_val', 400)
-                        st.session_state['ls_select_box'] = nomo.get('ls_select', 1.0)
-                        st.session_state['k_corr_input'] = nomo.get('k_corrected', 300)
-
-                        # Nomograph images (base64 → bytes)
+                        st.session_state['nomo_mr']        = nomo.get('mr_val', 7000)
+                        st.session_state['nomo_esb']       = nomo.get('esb_val', 50000)
+                        st.session_state['nomo_dsb']       = nomo.get('dsb_val', 6.0)
+                        st.session_state['nomo_k_inf']     = nomo.get('k_inf_val', 400)
+                        st.session_state['k_inf_result']   = nomo.get('k_inf_val', 400)
+                        st.session_state['ls_select_box']  = nomo.get('ls_select', 1.0)
+                        st.session_state['k_corr_input']   = nomo.get('k_corrected', 300)
                         import base64
                         nomo_imgs = loaded.get('nomograph_images', {})
-                        img1_b64      = nomo_imgs.get('img1_b64')
-                        img2_b64      = nomo_imgs.get('img2_b64')
-                        img1_orig_b64 = nomo_imgs.get('img1_original_b64')
-                        img2_orig_b64 = nomo_imgs.get('img2_original_b64')
-                        if img1_b64:
-                            st.session_state['img1_bytes']    = base64.b64decode(img1_b64)
-                        if img2_b64:
-                            st.session_state['img2_bytes']    = base64.b64decode(img2_b64)
-                        # รูปต้นฉบับ → ใช้สำหรับวาดเส้นใหม่โดยไม่ทับซ้อน
-                        if img1_orig_b64:
-                            st.session_state['img1_original'] = base64.b64decode(img1_orig_b64)
-                        if img2_orig_b64:
-                            st.session_state['img2_original'] = base64.b64decode(img2_orig_b64)
-                        # Slider positions (Tab 2 & 3)
+                        for key_b64, ss_key in [('img1_b64','img1_bytes'),('img2_b64','img2_bytes'),
+                                                 ('img1_original_b64','img1_original'),('img2_original_b64','img2_original')]:
+                            v = nomo_imgs.get(key_b64)
+                            if v:
+                                st.session_state[ss_key] = base64.b64decode(v)
                         sliders = loaded.get('slider_positions', {})
                         for k in ['gx1','gy1','gx2','gy2','s1_sx','s1_sy_esb','s1_sy_mr',
                                   '_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']:
                             if sliders.get(k) is not None:
                                 st.session_state[k] = sliders[k]
-
-                        n_imgs = sum(1 for x in [img1_b64, img2_b64] if x)
+                        n_imgs = sum(1 for x in [nomo_imgs.get('img1_b64'), nomo_imgs.get('img2_b64')] if x)
                         img_msg = f" + โหลดรูป Nomograph {n_imgs} รูป ✅" if n_imgs else " (ไม่มีรูป Nomograph)"
-                        
                         st.success(f"✅ โหลดข้อมูลสำเร็จ!{img_msg}")
                         st.rerun()
             except Exception as e:
                 st.error(f"❌ ไม่สามารถอ่านไฟล์ได้: {e}")
-        
-        # แสดงสถานะโปรเจกต์ที่โหลด
+
         if st.session_state.get('calc_project_name'):
             st.info(f"📌 โปรเจกต์: {st.session_state.get('calc_project_name', 'ไม่ระบุ')}")
             if st.button("🗑️ ล้างข้อมูลที่โหลด"):
-                # ล้าง session_state ทั้งหมด
-                keys_to_clear = [key for key in st.session_state.keys() if key.startswith(('calc_', 'nomo_', 'ls_select', 'k_corr', 'k_inf'))]
+                keys_to_clear = [key for key in st.session_state.keys()
+                                 if key.startswith(('calc_', 'nomo_', 'ls_select', 'k_corr', 'k_inf'))]
                 for key in keys_to_clear:
                     del st.session_state[key]
                 st.session_state['last_uploaded_file'] = None
                 st.rerun()
-        st.markdown("---")
-    
-    
-    # Define Tabs
-    tab1, tab2, tab3, tab4, tab5, tab_report = st.tabs([
-        "🔢 AASHTO Calculator", "📊 Nomograph: Composite k∞", "📉 Nomograph: Loss of Support",
-        "💾 บันทึกโปรเจกต์", "📋 คู่มือการใช้งาน", "📄 สร้างรายงาน"
-    ])
-    
-    # =========================================================
-    # TAB 1: AASHTO Calculator
-    # =========================================================
-    with tab1:
-        st.header("1️⃣ การออกแบบความหนาถนนคอนกรีต (AASHTO 1993)")
-        col1, col2 = st.columns([1, 1])
-        
-        with col1:
-            st.subheader("📥 ข้อมูลนำเข้า (Input)")
-            inp_tab1, inp_tab2 = st.tabs(["🔶 โครงสร้างทาง + จราจร", "⚙️ วัสดุ + พารามิเตอร์"])
-            with inp_tab1:
-                project_name = st.text_input("🏗️ ชื่อโครงการ", value=st.session_state.get('calc_project_name', ''), key="calc_project_name")
-                st.markdown("---")
-                pave_options = list(J_VALUES.keys())
-                current_pave_type = st.session_state.get('calc_pave_type', 'JPCP')
-                default_pave_idx = pave_options.index(current_pave_type) if current_pave_type in pave_options else 1
-                pavement_type = st.selectbox("ประเภทผิวทางคอนกรีต", pave_options, index=default_pave_idx, key="calc_pave_type")
-                st.markdown("---")
-            
-                st.subheader("🔶 ชั้นโครงสร้างทาง")
-                material_options = list(MATERIAL_MODULUS.keys())
-                num_layers = st.number_input("จำนวนชั้นวัสดุ (1–6 ชั้น)", min_value=1, max_value=6, value=st.session_state.get('calc_num_layers', 5), step=1, key="calc_num_layers")
-                
-                default_layers = [
-                    {"name": "รองผิวทางคอนกรีตด้วย AC", "thickness_cm": 5},
-                    {"name": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)", "thickness_cm": 20},
-                    {"name": "หินคลุก CBR 80%", "thickness_cm": 15},
-                    {"name": "รองพื้นทางวัสดุมวลรวม CBR 25%", "thickness_cm": 25},
-                    {"name": "วัสดุคัดเลือก ก", "thickness_cm": 30},
-                    {"name": "ดินถมคันทาง / ดินเดิม", "thickness_cm": 0},
-                ]
-                
-                layers_data = []
-                for i in range(num_layers):
-                    st.markdown(f"**ชั้นที่ {i+1}**")
-                    col_a, col_b, col_c = st.columns([2, 1, 1])
-                    
-                    # ใช้ค่าจาก session_state หรือ default
-                    def_name = st.session_state.get(f'calc_layer_name_{i}', default_layers[i]["name"] if i < len(default_layers) else "กำหนดเอง...")
-                    def_thick = st.session_state.get(f'calc_layer_thick_{i}', default_layers[i]["thickness_cm"] if i < len(default_layers) else 20)
-                    # Migration: แปลงชื่อวัสดุเก่า → ชื่อใหม่
-                    _name_migration = {
-                        "พื้นทางซีเมนต์ CTB": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)",
-                    }
-                    def_name = _name_migration.get(def_name, def_name)
-                    def_idx = material_options.index(def_name) if def_name in material_options else len(material_options) - 1
-                    
-                    with col_a:
-                        layer_name = st.selectbox("เลือกวัสดุ", material_options, index=def_idx, key=f"calc_layer_name_{i}")
-                    with col_b:
-                        layer_thickness = st.number_input("ความหนา (ซม.)", 0, 100, def_thick, key=f"calc_layer_thick_{i}")
-                    rec_mod = MATERIAL_MODULUS.get(layer_name, 100)
-                    def_E = st.session_state.get(f'calc_layer_E_{i}_{layer_name}', rec_mod)
-                    with col_c:
-                        layer_modulus = st.number_input("E (MPa)", 10, 10000, def_E, key=f"calc_layer_E_{i}_{layer_name}")
-                    layers_data.append({"name": layer_name, "thickness_cm": layer_thickness, "E_MPa": layer_modulus})
-                
-                total_layer_cm = sum(l['thickness_cm'] for l in layers_data)
-                st.markdown(f"**รวมความหนา {total_layer_cm:.0f} ซม. ({round(total_layer_cm/2.54)} นิ้ว)**")
-                
-                # คำนวณ E_equivalent
-                valid_layers = [l for l in layers_data if l['thickness_cm'] > 0 and l['E_MPa'] > 0]
-                if valid_layers:
-                    sum_h_e_cbrt = sum(l['thickness_cm'] * (l['E_MPa'] ** (1/3)) for l in valid_layers)
-                    total_valid_cm = sum(l['thickness_cm'] for l in valid_layers)
-                    e_eq_mpa = (sum_h_e_cbrt / total_valid_cm) ** 3 if total_valid_cm > 0 else 0
-                    e_eq_psi = e_eq_mpa * 145.038
-                    st.info(f"โมดูลัสเทียบเท่า (E_equivalent) = **{e_eq_psi:,.0f} psi** ({e_eq_mpa:.1f} MPa)")
-                st.markdown("---")
-                
-                # ── Sub-tab 1: จราจร + ดิน + k ──────────────────────────────
-                st.subheader("1️⃣ ปริมาณจราจร 🚛 ")
-                with st.expander("📊 ตัวช่วยประมาณ ESAL ตามประเภทถนน", expanded=False):
-                    st.markdown("""
-                    | ประเภทถนน | ESAL (ล้าน) |
-                    |-----------|-------------|
-                    | ทางหลวงพิเศษระหว่างเมือง | 50-200 |
-                    | ทางหลวงแผ่นดินสายหลัก | 20-80 |
-                    | ทางหลวงแผ่นดินสายรอง | 5-30 |
-                    | ถนนในเมือง | 1-10 |
-                    """)
-                w18_design = st.number_input("ESAL ที่ต้องการรองรับ (W₁₈)", 10000, 500000000, st.session_state.get('calc_w18', 500000), 100000, key="calc_w18")
-                esal_million = w18_design / 1_000_000
-                st.info(f"**{esal_million:.2f} ล้าน ESALs**")
-                st.markdown("---")
-    
-                st.subheader("2️⃣ Serviceability📉")
-                pt = st.slider("Terminal Serviceability (Pt)", 1.5, 3.0, st.session_state.get('calc_pt', 2.0), 0.1, key="calc_pt")
-                delta_psi = 4.5 - pt
-                st.info(f"ΔPSI = 4.5 - {pt:.1f} = **{delta_psi:.1f}**")
-                st.markdown("---")
-    
-                st.subheader("3️⃣ ความเชื่อมั่น📈")
-                reliability = st.select_slider("Reliability (R)", [80, 85, 90, 95], st.session_state.get('calc_reliability', 90), key="calc_reliability")
-                zr = get_zr_value(reliability)
-                st.info(f"ZR = **{zr:.3f}**")
-                so = st.number_input("Standard Deviation (So)", 0.30, 0.45, st.session_state.get('calc_so', 0.35), 0.01, "%.2f", key="calc_so")
-                st.markdown("---")
-    
-                st.subheader("4️⃣ คุณสมบัติดินคันทาง")
-                cbr_value = st.number_input("ค่า CBR (%)", 1.0, 100.0, st.session_state.get('calc_cbr', 4.0), 0.5, key="calc_cbr")
-                mr_subgrade_psi = 1500 * cbr_value if cbr_value < 10 else 1000 + 555 * cbr_value
-                mr_subgrade_mpa = mr_subgrade_psi / 145.038
-                st.info(f"M_R = {mr_subgrade_psi:,.0f} psi ({mr_subgrade_mpa:.0f} MPa)")
-                k_eff = st.number_input("Effective k (pci)", 50, 1000, st.session_state.get('calc_k_eff', 200), 25, key="calc_k_eff")
-                with st.expander("📊 ตารางค่า Loss of Support แนะนำ (AASHTO 1993)"):
-                    st.markdown("""
-                    | ประเภทวัสดุ | Loss of Support (LS) |
-                    |------------|---------------------|
-                    | Cement Treated Granular Base | 0.0 - 1.0 |
-                    | Cement Aggregate Mixtures | 0.0 - 1.0 |
-                    | Asphalt Treated Base | 0.0 - 1.0 |
-                    | Bituminous Stabilized Mixtures | 0.0 - 1.0 |
-                    | Lime Stabilized | 1.0 - 3.0 |
-                    | Unbound Granular Materials | 1.0 - 3.0 |
-                    | Fine Grained or Natural Subgrade | 2.0 - 3.0 |
-                
-                    **หมายเหตุ:** ค่า LS ใช้ปรับลดค่า k_eff เพื่อคำนึงถึงการสูญเสียการรองรับจากการกัดเซาะ
-                    """)
-                ls_value = st.number_input("Loss of Support (LS)", 0.0, 3.0, st.session_state.get('calc_ls', 1.0), 0.5, "%.1f", key="calc_ls")
-    
-            # ── Sub-tab 2: คอนกรีต + J + Cd ─────────────────────────────
-            with inp_tab2:
-                st.subheader("5️⃣ คุณสมบัติคอนกรีต")
-                fc_cube = st.number_input("กำลังอัด Cube (ksc)", 200, 600, st.session_state.get('calc_fc', 350), 10, key="calc_fc")
-                fc_cylinder = convert_cube_to_cylinder(fc_cube)
-                ec = calculate_concrete_modulus(fc_cylinder)
-                st.info(f"f'c (Cyl) = **{fc_cylinder:.0f} ksc** | Ec = **{ec:,.0f} psi**")
-                sc_auto = estimate_modulus_of_rupture(fc_cylinder)
-                sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 1000, st.session_state.get('calc_sc', int(sc_auto)), 10, key="calc_sc")
-                st.markdown("---")
 
-                st.subheader("6️⃣ Load Transfer🔗 และ Drainage💧")
-                st.caption(f"ค่าแนะนำสำหรับ {pavement_type}: **J = {J_VALUES[pavement_type]}**")
-                with st.expander("📊 ตารางค่า Load Transfer Coefficient (J)", expanded=False):
-                    st.markdown("""
-                | ประเภทถนน | J (AC Shoulder_Yes) | J (AC Shoulder_No) | J (Tied P.C.C_Yes) | J (Tied P.C.C_No) |
-                |-----------|---------------------|--------------------|--------------------|-------------------|
-                | 1. JRCP/JPCP | 3.2 | 3.8-4.4 | 2.5-3.1 (Mid 2.8) | 3.6-4.2 |
-                | 2. CRCP | 2.9-3.2 | N/A | 2.3-2.9 (Mid 2.6) | N/A |
-                
-                **หมายเหตุ:** ค่า J ต่ำ = การถ่ายแรงดี = รองรับ ESAL ได้มากขึ้น
-                
-                ค่า J สามารถปรับได้ตามเงื่อนไข:
-                - มี Dowel Bar: ลดลง 0.2-0.3
-                - มี Tied Shoulder: ลดลง 0.2
-                - ไม่มี Dowel Bar: เพิ่มขึ้น 0.5-1.0
-                    """)
-                j_auto = J_VALUES[pavement_type]
-                j_value = st.number_input("Load Transfer (J)", 2.0, 4.5, st.session_state.get('calc_j', j_auto), 0.1, "%.1f", key="calc_j")
-                cd = st.number_input("Drainage (Cd)", 0.7, 1.3, st.session_state.get('calc_cd', 1.0), 0.05, "%.2f", key="calc_cd")
-                st.markdown("---")
-                st.info("💡 **หมายเหตุ:** ค่า fc, Sc, J, Cd จะถูกนำไปใช้ในการคำนวณ real-time ในคอลัมน์ขวา")
+        st.divider()
+        st.markdown("**พัฒนาโดย**  \nรศ.ดร.อิทธิพล มีผล  \nภาควิชาครุศาสตร์โยธา มจพ.")
 
-            
-        # ── Fallback: ดึงค่าจาก session_state เมื่อ widget อยู่ใน inp_tab2 ──────
-        # (widget ใน nested tab อาจ render เฉพาะตอนที่ tab นั้น active)
-        if 'fc_cube' not in dir() or fc_cube is None:
-            fc_cube      = st.session_state.get('calc_fc', 350)
-            fc_cylinder  = convert_cube_to_cylinder(fc_cube)
-            ec           = calculate_concrete_modulus(fc_cylinder)
-            sc_auto      = estimate_modulus_of_rupture(fc_cylinder)
-            sc           = st.session_state.get('calc_sc', int(sc_auto))
-        if 'j_value' not in dir() or j_value is None:
-            j_value      = st.session_state.get('calc_j', 2.8)
-        if 'cd' not in dir() or cd is None:
-            cd           = st.session_state.get('calc_cd', 1.0)
 
-        with col2:
-            st.subheader("7️⃣ 👷 🚧 ความหนาที่ตรวจสอบ")
-            st.caption("ความหนาผิวทางคอนกรีต D (ซม.)")
-            d_cm_selected = st.slider("", 20, 40, st.session_state.get('calc_d', 30), 1, key="calc_d", label_visibility="collapsed")
-            d_inch_selected = round(d_cm_selected / 2.54)
-            st.success(f"**ความหนาผิวทางคอนกรีต D = {d_cm_selected} ซม. ≈ {d_inch_selected} นิ้ว**")
-            st.markdown("---")
-            st.subheader(f"🎯 ผลการตรวจสอบ D = {d_cm_selected} ซม.")
-            log_w18_sel, w18_sel = calculate_aashto_rigid_w18(d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_eff)
-            passed_sel, ratio_sel = check_design(w18_design, w18_sel)
-            
-            col_a, col_b = st.columns(2)
+# ============================================================
+# TAB 1: AASHTO Calculator
+# ============================================================
+
+def render_tab_calculator():
+    st.markdown('<div class="section-header">การออกแบบความหนาถนนคอนกรีต (AASHTO 1993)</div>', unsafe_allow_html=True)
+    col1, col2 = st.columns([1, 1])
+
+    # ─── COLUMN 1: Inputs ────────────────────────────────────────────────────
+    with col1:
+        st.subheader("📥 ข้อมูลนำเข้า")
+
+        project_name = st.text_input("🏗️ ชื่อโครงการ",
+                                     value=st.session_state.get('calc_project_name', ''),
+                                     key="calc_project_name")
+        st.divider()
+
+        pave_options = list(J_VALUES.keys())
+        current_pave_type = st.session_state.get('calc_pave_type', 'JPCP')
+        default_pave_idx  = pave_options.index(current_pave_type) if current_pave_type in pave_options else 1
+        pavement_type = st.selectbox("ประเภทผิวทางคอนกรีต", pave_options,
+                                     index=default_pave_idx, key="calc_pave_type")
+        st.divider()
+
+        # ── ชั้นโครงสร้างทาง ──────────────────────────────────────────────────
+        st.subheader("🔶 ชั้นโครงสร้างทาง")
+        material_options = list(MATERIAL_MODULUS.keys())
+        num_layers = st.slider("จำนวนชั้นวัสดุ", 1, 6,
+                               st.session_state.get('calc_num_layers', 5), key="calc_num_layers")
+        default_layers = [
+            {"name": "รองผิวทางคอนกรีตด้วย AC",                          "thickness_cm": 5},
+            {"name": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)",        "thickness_cm": 20},
+            {"name": "หินคลุก CBR 80%",                                   "thickness_cm": 15},
+            {"name": "รองพื้นทางวัสดุมวลรวม CBR 25%",                    "thickness_cm": 25},
+            {"name": "วัสดุคัดเลือก ก",                                   "thickness_cm": 30},
+            {"name": "ดินถมคันทาง / ดินเดิม",                            "thickness_cm": 0},
+        ]
+        _name_migration = {"พื้นทางซีเมนต์ CTB": "หินคลุกปรับปรุงคุณภาพด้วยปูนซีเมนต์ (CTB)"}
+
+        layers_data = []
+        for i in range(num_layers):
+            st.markdown(f"**ชั้นที่ {i+1}**")
+            col_a, col_b, col_c = st.columns([2, 1, 1])
+            def_name  = st.session_state.get(f'calc_layer_name_{i}',
+                                              default_layers[i]["name"] if i < len(default_layers) else "กำหนดเอง...")
+            def_name  = _name_migration.get(def_name, def_name)
+            def_thick = st.session_state.get(f'calc_layer_thick_{i}',
+                                              default_layers[i]["thickness_cm"] if i < len(default_layers) else 20)
+            def_idx   = material_options.index(def_name) if def_name in material_options else len(material_options)-1
+            rec_mod   = MATERIAL_MODULUS.get(def_name, 100)
+            def_E     = st.session_state.get(_get_layer_E_key(i), rec_mod)
+
             with col_a:
-                st.metric("log₁₀(W₁₈)", f"{log_w18_sel:.4f}")
-                st.metric("W₁₈ รองรับได้", f"{w18_sel:,.0f}", f"{w18_sel - w18_design:+,.0f}")
+                layer_name = st.selectbox("เลือกวัสดุ", material_options,
+                                          index=def_idx, key=f"calc_layer_name_{i}")
             with col_b:
-                st.metric("W₁₈ ที่ต้องการ", f"{w18_design:,.0f}")
-                st.metric("อัตราส่วน", f"{ratio_sel:.2f}")
-            
-            if passed_sel:
-                st.success(f"✅ **ผ่านเกณฑ์** อัตราส่วน = {ratio_sel:.2f}")
-            else:
-                st.error(f"❌ **ไม่ผ่านเกณฑ์** อัตราส่วน = {ratio_sel:.2f}")
-            
-            st.markdown("---")
-            st.subheader("📊 ผลการคำนวณ")
-            comparison_results = []
-            thicknesses_cm = [20, 22, 25, 28, 30, 32, 35, 38, 40]
+                layer_thickness = st.number_input("ความหนา (ซม.)", 0, 100, def_thick,
+                                                  key=f"calc_layer_thick_{i}")
+            # อัปเดต rec_mod หลัง selectbox เปลี่ยน
+            rec_mod_cur = MATERIAL_MODULUS.get(layer_name, 100)
+            def_E_cur   = st.session_state.get(_get_layer_E_key(i), rec_mod_cur)
+            with col_c:
+                layer_modulus = st.number_input("E (MPa)", 10, 10000, def_E_cur,
+                                                key=_get_layer_E_key(i))
+            layers_data.append({"name": layer_name, "thickness_cm": layer_thickness, "E_MPa": layer_modulus})
 
-            for d_cm in thicknesses_cm:
-                d_inch = round(d_cm / 2.54)
-                log_w18, w18_capacity = calculate_aashto_rigid_w18(d_inch, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_eff)
-                passed, ratio = check_design(w18_design, w18_capacity)
-                comparison_results.append({'d_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18, 'w18': w18_capacity, 'passed': passed, 'ratio': ratio})
-            
-            df = pd.DataFrame([{
-                'D (ซม.)': r['d_cm'], 'D (นิ้ว)': r['d_inch'], 'log₁₀(W₁₈)': f"{r['log_w18']:.4f}",
-                'W₁₈ รองรับได้': f"{r['w18']:,.0f}", 'อัตราส่วน': f"{r['ratio']:.2f}", 'ผล': "✅ ผ่าน" if r['passed'] else "❌ ไม่ผ่าน"
-            } for r in comparison_results])
-            def _color_row(row):
-                color = 'background-color: #d4edda' if '✅' in str(row['ผล']) else 'background-color: #f8d7da'
-                return [color] * len(row)
-            st.dataframe(df.style.apply(_color_row, axis=1), use_container_width=True, hide_index=True)
-            
-            st.markdown("---")
-           
-            fig_structure = create_pavement_structure_figure(layers_data, d_cm_selected)
-            if fig_structure:
-                st.pyplot(fig_structure)
-                img_buf = save_figure_to_bytes(fig_structure)
-                st.download_button("📥 ดาวน์โหลดรูปโครงสร้าง", img_buf, f"pavement_structure_{datetime.now().strftime('%Y%m%d_%H%M')}.png", "image/png")
-                plt.close(fig_structure)
-            
-            st.markdown("---")
-            if st.button("📥 สร้างรายงาน Word (ฉบับย่อ — ไม่มี Nomograph)", type="secondary"):
+        total_layer_cm = sum(l['thickness_cm'] for l in layers_data)
+        st.markdown(f"**รวมความหนา {total_layer_cm:.0f} ซม. ({round(total_layer_cm/2.54)} นิ้ว)**")
+
+        valid_layers = [l for l in layers_data if l['thickness_cm'] > 0 and l['E_MPa'] > 0]
+        if valid_layers:
+            sum_h_e_cbrt  = sum(l['thickness_cm'] * (l['E_MPa'] ** (1/3)) for l in valid_layers)
+            total_valid_cm = sum(l['thickness_cm'] for l in valid_layers)
+            e_eq_mpa = (sum_h_e_cbrt / total_valid_cm) ** 3 if total_valid_cm > 0 else 0
+            e_eq_psi = e_eq_mpa * 145.038
+            st.info(f"โมดูลัสเทียบเท่า (E_equivalent) = **{e_eq_psi:,.0f} psi** ({e_eq_mpa:.1f} MPa)")
+        else:
+            e_eq_psi = 0
+        st.divider()
+
+        # ── 1. ปริมาณจราจร ────────────────────────────────────────────────────
+        st.subheader("1️⃣ ปริมาณจราจร 🚛")
+        with st.expander("📊 ตัวช่วยประมาณ ESAL ตามประเภทถนน", expanded=False):
+            st.markdown("""
+| ประเภทถนน | ESAL (ล้าน) |
+|-----------|-------------|
+| ทางหลวงพิเศษระหว่างเมือง | 50-200 |
+| ทางหลวงแผ่นดินสายหลัก | 20-80 |
+| ทางหลวงแผ่นดินสายรอง | 5-30 |
+| ถนนในเมือง | 1-10 |
+""")
+        w18_design = st.number_input("ESAL ที่ต้องการรองรับ (W₁₈)", 10000, 500000000,
+                                     st.session_state.get('calc_w18', 500000), 100000, key="calc_w18")
+        st.info(f"**{w18_design/1_000_000:.2f} ล้าน ESALs**")
+        st.divider()
+
+        # ── 2. Serviceability ─────────────────────────────────────────────────
+        st.subheader("2️⃣ Serviceability 📉")
+        pt = st.slider("Terminal Serviceability (Pt)", 1.5, 3.0,
+                       st.session_state.get('calc_pt', 2.0), 0.1, key="calc_pt")
+        delta_psi = 4.5 - pt
+        st.info(f"ΔPSI = 4.5 − {pt:.1f} = **{delta_psi:.1f}**")
+        st.divider()
+
+        # ── 3. ความเชื่อมั่น ──────────────────────────────────────────────────
+        st.subheader("3️⃣ ความเชื่อมั่น 📈")
+        reliability = st.select_slider("Reliability (R)", [80, 85, 90, 95],
+                                       st.session_state.get('calc_reliability', 90), key="calc_reliability")
+        zr = get_zr_value(reliability)
+        st.info(f"ZR = **{zr:.3f}**")
+        so = st.number_input("Standard Deviation (So)", 0.30, 0.45,
+                             st.session_state.get('calc_so', 0.35), 0.01, "%.2f", key="calc_so")
+        st.divider()
+
+        # ── 4. คุณสมบัติดินคันทาง ─────────────────────────────────────────────
+        st.subheader("4️⃣ คุณสมบัติดินคันทาง")
+        cbr_value = st.number_input("ค่า CBR (%)", 1.0, 100.0,
+                                    st.session_state.get('calc_cbr', 4.0), 0.5, key="calc_cbr")
+        mr_subgrade_psi = 1500 * cbr_value if cbr_value < 10 else 1000 + 555 * cbr_value
+        mr_subgrade_mpa = mr_subgrade_psi / 145.038
+        st.info(f"M_R = {mr_subgrade_psi:,.0f} psi ({mr_subgrade_mpa:.0f} MPa)")
+
+        k_eff = st.number_input("Effective k (pci)", 50, 1000,
+                                st.session_state.get('calc_k_eff', 200), 25, key="calc_k_eff")
+
+        with st.expander("📊 ตารางค่า Loss of Support แนะนำ (AASHTO 1993)"):
+            st.markdown("""
+| ประเภทวัสดุ | Loss of Support (LS) |
+|------------|---------------------|
+| Cement Treated Granular Base | 0.0 – 1.0 |
+| Cement Aggregate Mixtures | 0.0 – 1.0 |
+| Asphalt Treated Base | 0.0 – 1.0 |
+| Bituminous Stabilized Mixtures | 0.0 – 1.0 |
+| Lime Stabilized | 1.0 – 3.0 |
+| Unbound Granular Materials | 1.0 – 3.0 |
+| Fine Grained or Natural Subgrade | 2.0 – 3.0 |
+
+**หมายเหตุ:** ค่า LS ใช้ปรับลดค่า k_eff เพื่อคำนึงถึงการสูญเสียการรองรับจากการกัดเซาะ
+""")
+        ls_value = st.number_input("Loss of Support (LS)", 0.0, 3.0,
+                                   st.session_state.get('calc_ls', 1.0), 0.5, "%.1f", key="calc_ls")
+        st.divider()
+
+        # ── 5. คุณสมบัติคอนกรีต ──────────────────────────────────────────────
+        st.subheader("5️⃣ คุณสมบัติคอนกรีต")
+        fc_cube     = st.number_input("กำลังอัด Cube (ksc)", 200, 600,
+                                      st.session_state.get('calc_fc', 350), 10, key="calc_fc")
+        fc_cylinder = convert_cube_to_cylinder(fc_cube)
+        ec          = calculate_concrete_modulus(fc_cylinder)
+        st.info(f"f'c (Cyl) = **{fc_cylinder:.0f} ksc** | Ec = **{ec:,.0f} psi**")
+        sc_auto = estimate_modulus_of_rupture(fc_cylinder)
+        sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 1000,
+                             st.session_state.get('calc_sc', int(sc_auto)), 10, key="calc_sc")
+        st.divider()
+
+        # ── 6. Load Transfer & Drainage ───────────────────────────────────────
+        st.subheader("6️⃣ Load Transfer 🔗 และ Drainage 💧")
+        st.caption(f"ค่าแนะนำสำหรับ {pavement_type}: **J = {J_VALUES[pavement_type]}**")
+        with st.expander("📊 ตารางค่า Load Transfer Coefficient (J)", expanded=False):
+            st.markdown("""
+| ประเภทถนน | J (AC Shoulder_Yes) | J (AC Shoulder_No) | J (Tied P.C.C_Yes) | J (Tied P.C.C_No) |
+|-----------|---------------------|--------------------|--------------------|-------------------|
+| 1. JRCP/JPCP | 3.2 | 3.8-4.4 | 2.5-3.1 (Mid 2.8) | 3.6-4.2 |
+| 2. CRCP | 2.9-3.2 | N/A | 2.3-2.9 (Mid 2.6) | N/A |
+
+**หมายเหตุ:** ค่า J ต่ำ = การถ่ายแรงดี = รองรับ ESAL ได้มากขึ้น
+
+ค่า J สามารถปรับได้ตามเงื่อนไข:
+- มี Dowel Bar: ลดลง 0.2-0.3
+- มี Tied Shoulder: ลดลง 0.2
+- ไม่มี Dowel Bar: เพิ่มขึ้น 0.5-1.0
+""")
+        j_auto  = J_VALUES[pavement_type]
+        j_value = st.number_input("Load Transfer (J)", 2.0, 4.5,
+                                  st.session_state.get('calc_j', j_auto), 0.1, "%.1f", key="calc_j")
+        cd = st.number_input("Drainage (Cd)", 0.7, 1.3,
+                             st.session_state.get('calc_cd', 1.0), 0.05, "%.2f", key="calc_cd")
+
+    # ─── COLUMN 2: Results ───────────────────────────────────────────────────
+    with col2:
+        st.subheader("7️⃣ 👷 ความหนาที่ตรวจสอบ")
+        st.caption("ความหนาผิวทางคอนกรีต D (ซม.)")
+        d_cm_selected  = st.slider("", 20, 40, st.session_state.get('calc_d', 30), 1,
+                                   key="calc_d", label_visibility="collapsed")
+        d_inch_selected = round(d_cm_selected / 2.54)
+        st.success(f"**D = {d_cm_selected} ซม. ≈ {d_inch_selected} นิ้ว**")
+        st.divider()
+
+        # ── ผลการตรวจสอบ ─────────────────────────────────────────────────────
+        st.subheader(f"🎯 ผลการตรวจสอบ D = {d_cm_selected} ซม.")
+        log_w18_sel, w18_sel = calculate_aashto_rigid_w18(
+            d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_eff)
+        passed_sel, ratio_sel = check_design(w18_design, w18_sel)
+
+        col_a, col_b = st.columns(2)
+        with col_a:
+            st.metric("log₁₀(W₁₈)", f"{log_w18_sel:.4f}")
+            st.metric("W₁₈ รองรับได้", f"{w18_sel:,.0f}", f"{w18_sel - w18_design:+,.0f}")
+        with col_b:
+            st.metric("W₁₈ ที่ต้องการ", f"{w18_design:,.0f}")
+            st.metric("อัตราส่วน", f"{ratio_sel:.2f}")
+
+        if passed_sel:
+            st.markdown(f"""<div class="result-pass">
+                <h3>✅ ผ่านเกณฑ์</h3>
+                <p>อัตราส่วน Capacity/Demand = <strong>{ratio_sel:.2f}</strong></p>
+            </div>""", unsafe_allow_html=True)
+        else:
+            st.markdown(f"""<div class="result-fail">
+                <h3>❌ ไม่ผ่านเกณฑ์</h3>
+                <p>อัตราส่วน Capacity/Demand = <strong>{ratio_sel:.2f}</strong></p>
+            </div>""", unsafe_allow_html=True)
+
+        st.divider()
+
+        # ── ตารางเปรียบเทียบ ──────────────────────────────────────────────────
+        st.subheader("📊 ผลการคำนวณเปรียบเทียบ")
+        comparison_results = compute_comparison_table(
+            w18_design, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_eff)
+
+        df = pd.DataFrame([{
+            'D (ซม.)':     r['d_cm'],
+            'D (นิ้ว)':    r['d_inch'],
+            'log₁₀(W₁₈)': f"{r['log_w18']:.4f}",
+            'W₁₈ รองรับได้': f"{r['w18']:,.0f}",
+            'อัตราส่วน':   f"{r['ratio']:.2f}",
+            'ผล':          "✅" if r['passed'] else "❌"
+        } for r in comparison_results])
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        st.divider()
+
+        # ── รูปโครงสร้าง ──────────────────────────────────────────────────────
+        fig_structure = create_pavement_structure_figure(layers_data, d_cm_selected)
+        if fig_structure:
+            st.pyplot(fig_structure)
+            img_buf = save_figure_to_bytes(fig_structure)
+            st.download_button("📥 ดาวน์โหลดรูปโครงสร้าง", img_buf,
+                               f"pavement_structure_{datetime.now().strftime('%Y%m%d_%H%M')}.png",
+                               "image/png")
+            plt.close(fig_structure)
+
+        st.divider()
+
+        # ── สร้างรายงาน Word (simple) ─────────────────────────────────────────
+        if st.button("📥 สร้างรายงาน Word", type="primary"):
+            if not DOCX_AVAILABLE:
+                st.error("กรุณาติดตั้ง python-docx: pip install python-docx")
+            else:
                 with st.spinner("กำลังสร้างรายงาน..."):
-                    inputs_dict = {'w18_design': w18_design, 'pt': pt, 'reliability': reliability, 'so': so,
-                                   'k_eff': k_eff, 'ls': ls_value, 'fc_cube': fc_cube, 'sc': sc, 'j': j_value, 'cd': cd}
-                    calc_dict = {'fc_cylinder': fc_cylinder, 'ec': ec, 'zr': zr, 'delta_psi': delta_psi}
+                    inputs_dict  = {'w18_design': w18_design, 'pt': pt, 'reliability': reliability,
+                                    'so': so, 'k_eff': k_eff, 'ls': ls_value, 'fc_cube': fc_cube,
+                                    'sc': sc, 'j': j_value, 'cd': cd}
+                    calc_dict    = {'fc_cylinder': fc_cylinder, 'ec': ec, 'zr': zr, 'delta_psi': delta_psi}
                     subgrade_info = {'cbr': cbr_value, 'mr_psi': mr_subgrade_psi, 'mr_mpa': mr_subgrade_mpa}
-                    fig_report = create_pavement_structure_figure(layers_data, d_cm_selected)
-                    
-                    total_cm = sum(l['thickness_cm'] for l in layers_data)
-                    sum_h_e_cbrt = sum(l['thickness_cm'] * (l['E_MPa'] ** (1/3)) for l in layers_data if l['thickness_cm'] > 0 and l['E_MPa'] > 0)
-                    e_eq_mpa = (sum_h_e_cbrt / total_cm) ** 3 if total_cm > 0 else 0
-                    e_eq_psi = e_eq_mpa * 145.038
-                    
-                    buffer = create_word_report(pavement_type, inputs_dict, calc_dict, comparison_results, d_cm_selected,
-                                                (passed_sel, ratio_sel), layers_data, project_name, fig_report, subgrade_info, e_eq_psi)
+                    fig_report   = create_pavement_structure_figure(layers_data, d_cm_selected)
+                    buffer = create_word_report(pavement_type, inputs_dict, calc_dict,
+                                               comparison_results, d_cm_selected, (passed_sel, ratio_sel),
+                                               layers_data, project_name, fig_report, subgrade_info, e_eq_psi)
                     if fig_report:
                         plt.close(fig_report)
                     if buffer:
-                        st.download_button("⬇️ ดาวน์โหลดรายงาน (.docx)", buffer, f"AASHTO_Design_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
-                                           "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    
-    # =========================================================
-    # TAB 2: Composite Modulus (Nomograph)
-    # =========================================================
-    with tab2:
-        st.header("2️⃣ หาค่า Composite Modulus of Subgrade Reaction (k∞)")
-        uploaded_file = st.file_uploader("📂 อัปโหลดภาพ Figure 3.3 (Composite k)", type=['png', 'jpg', 'jpeg'], key='uploader_1')
-
-        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปต้นฉบับจาก JSON → ใช้รูปต้นฉบับ
-        if uploaded_file is None and st.session_state.get('img1_original'):
-            uploaded_file = io.BytesIO(st.session_state['img1_original'])
-        elif uploaded_file is not None:
-            # upload ใหม่ → บันทึกต้นฉบับ
-            raw = uploaded_file.read()
-            st.session_state['img1_original'] = raw
-            uploaded_file = io.BytesIO(raw)
-
-        if uploaded_file is None:
-            st.warning("👆 **กรุณาอัปโหลดภาพ Figure 3.3** เพื่อเริ่มใช้งาน")
-            st.markdown("""
-            **วิธีใช้งาน:**
-            1. ดาวน์โหลด **Figure 3.3** จากเอกสาร AASHTO 1993 Guide (หน้า III-27)
-            2. อัปโหลดไฟล์ภาพ (.png / .jpg)
-            3. ปรับเส้น Turning Line และลูกศรให้ตรงกับค่า **MR** และ **E_SB**
-            4. บันทึกค่า k∞ ที่อ่านได้
-            """)
-        if uploaded_file is not None:
-            image = Image.open(uploaded_file).convert("RGB")
-            width, height = image.size
-            img_draw = image.copy()
-            draw = ImageDraw.Draw(img_draw)
-            
-            col_ctrl, col_img = st.columns([1, 2])
-            with col_ctrl:
-                st.subheader("⚙️ ปรับเส้นอ่านค่า")
-                with st.expander("1. เส้น Turning Line (เขียว)", expanded=True):
-                    gx1 = st.slider("X เริ่ม", 0, width, 411, key="gx1")
-                    gy1 = st.slider("Y เริ่ม", 0, height, 339, key="gy1")
-                    gx2 = st.slider("X จบ", 0, width, 470, key="gx2")
-                    gy2 = st.slider("Y จบ", 0, height, 397, key="gy2")
-                    draw.line([(gx1, gy1), (gx2, gy2)], fill="green", width=5)
-                    slope_green = (gy2 - gy1) / (gx2 - gx1) if (gx2 - gx1) != 0 else 0
-                
-                with st.expander("2. พารามิเตอร์ (ส้ม/แดง/น้ำเงิน)", expanded=True):
-                    start_x = st.slider("ตำแหน่งแกน D_sb (ซ้าย)", 0, width, int(width*0.15), key="s1_sx")
-                    stop_y_esb = st.slider("ระดับค่า ESB (บน)", 0, height, int(height*0.10), key="s1_sy_esb")
-                    stop_y_mr = st.slider("ระดับค่า MR (ล่าง)", 0, height, int(height*0.55), key="s1_sy_mr")
-                    constrained_x = int(gx1 + (stop_y_mr - gy1) / slope_green) if slope_green != 0 else gx1
-                
-                lw = 4
-                draw_arrow_fixed(draw, (start_x, stop_y_esb), (constrained_x, stop_y_esb), "orange", lw)
-                draw_arrow_fixed(draw, (start_x, stop_y_esb), (start_x, stop_y_mr), "red", lw)
-                draw_arrow_fixed(draw, (start_x, stop_y_mr), (constrained_x, stop_y_mr), "darkblue", lw)
-                draw_arrow_fixed(draw, (constrained_x, stop_y_mr), (constrained_x, stop_y_esb), "blue", lw)
-                r = 8
-                draw.ellipse([(constrained_x-r, stop_y_mr-r), (constrained_x+r, stop_y_mr+r)], fill="black", outline="white")
-                
-                st.markdown("---")
-                st.subheader("📝 บันทึกค่าที่อ่านได้")
-                mr_val = st.number_input("MR (psi)", value=st.session_state.get('nomo_mr', 7000), step=500, key="nomo_mr")
-                esb_val = st.number_input("ESB (psi)", value=st.session_state.get('nomo_esb', 50000), step=1000, key="nomo_esb")
-                dsb_val = st.number_input("DSB (inches)", value=st.session_state.get('nomo_dsb', 6.0), step=0.5, key="nomo_dsb")
-                k_inf_val = st.number_input("ค่า k∞ ที่อ่านได้ (pci)", value=st.session_state.get('nomo_k_inf', 400), step=10, key="nomo_k_inf")
-                st.session_state.k_inf_result = k_inf_val
-                
-                buf = io.BytesIO()
-                img_draw.save(buf, format='PNG')
-                st.session_state.img1_bytes = buf.getvalue()
-            
-            with col_img:
-                st.image(img_draw, caption="Step 1: Nomograph Analysis", use_container_width=True)
-    
-    # =========================================================
-    # TAB 3: Loss of Support (Nomograph)
-    # =========================================================
-    with tab3:
-        st.header("3️⃣ ปรับแก้ Loss of Support (LS)")
-        st.info("ใช้กราฟ Figure 3.4 เพื่อปรับค่า k∞ กรณีที่มีการสูญเสียการรองรับ (LS > 0)")
-        uploaded_file_2 = st.file_uploader("📂 อัปโหลดภาพ Figure 3.4 (LS Correction)", type=['png', 'jpg', 'jpeg'], key='uploader_2')
-
-        # ถ้าไม่มีการ upload ใหม่ แต่มีรูปต้นฉบับจาก JSON → ใช้รูปต้นฉบับ
-        if uploaded_file_2 is None and st.session_state.get('img2_original'):
-            uploaded_file_2 = io.BytesIO(st.session_state['img2_original'])
-        elif uploaded_file_2 is not None:
-            # upload ใหม่ → บันทึกต้นฉบับ
-            raw2 = uploaded_file_2.read()
-            st.session_state['img2_original'] = raw2
-            uploaded_file_2 = io.BytesIO(raw2)
-
-        if uploaded_file_2 is not None:
-            img2 = Image.open(uploaded_file_2).convert("RGB")
-            w2, h2 = img2.size
-            img2_draw = img2.copy()
-            draw2 = ImageDraw.Draw(img2_draw)
-            
-            col_ctrl2, col_img2 = st.columns([1, 2])
-            with col_ctrl2:
-                st.subheader("⚙️ กำหนดเส้นกราฟ")
-                st.write("#### 1. เลือกค่า LS (เส้นแดง)")
-                ls_options = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0]
-                current_ls = st.session_state.get('ls_select_box', 1.0)
-                default_ls_idx = ls_options.index(current_ls) if current_ls in ls_options else 2
-                ls_select = st.selectbox("เลือกค่า LS", ls_options, index=default_ls_idx, key="ls_select_box")
-                
-                if 'last_ls_select' not in st.session_state or st.session_state.last_ls_select != ls_select:
-                    st.session_state.last_ls_select = ls_select
-                    coords = LS_PRESETS.get(ls_select, (150, 718, 903, 84))
-                    st.session_state['_ls_x1'], st.session_state['_ls_y1'] = coords[0], coords[1]
-                    st.session_state['_ls_x2'], st.session_state['_ls_y2'] = coords[2], coords[3]
-                
-                with st.expander("ปรับแต่งตำแหน่งเส้น LS ละเอียด", expanded=False):
-                    ls_x1 = st.slider("จุดเริ่ม X", -100, w2+100, key="_ls_x1")
-                    ls_y1 = st.slider("จุดเริ่ม Y", -100, h2+100, key="_ls_y1")
-                    ls_x2 = st.slider("จุดจบ X", -100, w2+100, key="_ls_x2")
-                    ls_y2 = st.slider("จุดจบ Y", -100, h2+100, key="_ls_y2")
-                
-                draw2.line([(ls_x1, ls_y1), (ls_x2, ls_y2)], fill="red", width=6)
-                m_red = (ls_y2 - ls_y1) / (ls_x2 - ls_x1) if ls_x2 - ls_x1 != 0 else None
-                c_red = ls_y1 - m_red * ls_x1 if m_red else 0
-                
-                st.markdown("---")
-                st.write("#### 2. ค่า k และขอบเขตแกน (เส้นเขียว)")
-                with st.expander("📍 ตั้งค่าตำแหน่งแกนกราฟ", expanded=True):
-                    col_b1, col_b2 = st.columns(2)
-                    with col_b1:
-                        axis_left_x = st.number_input("ตำแหน่งแกน Y (ซ้ายสุด)", value=100, step=5, key="axis_left")
-                    with col_b2:
-                        axis_bottom_y = st.number_input("ตำแหน่งแกน X (ล่างสุด)", value=h2-50, step=5, key="axis_bottom")
-                
-                st.caption(f"ค่า k จาก Step 1 คือ: {st.session_state.k_inf_result} pci")
-                k_input_x = st.slider("ตำแหน่ง k บนแกน X", 0, w2, int(w2*0.5), key="k_pos_x")
-                intersect_y = int(m_red * k_input_x + c_red) if m_red else h2//2
-                
-                draw2.line([(k_input_x, axis_bottom_y), (k_input_x, intersect_y)], fill="springgreen", width=5)
-                draw_arrow_fixed(draw2, (k_input_x, intersect_y), (axis_left_x, intersect_y), "springgreen", width=5)
-                draw2.ellipse([(k_input_x-8, intersect_y-8), (k_input_x+8, intersect_y+8)], fill="black", outline="white", width=2)
-                
-                st.markdown("---")
-                st.subheader("📝 บันทึกผลลัพธ์")
-                k_corrected = st.number_input("Corrected k (pci)", value=st.session_state.get('k_corr_input', st.session_state.k_inf_result - 100), step=10, key="k_corr_input")
-                
-                buf2 = io.BytesIO()
-                img2_draw.save(buf2, format='PNG')
-                st.session_state.img2_bytes = buf2.getvalue()
-                
-                st.markdown("---")
-                params = {
-                    'MR': st.session_state.get('nomo_mr', 7000),
-                    'ESB': st.session_state.get('nomo_esb', 50000),
-                    'DSB': st.session_state.get('nomo_dsb', 6.0),
-                    'k_inf': st.session_state.k_inf_result,
-                    'LS_factor': ls_select,
-                    'k_corrected': k_corrected
-                }
-                if st.button("📄 สร้างรายงาน Nomograph (Word)", key="btn_nomo_report"):
-                    with st.spinner("กำลังสร้างรายงาน..."):
-                        doc_file, err = generate_word_report_nomograph(params, st.session_state.get('img1_bytes'), st.session_state.get('img2_bytes'))
-                        if err:
-                            st.error(err)
-                        else:
-                            st.download_button("📥 ดาวน์โหลด Word Report", doc_file, f"AASHTO_Nomograph_{datetime.now().strftime('%Y%m%d')}.docx",
-                                               "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-            
-            with col_img2:
-                st.image(img2_draw, caption=f"Step 2: LS Correction (LS={ls_select})", use_container_width=True)
-        else:
-            st.info("👆 กรุณาอัปโหลดภาพ Figure 3.4 เพื่อเริ่มใช้งาน")
-    
-    # =========================================================
-    # TAB 4: Save Project
-    # =========================================================
-    with tab4:
-        st.header("💾 บันทึกโปรเจกต์")
-        st.info("บันทึกข้อมูลทั้งหมดเป็นไฟล์ JSON เพื่อโหลดกลับมาแก้ไขภายหลัง")
-        
-        if st.button("💾 สร้างไฟล์บันทึก", type="primary"):
-            project_data = collect_design_data(
-                project_name=st.session_state.get('calc_project_name', ''),
-                pavement_type=st.session_state.get('calc_pave_type', 'JPCP'),
-                num_layers=st.session_state.get('calc_num_layers', 5),
-                layers_data=[{"name": st.session_state.get(f'calc_layer_name_{i}', ''),
-                              "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
-                              "E_MPa": st.session_state.get(f'calc_layer_E_{i}_{st.session_state.get(f"calc_layer_name_{i}", "")}', 100)}
-                             for i in range(st.session_state.get('calc_num_layers', 5))],
-                w18_design=st.session_state.get('calc_w18', 500000),
-                pt=st.session_state.get('calc_pt', 2.0),
-                reliability=st.session_state.get('calc_reliability', 90),
-                so=st.session_state.get('calc_so', 0.35),
-                k_eff=st.session_state.get('calc_k_eff', 200),
-                ls_value=st.session_state.get('calc_ls', 1.0),
-                fc_cube=st.session_state.get('calc_fc', 350),
-                sc=st.session_state.get('calc_sc', 600),
-                j_value=st.session_state.get('calc_j', 2.8),
-                cd=st.session_state.get('calc_cd', 1.0),
-                d_cm_selected=st.session_state.get('calc_d', 30),
-                cbr_value=st.session_state.get('calc_cbr', 4.0),
-                mr_val=st.session_state.get('nomo_mr', 7000),
-                esb_val=st.session_state.get('nomo_esb', 50000),
-                dsb_val=st.session_state.get('nomo_dsb', 6.0),
-                k_inf_val=st.session_state.get('nomo_k_inf', 400),
-                ls_select=st.session_state.get('ls_select_box', 1.0),
-                k_corrected=st.session_state.get('k_corr_input', 300),
-                img1_bytes=st.session_state.get('img1_bytes'),
-                img2_bytes=st.session_state.get('img2_bytes'),
-                img1_original=st.session_state.get('img1_original'),
-                img2_original=st.session_state.get('img2_original'),
-                img1_sliders={k: st.session_state.get(k) for k in
-                              ['gx1','gy1','gx2','gy2','s1_sx','s1_sy_esb','s1_sy_mr']},
-                img2_sliders={k: st.session_state.get(k) for k in
-                              ['_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']},
-            )
-            json_bytes = save_project_to_json(project_data)
-            proj_name = project_data['project_info']['project_name'] or 'Project'
-            st.download_button("📥 ดาวน์โหลดไฟล์ JSON", json_bytes, f"{proj_name}_rigid_cal_{datetime.now().strftime('%Y%m%d_%H%M')}.json", "application/json")
-            st.success("สร้างไฟล์บันทึกสำเร็จ!")
-    
-    # =========================================================
-    # TAB 5: User Guide
-    # =========================================================
-    with tab5:
-        st.header("📋 คู่มือการใช้งาน")
-        st.markdown("""
-        ### 🔢 Tab 1: AASHTO Calculator
-        1. กรอกข้อมูลโครงการและชั้นโครงสร้างทาง
-        2. ระบุ ESAL, Serviceability, Reliability
-        3. ระบุคุณสมบัติดินและคอนกรีต
-        4. เลือกความหนาที่ต้องการตรวจสอบ
-        5. ดูผลการคำนวณและสร้างรายงาน
-        
-        ### 📊 Tab 2: Nomograph - Composite k∞
-        1. อัปโหลดรูป **Figure 3.3**
-        2. ปรับ **Turning Line (เส้นเขียว)** ให้ตรงกับเส้นบนกราฟ
-        3. ปรับตำแหน่งลูกศรสีแดง/ส้ม ให้ตรงกับค่า **MR** และ **ESB**
-        4. บันทึกค่า k∞ ที่อ่านได้
-        
-        ### 📉 Tab 3: Nomograph - Loss of Support
-        1. อัปโหลดรูป **Figure 3.4**
-        2. เลือกค่า **LS** จากตัวเลือก
-        3. ตั้งค่าตำแหน่งแกนกราฟ
-        4. เลื่อน Slider ตำแหน่ง k บนแกน X
-        5. อ่านค่า Corrected k และบันทึก
-        
-        ### 💾 Tab 4: บันทึกโปรเจกต์
-        - กดปุ่ม **สร้างไฟล์บันทึก** เพื่อบันทึกข้อมูลทั้งหมดเป็น JSON
-        - ไฟล์ JSON สามารถอัปโหลดกลับมาได้ที่ **Sidebar**
-        
-        ---
-        **Reference:** AASHTO Guide for Design of Pavement Structures 1993
-        """)
-    
-    # =========================================================
-    # TAB REPORT: สร้างรายงาน Word ฉบับสมบูรณ์
-    # =========================================================
-    with tab_report:
-        st.header("📄 สร้างรายงาน Word ฉบับสมบูรณ์")
-        st.info("รายงานครบถ้วน: บทเกริ่นนำ + สมการ + ชั้นโครงสร้างทาง + k-value + สรุป (ไฟล์เดียว)")
-
-        col_cfg, col_preview = st.columns([1, 1])
-
-        with col_cfg:
-            st.subheader("⚙️ ตั้งค่ารายงาน")
-
-            with st.expander("🔢 เลขหัวข้อและเลขรูป", expanded=True):
-                rpt_prefix = st.text_input(
-                    "Prefix หัวข้อหลัก (เช่น 4.5)",
-                    value=st.session_state.get('rpt_prefix', '4.5'),
-                    key='rpt_prefix',
-                    help="ระบบจะสร้าง 4.5.1, 4.5.2 ... อัตโนมัติ"
-                )
-                col_fig1, col_fig2 = st.columns(2)
-                with col_fig1:
-                    rpt_fig_prefix = st.text_input(
-                        "Prefix เลขรูป (เช่น 4-)",
-                        value=st.session_state.get('rpt_fig_prefix', '4-'),
-                        key='rpt_fig_prefix'
-                    )
-                with col_fig2:
-                    rpt_fig_start = st.number_input(
-                        "เริ่มที่รูปที่",
-                        min_value=1, max_value=99,
-                        value=st.session_state.get('rpt_fig_start', 5),
-                        step=1, key='rpt_fig_start'
-                    )
-                st.caption(f"ตัวอย่าง: รูปที่ {rpt_fig_prefix}{rpt_fig_start}, {rpt_fig_prefix}{rpt_fig_start+1} ...")
-
-            with st.expander("📝 บทเกริ่นนำ", expanded=True):
-                rpt_intro = st.text_area(
-                    "เนื้อหาบทเกริ่นนำ (แก้ไขได้)",
-                    value=st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
-                    height=180,
-                    key='rpt_intro'
-                )
-
-            with st.expander("📋 บทสรุป (หัวข้อสรุปโครงสร้างชั้นทาง)", expanded=False):
-                rpt_summary_text = st.text_area(
-                    "เนื้อหาบทสรุป",
-                    value=st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
-                    height=100,
-                    key='rpt_summary_text'
-                )
-
-            st.markdown("---")
-            st.subheader("📑 เลือกเนื้อหาที่รวมในรายงาน")
-
-            rpt_include_jpcp = st.checkbox(
-                "✅ รวม JPCP/JRCP (จากข้อมูล Tab 1)",
-                value=st.session_state.get('rpt_include_jpcp', True),
-                key='rpt_include_jpcp'
-            )
-            rpt_include_crcp = st.checkbox(
-                "⬜ รวม CRCP (ต้องกรอกข้อมูลแยก)",
-                value=st.session_state.get('rpt_include_crcp', False),
-                key='rpt_include_crcp'
-            )
-            rpt_include_summary = st.checkbox(
-                "✅ รวมหัวข้อสรุปโครงสร้างชั้นทาง",
-                value=st.session_state.get('rpt_include_summary', True),
-                key='rpt_include_summary'
-            )
-
-            # ข้อมูล CRCP แยก (ถ้าเลือก)
-            if rpt_include_crcp:
-                st.markdown("---")
-                st.subheader("🔧 ข้อมูล CRCP (แยกจาก JPCP)")
-                st.caption("กรอกเฉพาะค่าที่แตกต่างจาก JPCP — ค่าอื่นใช้ร่วมกัน")
-
-                col_c1, col_c2 = st.columns(2)
-                with col_c1:
-                    crcp_d_manual = st.number_input(
-                        "ความหนา CRCP (ซม.)", 20, 40,
-                        value=st.session_state.get('rpt_crcp_d', 28),
-                        key='rpt_crcp_d'
-                    )
-                    crcp_j_manual = st.number_input(
-                        "Load Transfer J (CRCP)", 2.0, 4.5,
-                        value=st.session_state.get('rpt_crcp_j', 2.6),
-                        step=0.1, format="%.1f", key='rpt_crcp_j',
-                        help="ค่าแนะนำ CRCP = 2.6 (มี Tied shoulder)"
-                    )
-                    # Sc ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
-                    crcp_sc_use = st.session_state.get('calc_sc', 600)
-                    st.caption("Modulus of Rupture Sc (psi)")
-                    st.info(f"**{crcp_sc_use}** psi  *(ใช้ร่วมกับ JPCP)*", icon="📌")
-                with col_c2:
-                    crcp_k_manual = st.number_input(
-                        "k_eff CRCP (pci)", 50, 1000,
-                        value=st.session_state.get('rpt_crcp_k', 200),
-                        step=25, key='rpt_crcp_k'
-                    )
-                    crcp_cd_manual = st.number_input(
-                        "Drainage Cd (CRCP)", 0.7, 1.3,
-                        value=st.session_state.get('rpt_crcp_cd',
-                              st.session_state.get('calc_cd', 1.0)),
-                        step=0.05, format="%.2f", key='rpt_crcp_cd'
-                    )
-                    # CBR ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
-                    crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
-                    st.caption("CBR ดินคันทาง (%)")
-                    st.info(f"**{crcp_cbr_use:.1f}** %  *(ใช้ร่วมกับ JPCP)*", icon="📌")
-                # แสดงสรุปค่า
-                crcp_sc_use  = st.session_state.get('calc_sc', 600)
-                crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
-                st.caption(
-                    f"📊 CRCP: D={st.session_state.get('rpt_crcp_d',28)} ซม. | "
-                    f"J={st.session_state.get('rpt_crcp_j',2.5):.1f} | "
-                    f"Sc={crcp_sc_use} psi | "
-                    f"k={st.session_state.get('rpt_crcp_k',200)} pci | "
-                    f"Cd={st.session_state.get('rpt_crcp_cd',1.0):.2f} | "
-                    f"CBR={crcp_cbr_use:.1f}%"
-                )
-
-                # ── ผลตรวจสอบ CRCP แบบ real-time ──────────────────────────
-                st.markdown("---")
-                st.subheader(f"🎯 ผลตรวจสอบ CRCP D = {st.session_state.get('rpt_crcp_d', 28)} ซม.")
-
-                # ดึงค่าพารามิเตอร์สำหรับคำนวณ
-                _crcp_d_cm   = st.session_state.get('rpt_crcp_d', 28)
-                _crcp_d_inch = round(_crcp_d_cm / 2.54)
-                _crcp_k      = st.session_state.get('rpt_crcp_k', 200)
-                _crcp_j      = st.session_state.get('rpt_crcp_j', 2.6)
-                _crcp_cd     = st.session_state.get('rpt_crcp_cd', st.session_state.get('calc_cd', 1.0))
-                _crcp_sc     = st.session_state.get('calc_sc', 600)
-                _crcp_fc     = st.session_state.get('calc_fc', 350)
-                _crcp_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_crcp_fc))
-                _crcp_pt     = st.session_state.get('calc_pt', 2.0)
-                _crcp_zr     = get_zr_value(st.session_state.get('calc_reliability', 90))
-                _crcp_so     = st.session_state.get('calc_so', 0.35)
-                _crcp_dpsi   = 4.5 - _crcp_pt
-                _crcp_w18_req = st.session_state.get('calc_w18', 500000)
-
-                _log_w18_crcp, _w18_crcp = calculate_aashto_rigid_w18(
-                    _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
-                    _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k
-                )
-                _passed_crcp, _ratio_crcp = check_design(_crcp_w18_req, _w18_crcp)
-
-                # แสดงผล metrics
-                _mc1, _mc2, _mc3 = st.columns(3)
-                with _mc1:
-                    st.metric("D ที่เลือก", f"{_crcp_d_cm} ซม. ({_crcp_d_inch} นิ้ว)")
-                with _mc2:
-                    st.metric("W₁₈ รองรับได้", f"{_w18_crcp:,.0f}",
-                              delta=f"{_w18_crcp - _crcp_w18_req:+,.0f}")
-                with _mc3:
-                    st.metric("อัตราส่วน (Capacity/Demand)", f"{_ratio_crcp:.2f}")
-
-                _mc4, _mc5 = st.columns(2)
-                with _mc4:
-                    st.metric("log₁₀(W₁₈)", f"{_log_w18_crcp:.4f}")
-                with _mc5:
-                    st.metric("W₁₈ ที่ต้องการ", f"{_crcp_w18_req:,.0f}")
-
-                if _passed_crcp:
-                    st.success(f"✅ **CRCP ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้ {_w18_crcp:,.0f} ESALs  (อัตราส่วน = {_ratio_crcp:.2f})")
-                else:
-                    st.error(f"❌ **CRCP ไม่ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้เพียง {_w18_crcp:,.0f} ESALs  (ต้องการ {_crcp_w18_req:,.0f})  อัตราส่วน = {_ratio_crcp:.2f}")
-
-                # ตารางเปรียบเทียบความหนา CRCP
-                with st.expander("📊 ตารางเปรียบเทียบความหนา CRCP (20–40 ซม.)", expanded=False):
-                    _crcp_rows = []
-                    for _d_cm in [20, 22, 25, 28, 30, 32, 35, 38, 40]:
-                        _d_in = round(_d_cm / 2.54)
-                        _lw, _wc = calculate_aashto_rigid_w18(
-                            _d_in, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
-                            _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k
-                        )
-                        _p, _r = check_design(_crcp_w18_req, _wc)
-                        _crcp_rows.append({
-                            'D (ซม.)': _d_cm, 'D (นิ้ว)': _d_in,
-                            'log₁₀(W₁₈)': f"{_lw:.4f}",
-                            'W₁₈ รองรับได้': f"{_wc:,.0f}",
-                            'อัตราส่วน': f"{_r:.2f}",
-                            'ผล': "✅ ผ่าน" if _p else "❌ ไม่ผ่าน"
-                        })
-                    _df_crcp = pd.DataFrame(_crcp_rows)
-                    def _color_crcp(row):
-                        color = 'background-color: #d4edda' if '✅' in str(row['ผล']) else 'background-color: #f8d7da'
-                        return [color] * len(row)
-                    st.dataframe(_df_crcp.style.apply(_color_crcp, axis=1), use_container_width=True, hide_index=True)
-
-        with col_preview:
-            st.subheader("👁️ ตัวอย่างโครงสร้างรายงาน")
-            prev_lines = [
-                f"📄 **หน้าปก**",
-                f"────────────────────────────",
-                f"**{rpt_prefix}**  การออกแบบผิวทางคอนกรีต",
-                f"   *(บทเกริ่นนำ + สมการ AASHTO 1993)*",
-                f"",
-            ]
-            sub_n = 1
-            if rpt_include_jpcp:
-                prev_lines += [
-                    f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง JPCP/JRCP",
-                    f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start})*",
-                    f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ JPCP/JRCP",
-                    f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*",
-                    f"",
-                ]
-                sub_n += 2
-            if rpt_include_crcp:
-                prev_lines += [
-                    f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง CRCP",
-                    f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start + (2 if rpt_include_jpcp else 0)})*",
-                    f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ CRCP",
-                    f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*",
-                    f"",
-                ]
-                sub_n += 2
-            if rpt_include_summary:
-                try:
-                    parts = rpt_prefix.split('.')
-                    parts[-1] = str(int(parts[-1]) + 1)
-                    h_sum = '.'.join(parts)
-                except Exception:
-                    h_sum = rpt_prefix + '_สรุป'
-                prev_lines += [
-                    f"**{h_sum}**  สรุปโครงสร้างชั้นทาง AASHTO 1993",
-                    f"   *(ตาราง + รูปตัดขวาง รูปแบบที่ 1-2)*",
-                ]
-            st.markdown('\n'.join(prev_lines))
-
-            st.markdown("---")
-            st.caption("🔴 หมายเหตุ: รายงานใช้ข้อมูลจาก Tab 1 (AASHTO Calculator) และ Tab 2-3 (Nomograph)")
-
-        st.markdown("---")
-
-        # ── Summary ยืนยันข้อมูลก่อนสร้างรายงาน ─────────────────────────
-        with st.expander("📋 ตรวจสอบข้อมูลที่จะใช้สร้างรายงาน (คลิกเพื่อขยาย)", expanded=True):
-            _s = st.session_state
-            _c1, _c2, _c3 = st.columns(3)
-            with _c1:
-                st.markdown("**🏗️ โครงการ**")
-                st.write(f"ชื่อ: {_s.get('calc_project_name','(ไม่ระบุ)')}")
-                st.write(f"ประเภท: {_s.get('calc_pave_type','JPCP')}")
-                st.write(f"ESAL: {_s.get('calc_w18',0):,.0f}")
-                st.write(f"Reliability: {_s.get('calc_reliability',90)} %")
-            with _c2:
-                st.markdown("**🪨 คอนกรีต + ดิน**")
-                st.write(f"f'c Cube: {_s.get('calc_fc',350)} ksc")
-                st.write(f"Sc: {_s.get('calc_sc',600)} psi")
-                st.write(f"CBR: {_s.get('calc_cbr',4.0):.1f} %")
-                st.write(f"k_eff: {_s.get('calc_k_eff',200)} pci  |  LS: {_s.get('calc_ls',1.0):.1f}")
-            with _c3:
-                st.markdown("**📐 ความหนา JPCP**")
-                st.write(f"D = {_s.get('calc_d',30)} ซม.")
-                st.write(f"J = {_s.get('calc_j',2.8):.1f}  |  Cd = {_s.get('calc_cd',1.0):.2f}")
-                _nomo_ok = bool(_s.get('img1_bytes')) and bool(_s.get('img2_bytes'))
-                st.write(f"Nomograph: {'✅ พร้อม' if _nomo_ok else '⚠️ ยังไม่มีรูป'}")
-            if not _s.get('calc_project_name'):
-                st.warning("⚠️ ยังไม่ได้ระบุชื่อโครงการ — กรอกใน Tab 1 ก่อน")
-            if not _nomo_ok:
-                st.warning("⚠️ ยังไม่มีรูป Nomograph — อัปโหลดใน Tab 2 และ Tab 3 ก่อน")
-
-        st.markdown("---")
-
-        # ── ปุ่มสร้างรายงาน ──────────────────────────────────────────────
-        if st.button("📄 สร้างรายงาน Word (ฉบับสมบูรณ์ พร้อม Nomograph)", type="primary", use_container_width=True):
-            with st.spinner("กำลังสร้างรายงาน..."):
-                # รวบรวมข้อมูลจาก session_state (Tab 1)
-                proj_name_r   = st.session_state.get('calc_project_name', '')
-                pave_type_r   = st.session_state.get('calc_pave_type', 'JPCP')
-                num_layers_r  = st.session_state.get('calc_num_layers', 5)
-                layers_r      = [
-                    {
-                        "name": st.session_state.get(f'calc_layer_name_{i}', ''),
-                        "thickness_cm": st.session_state.get(f'calc_layer_thick_{i}', 0),
-                        "E_MPa": st.session_state.get(
-                            f'calc_layer_E_{i}_{st.session_state.get(f"calc_layer_name_{i}", "")}', 100
-                        )
-                    }
-                    for i in range(num_layers_r)
-                ]
-                w18_r    = st.session_state.get('calc_w18', 500000)
-                pt_r     = st.session_state.get('calc_pt', 2.0)
-                rel_r    = st.session_state.get('calc_reliability', 90)
-                so_r     = st.session_state.get('calc_so', 0.35)
-                k_eff_r  = st.session_state.get('calc_k_eff', 200)
-                ls_r     = st.session_state.get('calc_ls', 1.0)
-                fc_r     = st.session_state.get('calc_fc', 350)
-                sc_r     = st.session_state.get('calc_sc', 600)
-                j_r      = st.session_state.get('calc_j', 2.8)
-                cd_r     = st.session_state.get('calc_cd', 1.0)
-                d_r      = st.session_state.get('calc_d', 30)
-                cbr_r    = st.session_state.get('calc_cbr', 4.0)
-
-                # คำนวณค่า
-                fc_cyl_r = convert_cube_to_cylinder(fc_r)
-                ec_r     = calculate_concrete_modulus(fc_cyl_r)
-                zr_r     = get_zr_value(rel_r)
-                dpsi_r   = 4.5 - pt_r
-                mr_r     = 1500 * cbr_r if cbr_r < 10 else 1000 + 555 * cbr_r
-
-                inputs_r = {
-                    'w18_design': w18_r, 'pt': pt_r, 'reliability': rel_r, 'so': so_r,
-                    'k_eff': k_eff_r, 'ls': ls_r, 'fc_cube': fc_r, 'sc': sc_r, 'j': j_r, 'cd': cd_r
-                }
-                calc_r = {'fc_cylinder': fc_cyl_r, 'ec': ec_r, 'zr': zr_r, 'delta_psi': dpsi_r}
-                subgrade_r = {'cbr': cbr_r, 'mr_psi': mr_r, 'mr_mpa': mr_r / 145.038}
-
-                # คำนวณตารางเปรียบเทียบ
-                thicknesses_cm = [20, 22, 25, 28, 30, 32, 35, 38, 40]
-                comparison_r = []
-                for d_cm in thicknesses_cm:
-                    d_inch = round(d_cm / 2.54)
-                    log_w18, w18_cap = calculate_aashto_rigid_w18(
-                        d_inch, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r
-                    )
-                    passed, ratio = check_design(w18_r, w18_cap)
-                    comparison_r.append({
-                        'd_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
-                        'w18': w18_cap, 'passed': passed, 'ratio': ratio
-                    })
-
-                d_inch_sel = round(d_r / 2.54)
-                log_w18_sel, w18_sel = calculate_aashto_rigid_w18(
-                    d_inch_sel, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r
-                )
-                passed_sel, ratio_sel = check_design(w18_r, w18_sel)
-                main_result_r = (passed_sel, ratio_sel)
-
-                # Nomograph params
-                nomo_r = {
-                    'MR':          st.session_state.get('nomo_mr', 7000),
-                    'ESB':         st.session_state.get('nomo_esb', 50000),
-                    'DSB':         st.session_state.get('nomo_dsb', 6.0),
-                    'k_inf':       st.session_state.get('k_inf_result', 400),
-                    'LS_factor':   st.session_state.get('ls_select_box', 1.0),
-                    'k_corrected': st.session_state.get('k_corr_input', 300),
-                }
-
-                # ── ข้อมูล CRCP (ค่าแยกจาก JPCP) ──────────────────────────
-                crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
-                crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
-                crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.6)
-                crcp_cd_use  = st.session_state.get('rpt_crcp_cd', cd_r)
-                crcp_sc_use  = sc_r        # ใช้ร่วมกับ JPCP
-                crcp_cbr_use = cbr_r       # ใช้ร่วมกับ JPCP
-                crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
-
-                crcp_inputs  = {
-                    **inputs_r,
-                    'k_eff': crcp_k_use,
-                    'j':     crcp_j_use,
-                    'sc':    crcp_sc_use,
-                    'cd':    crcp_cd_use,
-                    'ls':    inputs_r.get('ls', 1.0),
-                }
-                crcp_ec      = calculate_concrete_modulus(convert_cube_to_cylinder(fc_r))
-                crcp_comp    = []
-                for d_cm in thicknesses_cm:
-                    d_inch = round(d_cm / 2.54)
-                    log_w18, w18_cap = calculate_aashto_rigid_w18(
-                        d_inch, dpsi_r, pt_r, zr_r, so_r,
-                        crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
-                    )
-                    passed, ratio = check_design(w18_r, w18_cap)
-                    crcp_comp.append({
-                        'd_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
-                        'w18': w18_cap, 'passed': passed, 'ratio': ratio
-                    })
-                d_inch_crcp  = round(crcp_d_use / 2.54)
-                lw_crcp, w18_crcp = calculate_aashto_rigid_w18(
-                    d_inch_crcp, dpsi_r, pt_r, zr_r, so_r,
-                    crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
-                )
-                passed_crcp, ratio_crcp = check_design(w18_r, w18_crcp)
-                subgrade_crcp = {'cbr': crcp_cbr_use, 'mr_psi': crcp_mr_use, 'mr_mpa': crcp_mr_use / 145.038}
-
-                try:
-                    buf, err = create_full_word_report(
-                        section_prefix    = st.session_state.get('rpt_prefix', '4.5'),
-                        fig_prefix        = st.session_state.get('rpt_fig_prefix', '4-'),
-                        fig_start_num     = int(st.session_state.get('rpt_fig_start', 5)),
-                        intro_text        = st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
-                        summary_text      = st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
-                        project_name      = proj_name_r,
-                        pavement_type     = pave_type_r,
-                        include_jpcp      = st.session_state.get('rpt_include_jpcp', True),
-                        jpcp_layers_data  = layers_r,
-                        jpcp_d_cm         = d_r,
-                        jpcp_inputs       = inputs_r,
-                        jpcp_calc         = calc_r,
-                        jpcp_comparison   = comparison_r,
-                        jpcp_result       = main_result_r,
-                        jpcp_subgrade     = subgrade_r,
-                        jpcp_nomo_params  = nomo_r,
-                        img1_bytes_jpcp   = st.session_state.get('img1_bytes'),
-                        img2_bytes_jpcp   = st.session_state.get('img2_bytes'),
-                        include_crcp      = st.session_state.get('rpt_include_crcp', False),
-                        crcp_layers_data  = layers_r,
-                        crcp_d_cm         = crcp_d_use,
-                        crcp_inputs       = crcp_inputs,
-                        crcp_calc         = {**calc_r, 'ec': crcp_ec},
-                        crcp_comparison   = crcp_comp,
-                        crcp_result       = (passed_crcp, ratio_crcp),
-                        crcp_subgrade     = subgrade_crcp,
-                        crcp_nomo_params  = nomo_r,
-                        img1_bytes_crcp   = st.session_state.get('img1_bytes'),
-                        img2_bytes_crcp   = st.session_state.get('img2_bytes'),
-                        include_summary_section = st.session_state.get('rpt_include_summary', True),
-                    )
-                    if err:
-                        st.error(f"❌ ข้อผิดพลาด: {err}")
-                    elif buf:
-                        filename = f"Concrete_Report_{proj_name_r or 'Project'}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
-                        st.success("✅ สร้างรายงานสำเร็จ!")
                         st.download_button(
-                            "⬇️ ดาวน์โหลดรายงาน Word (ฉบับสมบูรณ์)",
-                            buf, filename,
-                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                            use_container_width=True
-                        )
-                except Exception as ex:
-                    st.error(f"❌ เกิดข้อผิดพลาด: {ex}")
-                    import traceback
-                    st.code(traceback.format_exc())
+                            "⬇️ ดาวน์โหลดรายงาน (.docx)", buffer,
+                            f"AASHTO_Design_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
 
-    st.markdown("---")
+
+# ============================================================
+# TAB 2: Nomograph — Composite k∞
+# ============================================================
+
+def render_tab_nomograph_k():
+    st.markdown('<div class="section-header">หาค่า Composite Modulus of Subgrade Reaction (k∞)</div>',
+                unsafe_allow_html=True)
+    uploaded_file = st.file_uploader("📂 อัปโหลดภาพ Figure 3.3 (Composite k)",
+                                     type=['png', 'jpg', 'jpeg'], key='uploader_1')
+
+    if uploaded_file is None and st.session_state.get('img1_original'):
+        uploaded_file = io.BytesIO(st.session_state['img1_original'])
+    elif uploaded_file is not None:
+        raw = uploaded_file.read()
+        st.session_state['img1_original'] = raw
+        uploaded_file = io.BytesIO(raw)
+
+    if uploaded_file is not None:
+        image  = Image.open(uploaded_file).convert("RGB")
+        width, height = image.size
+        img_draw = image.copy()
+        draw     = ImageDraw.Draw(img_draw)
+
+        col_ctrl, col_img = st.columns([1, 2])
+        with col_ctrl:
+            st.subheader("⚙️ ปรับเส้นอ่านค่า")
+            with st.expander("1. เส้น Turning Line (เขียว)", expanded=True):
+                gx1 = st.slider("X เริ่ม", 0, width,  411, key="gx1")
+                gy1 = st.slider("Y เริ่ม", 0, height, 339, key="gy1")
+                gx2 = st.slider("X จบ",   0, width,  470, key="gx2")
+                gy2 = st.slider("Y จบ",   0, height, 397, key="gy2")
+                draw.line([(gx1, gy1), (gx2, gy2)], fill="green", width=5)
+                slope_green = (gy2 - gy1) / (gx2 - gx1) if (gx2 - gx1) != 0 else 0
+
+            with st.expander("2. พารามิเตอร์ (ส้ม/แดง/น้ำเงิน)", expanded=True):
+                start_x    = st.slider("ตำแหน่งแกน D_sb (ซ้าย)", 0, width,
+                                       int(width*0.15), key="s1_sx")
+                stop_y_esb = st.slider("ระดับค่า ESB (บน)",       0, height,
+                                       int(height*0.10), key="s1_sy_esb")
+                stop_y_mr  = st.slider("ระดับค่า MR (ล่าง)",      0, height,
+                                       int(height*0.55), key="s1_sy_mr")
+                constrained_x = int(gx1 + (stop_y_mr - gy1) / slope_green) if slope_green != 0 else gx1
+
+            lw = 4
+            draw_arrow_fixed(draw, (start_x, stop_y_esb), (constrained_x, stop_y_esb), "orange", lw)
+            draw_arrow_fixed(draw, (start_x, stop_y_esb), (start_x, stop_y_mr),        "red",    lw)
+            draw_arrow_fixed(draw, (start_x, stop_y_mr),  (constrained_x, stop_y_mr),  "darkblue", lw)
+            draw_arrow_fixed(draw, (constrained_x, stop_y_mr), (constrained_x, stop_y_esb), "blue", lw)
+            r = 8
+            draw.ellipse([(constrained_x-r, stop_y_mr-r), (constrained_x+r, stop_y_mr+r)],
+                         fill="black", outline="white")
+
+            st.divider()
+            st.subheader("📝 บันทึกค่าที่อ่านได้")
+            mr_val   = st.number_input("MR (psi)",     value=st.session_state.get('nomo_mr', 7000),   step=500,  key="nomo_mr")
+            esb_val  = st.number_input("ESB (psi)",    value=st.session_state.get('nomo_esb', 50000), step=1000, key="nomo_esb")
+            dsb_val  = st.number_input("DSB (inches)", value=st.session_state.get('nomo_dsb', 6.0),   step=0.5,  key="nomo_dsb")
+            k_inf_val = st.number_input("ค่า k∞ ที่อ่านได้ (pci)",
+                                        value=st.session_state.get('nomo_k_inf', 400), step=10, key="nomo_k_inf")
+            st.session_state.k_inf_result = k_inf_val
+
+            buf = io.BytesIO()
+            img_draw.save(buf, format='PNG')
+            st.session_state.img1_bytes = buf.getvalue()
+
+        with col_img:
+            st.image(img_draw, caption="Step 1: Nomograph Analysis", use_container_width=True)
+    else:
+        st.info("👆 กรุณาอัปโหลดภาพ Figure 3.3 เพื่อเริ่มใช้งาน")
+
+
+# ============================================================
+# TAB 3: Nomograph — Loss of Support
+# ============================================================
+
+def render_tab_nomograph_ls():
+    st.markdown('<div class="section-header">ปรับแก้ Loss of Support (LS)</div>', unsafe_allow_html=True)
+    st.info("ใช้กราฟ Figure 3.4 เพื่อปรับค่า k∞ กรณีที่มีการสูญเสียการรองรับ (LS > 0)")
+    uploaded_file_2 = st.file_uploader("📂 อัปโหลดภาพ Figure 3.4 (LS Correction)",
+                                       type=['png', 'jpg', 'jpeg'], key='uploader_2')
+
+    if uploaded_file_2 is None and st.session_state.get('img2_original'):
+        uploaded_file_2 = io.BytesIO(st.session_state['img2_original'])
+    elif uploaded_file_2 is not None:
+        raw2 = uploaded_file_2.read()
+        st.session_state['img2_original'] = raw2
+        uploaded_file_2 = io.BytesIO(raw2)
+
+    if uploaded_file_2 is not None:
+        img2 = Image.open(uploaded_file_2).convert("RGB")
+        w2, h2 = img2.size
+        img2_draw = img2.copy()
+        draw2     = ImageDraw.Draw(img2_draw)
+
+        col_ctrl2, col_img2 = st.columns([1, 2])
+        with col_ctrl2:
+            st.subheader("⚙️ กำหนดเส้นกราฟ")
+            st.write("#### 1. เลือกค่า LS (เส้นแดง)")
+            ls_options    = [0.0, 0.5, 1.0, 1.5, 2.0, 3.0]
+            current_ls    = st.session_state.get('ls_select_box', 1.0)
+            default_ls_idx = ls_options.index(current_ls) if current_ls in ls_options else 2
+            ls_select = st.selectbox("เลือกค่า LS", ls_options,
+                                     index=default_ls_idx, key="ls_select_box")
+
+            if 'last_ls_select' not in st.session_state or st.session_state.last_ls_select != ls_select:
+                st.session_state.last_ls_select = ls_select
+                coords = LS_PRESETS.get(ls_select, (150, 718, 903, 84))
+                st.session_state['_ls_x1'], st.session_state['_ls_y1'] = coords[0], coords[1]
+                st.session_state['_ls_x2'], st.session_state['_ls_y2'] = coords[2], coords[3]
+
+            with st.expander("ปรับแต่งตำแหน่งเส้น LS ละเอียด", expanded=False):
+                ls_x1 = st.slider("จุดเริ่ม X", -100, w2+100, key="_ls_x1")
+                ls_y1 = st.slider("จุดเริ่ม Y", -100, h2+100, key="_ls_y1")
+                ls_x2 = st.slider("จุดจบ X",   -100, w2+100, key="_ls_x2")
+                ls_y2 = st.slider("จุดจบ Y",   -100, h2+100, key="_ls_y2")
+
+            draw2.line([(ls_x1, ls_y1), (ls_x2, ls_y2)], fill="red", width=6)
+            m_red = (ls_y2 - ls_y1) / (ls_x2 - ls_x1) if ls_x2 - ls_x1 != 0 else None
+            c_red = ls_y1 - m_red * ls_x1 if m_red else 0
+
+            st.divider()
+            st.write("#### 2. ค่า k และขอบเขตแกน (เส้นเขียว)")
+            with st.expander("📍 ตั้งค่าตำแหน่งแกนกราฟ", expanded=True):
+                col_b1, col_b2 = st.columns(2)
+                with col_b1:
+                    axis_left_x   = st.number_input("ตำแหน่งแกน Y (ซ้ายสุด)", value=100,     step=5, key="axis_left")
+                with col_b2:
+                    axis_bottom_y = st.number_input("ตำแหน่งแกน X (ล่างสุด)", value=h2-50,   step=5, key="axis_bottom")
+
+            st.caption(f"ค่า k จาก Step 1 คือ: {st.session_state.k_inf_result} pci")
+            k_input_x  = st.slider("ตำแหน่ง k บนแกน X", 0, w2, int(w2*0.5), key="k_pos_x")
+            intersect_y = int(m_red * k_input_x + c_red) if m_red else h2//2
+
+            draw2.line([(k_input_x, axis_bottom_y), (k_input_x, intersect_y)], fill="springgreen", width=5)
+            draw_arrow_fixed(draw2, (k_input_x, intersect_y), (axis_left_x, intersect_y), "springgreen", width=5)
+            draw2.ellipse([(k_input_x-8, intersect_y-8), (k_input_x+8, intersect_y+8)],
+                          fill="black", outline="white", width=2)
+
+            st.divider()
+            st.subheader("📝 บันทึกผลลัพธ์")
+            k_corrected = st.number_input("Corrected k (pci)",
+                                          value=st.session_state.get('k_corr_input',
+                                                st.session_state.k_inf_result - 100),
+                                          step=10, key="k_corr_input")
+
+            buf2 = io.BytesIO()
+            img2_draw.save(buf2, format='PNG')
+            st.session_state.img2_bytes = buf2.getvalue()
+
+            st.divider()
+            params = {
+                'MR': st.session_state.get('nomo_mr', 7000),
+                'ESB': st.session_state.get('nomo_esb', 50000),
+                'DSB': st.session_state.get('nomo_dsb', 6.0),
+                'k_inf': st.session_state.k_inf_result,
+                'LS_factor': ls_select,
+                'k_corrected': k_corrected
+            }
+            if st.button("📄 สร้างรายงาน Nomograph (Word)", key="btn_nomo_report"):
+                with st.spinner("กำลังสร้างรายงาน..."):
+                    doc_file, err = generate_word_report_nomograph(
+                        params, st.session_state.get('img1_bytes'), st.session_state.get('img2_bytes'))
+                    if err:
+                        st.error(err)
+                    else:
+                        st.download_button(
+                            "📥 ดาวน์โหลด Word Report", doc_file,
+                            f"AASHTO_Nomograph_{datetime.now().strftime('%Y%m%d')}.docx",
+                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
+
+        with col_img2:
+            st.image(img2_draw, caption=f"Step 2: LS Correction (LS={ls_select})", use_container_width=True)
+    else:
+        st.info("👆 กรุณาอัปโหลดภาพ Figure 3.4 เพื่อเริ่มใช้งาน")
+
+
+# ============================================================
+# TAB 4: Save Project
+# ============================================================
+
+def render_tab_save():
+    st.markdown('<div class="section-header">บันทึกโปรเจกต์เป็นไฟล์ JSON</div>', unsafe_allow_html=True)
+    st.info("บันทึกข้อมูลทั้งหมดเป็นไฟล์ JSON เพื่อโหลดกลับมาแก้ไขภายหลัง")
+
+    if st.button("💾 สร้างไฟล์บันทึก", type="primary"):
+        num_layers = st.session_state.get('calc_num_layers', 5)
+        project_data = collect_design_data(
+            project_name     = st.session_state.get('calc_project_name', ''),
+            pavement_type    = st.session_state.get('calc_pave_type', 'JPCP'),
+            num_layers       = num_layers,
+            layers_data      = _collect_layers_from_session(num_layers),
+            w18_design       = st.session_state.get('calc_w18', 500000),
+            pt               = st.session_state.get('calc_pt', 2.0),
+            reliability      = st.session_state.get('calc_reliability', 90),
+            so               = st.session_state.get('calc_so', 0.35),
+            k_eff            = st.session_state.get('calc_k_eff', 200),
+            ls_value         = st.session_state.get('calc_ls', 1.0),
+            fc_cube          = st.session_state.get('calc_fc', 350),
+            sc               = st.session_state.get('calc_sc', 600),
+            j_value          = st.session_state.get('calc_j', 2.8),
+            cd               = st.session_state.get('calc_cd', 1.0),
+            d_cm_selected    = st.session_state.get('calc_d', 30),
+            cbr_value        = st.session_state.get('calc_cbr', 4.0),
+            mr_val           = st.session_state.get('nomo_mr', 7000),
+            esb_val          = st.session_state.get('nomo_esb', 50000),
+            dsb_val          = st.session_state.get('nomo_dsb', 6.0),
+            k_inf_val        = st.session_state.get('nomo_k_inf', 400),
+            ls_select        = st.session_state.get('ls_select_box', 1.0),
+            k_corrected      = st.session_state.get('k_corr_input', 300),
+            img1_bytes       = st.session_state.get('img1_bytes'),
+            img2_bytes       = st.session_state.get('img2_bytes'),
+            img1_original    = st.session_state.get('img1_original'),
+            img2_original    = st.session_state.get('img2_original'),
+            img1_sliders     = {k: st.session_state.get(k)
+                                for k in ['gx1','gy1','gx2','gy2','s1_sx','s1_sy_esb','s1_sy_mr']},
+            img2_sliders     = {k: st.session_state.get(k)
+                                for k in ['_ls_x1','_ls_y1','_ls_x2','_ls_y2','k_pos_x','axis_left','axis_bottom']},
+        )
+        json_bytes = save_project_to_json(project_data)
+        proj_name  = project_data['project_info']['project_name'] or 'Project'
+        st.download_button("📥 ดาวน์โหลดไฟล์ JSON", json_bytes,
+                           f"{proj_name}_rigid_cal_{datetime.now().strftime('%Y%m%d_%H%M')}.json",
+                           "application/json")
+        st.success("สร้างไฟล์บันทึกสำเร็จ!")
+
+
+# ============================================================
+# TAB 5: User Guide
+# ============================================================
+
+def render_tab_guide():
+    st.markdown('<div class="section-header">คู่มือการใช้งาน</div>', unsafe_allow_html=True)
+    st.markdown("""
+### 🔢 Tab 1: AASHTO Calculator
+1. กรอกข้อมูลโครงการและชั้นโครงสร้างทาง
+2. ระบุ ESAL, Serviceability, Reliability
+3. ระบุคุณสมบัติดินและคอนกรีต
+4. เลือกความหนาที่ต้องการตรวจสอบ
+5. ดูผลการคำนวณและสร้างรายงาน
+
+### 📊 Tab 2: Nomograph — Composite k∞
+1. อัปโหลดรูป **Figure 3.3**
+2. ปรับ **Turning Line (เส้นเขียว)** ให้ตรงกับเส้นบนกราฟ
+3. ปรับตำแหน่งลูกศรสีแดง/ส้ม ให้ตรงกับค่า **MR** และ **ESB**
+4. บันทึกค่า k∞ ที่อ่านได้
+
+### 📉 Tab 3: Nomograph — Loss of Support
+1. อัปโหลดรูป **Figure 3.4**
+2. เลือกค่า **LS** จากตัวเลือก
+3. ตั้งค่าตำแหน่งแกนกราฟ
+4. เลื่อน Slider ตำแหน่ง k บนแกน X
+5. อ่านค่า Corrected k และบันทึก
+
+### 💾 Tab 4: บันทึกโปรเจกต์
+- กดปุ่ม **สร้างไฟล์บันทึก** เพื่อบันทึกข้อมูลทั้งหมดเป็น JSON
+- ไฟล์ JSON สามารถอัปโหลดกลับมาได้ที่ **Sidebar**
+
+---
+**Reference:** AASHTO Guide for Design of Pavement Structures 1993
+""")
+
+
+# ============================================================
+# TAB Report: สร้างรายงาน Word ฉบับสมบูรณ์
+# ============================================================
+
+def render_tab_report():
+    st.markdown('<div class="section-header">สร้างรายงาน Word ฉบับสมบูรณ์</div>', unsafe_allow_html=True)
+    st.info("รายงานครบถ้วน: บทเกริ่นนำ + สมการ + ชั้นโครงสร้างทาง + k-value + สรุป (ไฟล์เดียว)")
+
+    col_cfg, col_preview = st.columns([1, 1])
+
+    with col_cfg:
+        st.subheader("⚙️ ตั้งค่ารายงาน")
+
+        with st.expander("🔢 เลขหัวข้อและเลขรูป", expanded=True):
+            rpt_prefix = st.text_input(
+                "Prefix หัวข้อหลัก (เช่น 4.5)",
+                value=st.session_state.get('rpt_prefix', '4.5'), key='rpt_prefix',
+                help="ระบบจะสร้าง 4.5.1, 4.5.2 ... อัตโนมัติ")
+            col_fig1, col_fig2 = st.columns(2)
+            with col_fig1:
+                rpt_fig_prefix = st.text_input(
+                    "Prefix เลขรูป (เช่น 4-)",
+                    value=st.session_state.get('rpt_fig_prefix', '4-'), key='rpt_fig_prefix')
+            with col_fig2:
+                rpt_fig_start = st.number_input(
+                    "เริ่มที่รูปที่", min_value=1, max_value=99,
+                    value=st.session_state.get('rpt_fig_start', 5), step=1, key='rpt_fig_start')
+            st.caption(f"ตัวอย่าง: รูปที่ {rpt_fig_prefix}{rpt_fig_start}, {rpt_fig_prefix}{rpt_fig_start+1} ...")
+
+        with st.expander("📝 บทเกริ่นนำ", expanded=True):
+            rpt_intro = st.text_area(
+                "เนื้อหาบทเกริ่นนำ (แก้ไขได้)",
+                value=st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
+                height=180, key='rpt_intro')
+
+        with st.expander("📋 บทสรุป (หัวข้อสรุปโครงสร้างชั้นทาง)", expanded=False):
+            rpt_summary_text = st.text_area(
+                "เนื้อหาบทสรุป",
+                value=st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
+                height=100, key='rpt_summary_text')
+
+        st.divider()
+        st.subheader("📑 เลือกเนื้อหาที่รวมในรายงาน")
+        rpt_include_jpcp    = st.checkbox("✅ รวม JPCP/JRCP (จากข้อมูล Tab 1)",
+                                          value=st.session_state.get('rpt_include_jpcp', True),
+                                          key='rpt_include_jpcp')
+        rpt_include_crcp    = st.checkbox("⬜ รวม CRCP (ต้องกรอกข้อมูลแยก)",
+                                          value=st.session_state.get('rpt_include_crcp', False),
+                                          key='rpt_include_crcp')
+        rpt_include_summary = st.checkbox("✅ รวมหัวข้อสรุปโครงสร้างชั้นทาง",
+                                          value=st.session_state.get('rpt_include_summary', True),
+                                          key='rpt_include_summary')
+
+        if rpt_include_crcp:
+            st.divider()
+            st.subheader("🔧 ข้อมูล CRCP (แยกจาก JPCP)")
+            st.caption("กรอกเฉพาะค่าที่แตกต่างจาก JPCP — ค่าอื่นใช้ร่วมกัน")
+            col_c1, col_c2 = st.columns(2)
+            with col_c1:
+                crcp_d_manual = st.number_input(
+                    "ความหนา CRCP (ซม.)", 20, 40,
+                    value=st.session_state.get('rpt_crcp_d', 28), key='rpt_crcp_d')
+                crcp_j_manual = st.number_input(
+                    "Load Transfer J (CRCP)", 2.0, 4.5,
+                    value=st.session_state.get('rpt_crcp_j', 2.6),
+                    step=0.1, format="%.1f", key='rpt_crcp_j',
+                    help="ค่าแนะนำ CRCP = 2.6 (มี Tied shoulder)")
+                crcp_sc_use = st.session_state.get('calc_sc', 600)
+                st.caption("Modulus of Rupture Sc (psi)")
+                st.info(f"**{crcp_sc_use}** psi  *(ใช้ร่วมกับ JPCP)*", icon="📌")
+            with col_c2:
+                crcp_k_manual = st.number_input(
+                    "k_eff CRCP (pci)", 50, 1000,
+                    value=st.session_state.get('rpt_crcp_k', 200), step=25, key='rpt_crcp_k')
+                crcp_cd_manual = st.number_input(
+                    "Drainage Cd (CRCP)", 0.7, 1.3,
+                    value=st.session_state.get('rpt_crcp_cd',
+                          st.session_state.get('calc_cd', 1.0)),
+                    step=0.05, format="%.2f", key='rpt_crcp_cd')
+                crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
+                st.caption("CBR ดินคันทาง (%)")
+                st.info(f"**{crcp_cbr_use:.1f}** %  *(ใช้ร่วมกับ JPCP)*", icon="📌")
+
+            crcp_sc_use  = st.session_state.get('calc_sc', 600)
+            crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
+            st.caption(
+                f"📊 CRCP: D={st.session_state.get('rpt_crcp_d',28)} ซม. | "
+                f"J={st.session_state.get('rpt_crcp_j',2.5):.1f} | "
+                f"Sc={crcp_sc_use} psi | "
+                f"k={st.session_state.get('rpt_crcp_k',200)} pci | "
+                f"Cd={st.session_state.get('rpt_crcp_cd',1.0):.2f} | "
+                f"CBR={crcp_cbr_use:.1f}%")
+
+            # ── ผลตรวจสอบ CRCP แบบ real-time ──────────────────────────────
+            st.divider()
+            _crcp_d_cm   = st.session_state.get('rpt_crcp_d', 28)
+            st.subheader(f"🎯 ผลตรวจสอบ CRCP D = {_crcp_d_cm} ซม.")
+            _crcp_d_inch = round(_crcp_d_cm / 2.54)
+            _crcp_k      = st.session_state.get('rpt_crcp_k', 200)
+            _crcp_j      = st.session_state.get('rpt_crcp_j', 2.6)
+            _crcp_cd     = st.session_state.get('rpt_crcp_cd', st.session_state.get('calc_cd', 1.0))
+            _crcp_sc     = st.session_state.get('calc_sc', 600)
+            _crcp_fc     = st.session_state.get('calc_fc', 350)
+            _crcp_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_crcp_fc))
+            _crcp_pt     = st.session_state.get('calc_pt', 2.0)
+            _crcp_zr     = get_zr_value(st.session_state.get('calc_reliability', 90))
+            _crcp_so     = st.session_state.get('calc_so', 0.35)
+            _crcp_dpsi   = 4.5 - _crcp_pt
+            _crcp_w18_req = st.session_state.get('calc_w18', 500000)
+
+            _log_w18_crcp, _w18_crcp = calculate_aashto_rigid_w18(
+                _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k)
+            _passed_crcp, _ratio_crcp = check_design(_crcp_w18_req, _w18_crcp)
+
+            _mc1, _mc2, _mc3 = st.columns(3)
+            with _mc1: st.metric("D ที่เลือก", f"{_crcp_d_cm} ซม. ({_crcp_d_inch} นิ้ว)")
+            with _mc2: st.metric("W₁₈ รองรับได้", f"{_w18_crcp:,.0f}", delta=f"{_w18_crcp - _crcp_w18_req:+,.0f}")
+            with _mc3: st.metric("อัตราส่วน (Cap/Dem)", f"{_ratio_crcp:.2f}")
+            _mc4, _mc5 = st.columns(2)
+            with _mc4: st.metric("log₁₀(W₁₈)", f"{_log_w18_crcp:.4f}")
+            with _mc5: st.metric("W₁₈ ที่ต้องการ", f"{_crcp_w18_req:,.0f}")
+
+            if _passed_crcp:
+                st.success(f"✅ **CRCP ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. (อัตราส่วน = {_ratio_crcp:.2f})")
+            else:
+                st.error(f"❌ **CRCP ไม่ผ่านเกณฑ์**  อัตราส่วน = {_ratio_crcp:.2f}")
+
+            with st.expander("📊 ตารางเปรียบเทียบความหนา CRCP (20–40 ซม.)", expanded=False):
+                _crcp_comp = compute_comparison_table(
+                    _crcp_w18_req, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                    _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _crcp_k)
+                st.dataframe(pd.DataFrame([{
+                    'D (ซม.)': r['d_cm'], 'D (นิ้ว)': r['d_inch'],
+                    'log₁₀(W₁₈)': f"{r['log_w18']:.4f}",
+                    'W₁₈ รองรับได้': f"{r['w18']:,.0f}",
+                    'อัตราส่วน': f"{r['ratio']:.2f}",
+                    'ผล': "✅ ผ่าน" if r['passed'] else "❌ ไม่ผ่าน"
+                } for r in _crcp_comp]), use_container_width=True, hide_index=True)
+
+    with col_preview:
+        st.subheader("👁️ ตัวอย่างโครงสร้างรายงาน")
+        prev_lines = [f"📄 **หน้าปก**", "────────────────────────────",
+                      f"**{rpt_prefix}**  การออกแบบผิวทางคอนกรีต",
+                      f"   *(บทเกริ่นนำ + สมการ AASHTO 1993)*", ""]
+        sub_n = 1
+        if rpt_include_jpcp:
+            prev_lines += [
+                f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง JPCP/JRCP",
+                f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start})*",
+                f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ JPCP/JRCP",
+                f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*", ""]
+            sub_n += 2
+        if rpt_include_crcp:
+            prev_lines += [
+                f"**{rpt_prefix}.{sub_n}**  ชั้นโครงสร้างทาง CRCP",
+                f"   *(รูปที่ {rpt_fig_prefix}{rpt_fig_start + (2 if rpt_include_jpcp else 0)})*",
+                f"**{rpt_prefix}.{sub_n+1}**  k-value สำหรับ CRCP",
+                f"   *(Nomograph + ตาราง k_eff + ผลการออกแบบ)*", ""]
+            sub_n += 2
+        if rpt_include_summary:
+            try:
+                parts = rpt_prefix.split('.')
+                parts[-1] = str(int(parts[-1]) + 1)
+                h_sum = '.'.join(parts)
+            except Exception:
+                h_sum = rpt_prefix + '_สรุป'
+            prev_lines += [f"**{h_sum}**  สรุปโครงสร้างชั้นทาง AASHTO 1993",
+                           f"   *(ตาราง + รูปตัดขวาง รูปแบบที่ 1-2)*"]
+        st.markdown('\n'.join(prev_lines))
+        st.divider()
+        st.caption("🔴 หมายเหตุ: รายงานใช้ข้อมูลจาก Tab 1 และ Tab 2-3 (Nomograph)")
+
+    st.divider()
+
+    # ── ปุ่มสร้างรายงาน ──────────────────────────────────────────────────────
+    if st.button("📄 สร้างรายงาน Word (ฉบับสมบูรณ์)", type="primary", use_container_width=True):
+        if not DOCX_AVAILABLE:
+            st.error("กรุณาติดตั้ง python-docx: pip install python-docx")
+            return
+        with st.spinner("กำลังสร้างรายงาน..."):
+            proj_name_r  = st.session_state.get('calc_project_name', '')
+            pave_type_r  = st.session_state.get('calc_pave_type', 'JPCP')
+            num_layers_r = st.session_state.get('calc_num_layers', 5)
+            layers_r     = _collect_layers_from_session(num_layers_r)
+            w18_r    = st.session_state.get('calc_w18', 500000)
+            pt_r     = st.session_state.get('calc_pt', 2.0)
+            rel_r    = st.session_state.get('calc_reliability', 90)
+            so_r     = st.session_state.get('calc_so', 0.35)
+            k_eff_r  = st.session_state.get('calc_k_eff', 200)
+            ls_r     = st.session_state.get('calc_ls', 1.0)
+            fc_r     = st.session_state.get('calc_fc', 350)
+            sc_r     = st.session_state.get('calc_sc', 600)
+            j_r      = st.session_state.get('calc_j', 2.8)
+            cd_r     = st.session_state.get('calc_cd', 1.0)
+            d_r      = st.session_state.get('calc_d', 30)
+            cbr_r    = st.session_state.get('calc_cbr', 4.0)
+
+            fc_cyl_r = convert_cube_to_cylinder(fc_r)
+            ec_r     = calculate_concrete_modulus(fc_cyl_r)
+            zr_r     = get_zr_value(rel_r)
+            dpsi_r   = 4.5 - pt_r
+            mr_r     = 1500 * cbr_r if cbr_r < 10 else 1000 + 555 * cbr_r
+
+            inputs_r    = {'w18_design': w18_r, 'pt': pt_r, 'reliability': rel_r, 'so': so_r,
+                           'k_eff': k_eff_r, 'ls': ls_r, 'fc_cube': fc_r, 'sc': sc_r,
+                           'j': j_r, 'cd': cd_r}
+            calc_r      = {'fc_cylinder': fc_cyl_r, 'ec': ec_r, 'zr': zr_r, 'delta_psi': dpsi_r}
+            subgrade_r  = {'cbr': cbr_r, 'mr_psi': mr_r, 'mr_mpa': mr_r / 145.038}
+            comparison_r = compute_comparison_table(w18_r, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r)
+            d_inch_sel   = round(d_r / 2.54)
+            log_w18_sel, w18_sel = calculate_aashto_rigid_w18(
+                d_inch_sel, dpsi_r, pt_r, zr_r, so_r, sc_r, cd_r, j_r, ec_r, k_eff_r)
+            passed_sel, ratio_sel = check_design(w18_r, w18_sel)
+            main_result_r = (passed_sel, ratio_sel)
+
+            nomo_r = {'MR': st.session_state.get('nomo_mr', 7000),
+                      'ESB': st.session_state.get('nomo_esb', 50000),
+                      'DSB': st.session_state.get('nomo_dsb', 6.0),
+                      'k_inf': st.session_state.get('k_inf_result', 400),
+                      'LS_factor': st.session_state.get('ls_select_box', 1.0),
+                      'k_corrected': st.session_state.get('k_corr_input', 300)}
+
+            crcp_d_use  = st.session_state.get('rpt_crcp_d', 28)
+            crcp_k_use  = st.session_state.get('rpt_crcp_k', 200)
+            crcp_j_use  = st.session_state.get('rpt_crcp_j', 2.6)
+            crcp_cd_use = st.session_state.get('rpt_crcp_cd', cd_r)
+            crcp_cbr_use = cbr_r
+            crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
+            crcp_ec      = calculate_concrete_modulus(convert_cube_to_cylinder(fc_r))
+
+            crcp_inputs = {**inputs_r, 'k_eff': crcp_k_use, 'j': crcp_j_use,
+                           'sc': sc_r, 'cd': crcp_cd_use, 'ls': ls_r}
+            crcp_comp    = compute_comparison_table(w18_r, dpsi_r, pt_r, zr_r, so_r,
+                                                    sc_r, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use)
+            d_inch_crcp  = round(crcp_d_use / 2.54)
+            lw_crcp, w18_crcp = calculate_aashto_rigid_w18(
+                d_inch_crcp, dpsi_r, pt_r, zr_r, so_r, sc_r, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use)
+            passed_crcp, ratio_crcp = check_design(w18_r, w18_crcp)
+            subgrade_crcp = {'cbr': crcp_cbr_use, 'mr_psi': crcp_mr_use, 'mr_mpa': crcp_mr_use / 145.038}
+
+            try:
+                buf, err = create_full_word_report(
+                    section_prefix    = st.session_state.get('rpt_prefix', '4.5'),
+                    fig_prefix        = st.session_state.get('rpt_fig_prefix', '4-'),
+                    fig_start_num     = int(st.session_state.get('rpt_fig_start', 5)),
+                    intro_text        = st.session_state.get('rpt_intro', DEFAULT_INTRO_TEXT),
+                    summary_text      = st.session_state.get('rpt_summary_text', DEFAULT_SUMMARY_TEXT),
+                    project_name      = proj_name_r,
+                    pavement_type     = pave_type_r,
+                    include_jpcp      = st.session_state.get('rpt_include_jpcp', True),
+                    jpcp_layers_data  = layers_r,
+                    jpcp_d_cm         = d_r,
+                    jpcp_inputs       = inputs_r,
+                    jpcp_calc         = calc_r,
+                    jpcp_comparison   = comparison_r,
+                    jpcp_result       = main_result_r,
+                    jpcp_subgrade     = subgrade_r,
+                    jpcp_nomo_params  = nomo_r,
+                    img1_bytes_jpcp   = st.session_state.get('img1_bytes'),
+                    img2_bytes_jpcp   = st.session_state.get('img2_bytes'),
+                    include_crcp      = st.session_state.get('rpt_include_crcp', False),
+                    crcp_layers_data  = layers_r,
+                    crcp_d_cm         = crcp_d_use,
+                    crcp_inputs       = crcp_inputs,
+                    crcp_calc         = {**calc_r, 'ec': crcp_ec},
+                    crcp_comparison   = crcp_comp,
+                    crcp_result       = (passed_crcp, ratio_crcp),
+                    crcp_subgrade     = subgrade_crcp,
+                    crcp_nomo_params  = nomo_r,
+                    img1_bytes_crcp   = st.session_state.get('img1_bytes'),
+                    img2_bytes_crcp   = st.session_state.get('img2_bytes'),
+                    include_summary_section = st.session_state.get('rpt_include_summary', True),
+                )
+                if err:
+                    st.error(f"❌ ข้อผิดพลาด: {err}")
+                elif buf:
+                    filename = f"Concrete_Report_{proj_name_r or 'Project'}_{datetime.now().strftime('%Y%m%d_%H%M')}.docx"
+                    st.success("✅ สร้างรายงานสำเร็จ!")
+                    st.download_button(
+                        "⬇️ ดาวน์โหลดรายงาน Word (ฉบับสมบูรณ์)", buf, filename,
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                        use_container_width=True)
+            except Exception as ex:
+                st.error(f"❌ เกิดข้อผิดพลาด: {ex}")
+                import traceback
+                st.code(traceback.format_exc())
+
+
+# ============================================================
+# Main Application
+# ============================================================
+
+def main():
+    st.set_page_config(
+        page_title="Rigid Pavement Design | AASHTO 1993",
+        page_icon="🛣️",
+        layout="wide",
+        initial_sidebar_state="expanded",
+    )
+
+    # Inject CSS
+    st.markdown(APP_CSS, unsafe_allow_html=True)
+
+    # Header
+    st.title("🛣️ Rigid Pavement Design Calculator")
+    st.markdown("**ออกแบบความหนาถนนคอนกรีต และหาค่า k-value พร้อมปรับแก้ Loss of Support — AASHTO 1993**")
+
+    # Initialize session state
+    for key, val in [('k_inf_result', 500), ('img1_bytes', None),
+                     ('img2_bytes', None), ('last_uploaded_file', None)]:
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+    # Sidebar
+    render_sidebar()
+
+    # Tabs
+    tab1, tab2, tab3, tab4, tab5, tab_report = st.tabs([
+        "🔢 AASHTO Calculator",
+        "📊 Nomograph: Composite k∞",
+        "📉 Nomograph: Loss of Support",
+        "💾 บันทึกโปรเจกต์",
+        "📋 คู่มือการใช้งาน",
+        "📄 สร้างรายงาน",
+    ])
+
+    with tab1:       render_tab_calculator()
+    with tab2:       render_tab_nomograph_k()
+    with tab3:       render_tab_nomograph_ls()
+    with tab4:       render_tab_save()
+    with tab5:       render_tab_guide()
+    with tab_report: render_tab_report()
+
+    st.divider()
     st.caption("พัฒนาโดย: รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.")
+
 
 if __name__ == "__main__":
     main()
