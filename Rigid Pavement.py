@@ -1931,9 +1931,35 @@ def main():
         if st.session_state.get('calc_project_name'):
             st.info(f"📌 โปรเจกต์: {st.session_state.get('calc_project_name', 'ไม่ระบุ')}")
             if st.button("🗑️ ล้างข้อมูลที่โหลด"):
-                # ล้าง session_state ทั้งหมด
-                keys_to_clear = [key for key in st.session_state.keys() if key.startswith(('calc_', 'nomo_', 'ls_select', 'k_corr', 'k_inf'))]
-                for key in keys_to_clear:
+                # Reset ค่า default แทน del เพื่อป้องกัน widget conflict
+                defaults = {
+                    'calc_project_name': '',
+                    'calc_pave_type': 'JPCP',
+                    'calc_num_layers': 5,
+                    'calc_w18': 500000,
+                    'calc_pt': 2.0,
+                    'calc_reliability': 90,
+                    'calc_so': 0.35,
+                    'calc_cbr': 4.0,
+                    'calc_k_eff': 200,
+                    'calc_ls': 1.0,
+                    'calc_fc': 350,
+                    'calc_sc': 600,
+                    'calc_j': 2.8,
+                    'calc_cd': 1.0,
+                    'calc_d': 30,
+                }
+                for k, v in defaults.items():
+                    st.session_state[k] = v
+                # ล้าง layer keys (E key ขึ้นกับชื่อวัสดุ ต้อง del)
+                for lkey in list(st.session_state.keys()):
+                    if any(lkey.startswith(f'calc_layer_{t}_{i}') 
+                           for t in ['name', 'thick'] for i in range(6)) or \
+                       lkey.startswith('calc_layer_E_'):
+                        del st.session_state[lkey]
+                # ล้าง nomo และ key อื่น
+                for key in [k for k in st.session_state.keys()
+                            if k.startswith(('nomo_', 'ls_select', 'k_corr', 'k_inf'))]:
                     del st.session_state[key]
                 st.session_state['last_uploaded_file'] = None
                 st.rerun()
