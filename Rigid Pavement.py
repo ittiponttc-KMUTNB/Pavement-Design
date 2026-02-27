@@ -2003,6 +2003,8 @@ def main():
                 layers_data.append({"name": layer_name, "thickness_cm": layer_thickness, "E_MPa": layer_modulus})
             
             total_layer_cm = sum(l['thickness_cm'] for l in layers_data)
+            # Auto-fill DSB เข้า Tab 2 (ผู้ใช้แก้ไขได้เองใน Tab 2)
+            st.session_state['nomo_dsb'] = round(total_layer_cm / 2.54, 1)
             st.markdown(f"**รวมความหนา {total_layer_cm:.0f} ซม. ({round(total_layer_cm/2.54)} นิ้ว)**")
             
             # คำนวณ E_equivalent
@@ -2013,7 +2015,7 @@ def main():
                 e_eq_mpa = (sum_h_e_cbrt / total_valid_cm) ** 3 if total_valid_cm > 0 else 0
                 e_eq_psi = e_eq_mpa * 145.038
                 # Auto-fill ESB เข้า Tab 2 (ผู้ใช้แก้ไขได้เองใน Tab 2)
-                st.session_state["nomo_esb"] = int(round(e_eq_psi, -1))
+                st.session_state["nomo_esb"] = int(e_eq_psi)
                 st.info(f"โมดูลัสเทียบเท่า (E_equivalent) = **{e_eq_psi:,.0f} psi** ({e_eq_mpa:.1f} MPa)")
             st.markdown("---")
             
@@ -2049,6 +2051,8 @@ def main():
             cbr_value = st.number_input("ค่า CBR (%)", 1.0, 100.0, st.session_state.get('calc_cbr', 4.0), 0.5, key="calc_cbr")
             mr_subgrade_psi = 1500 * cbr_value if cbr_value < 10 else 1000 + 555 * cbr_value
             mr_subgrade_mpa = mr_subgrade_psi / 145.038
+            # Auto-fill MR เข้า Tab 2 (ผู้ใช้แก้ไขได้เองใน Tab 2)
+            st.session_state["nomo_mr"] = int(mr_subgrade_psi)
             st.info(f"M_R = {mr_subgrade_psi:,.0f} psi ({mr_subgrade_mpa:.0f} MPa)")
             
             k_eff = st.number_input("Effective k (pci)", 50, 1000, st.session_state.get('calc_k_eff', 200), 25, key="calc_k_eff")
