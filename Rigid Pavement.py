@@ -2328,7 +2328,11 @@ def main():
                 
                 st.markdown("---")
                 st.subheader("📝 บันทึกผลลัพธ์")
-                k_corrected = st.number_input("Corrected k (pci)", value=st.session_state.get('k_corr_input', st.session_state.k_inf_result - 100), step=10, key="k_corr_input")
+                k_inf_now = st.session_state.k_inf_result
+                k_corrected = st.number_input("Corrected k (pci)", value=st.session_state.get('k_corr_input', k_inf_now - 100), step=10, key="k_corr_input")
+                if k_corrected > k_inf_now:
+                    st.warning(f"⚠️ Corrected k ({k_corrected:,.0f} pci) ต้องไม่เกิน k∞ ({k_inf_now:,.0f} pci) — ระบบจะใช้ค่า k∞ แทน")
+                    k_corrected = k_inf_now
                 
                 buf2 = io.BytesIO()
                 img2_draw.save(buf2, format='PNG')
