@@ -281,7 +281,7 @@ def create_excel_report(results_df, pavement_type, pt, param, lane_factor, direc
         row = 5 + i
         ws[f'D{row}'] = code
         ws[f'E{row}'] = TRUCKS[code]['desc']
-        ws[f'F{row}'] = f"{truck_factors[code]:.4f}"
+        ws[f'F{row}'] = f"{truck_factors[code]:.3f}"
         ws[f'D{row}'].border = border
         ws[f'E{row}'].border = border
         ws[f'F{row}'].border = border
@@ -692,7 +692,7 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
         row = tf_table.rows[i + 1]
         row.cells[0].text = code
         row.cells[1].text = TRUCKS[code]['desc']
-        row.cells[2].text = f"{truck_factors[code]:.4f}"
+        row.cells[2].text = f"{truck_factors[code]:.3f}"
         for cell in row.cells:
             set_cell_font(cell, font_size=TABLE_FONT_SIZE, bold=False)
         set_cell_font(row.cells[0], font_size=TABLE_FONT_SIZE, bold=False,
@@ -786,7 +786,7 @@ def get_all_truck_factors_table(pavement_type, pt):
         row = {'ประเภท': code, 'รายละเอียด': TRUCKS[code]['desc']}
         for p in params:
             col_name = f'{param_label}={p}"' if pavement_type == 'rigid' else f'{param_label}={p}'
-            row[col_name] = f"{tf_table[code][p]:.4f}"
+            row[col_name] = f"{tf_table[code][p]:.3f}"
         data.append(row)
 
     return pd.DataFrame(data)
@@ -1021,9 +1021,9 @@ def main():
                 max_value=50.0,
                 value=float(current_val),
                 step=0.0001,
-                format="%.4f",
+                format="%.3f",
                 key=f"input_{tf_key}_{code}",
-                help=f"{TRUCKS[code]['desc']} | Default: {default_val:.4f}"
+                help=f"{TRUCKS[code]['desc']} | Default: {default_val:.3f}"
             )
             
             st.session_state[tf_key][code] = new_val
@@ -1141,8 +1141,8 @@ def main():
                     tf_display.append({
                         'รหัส': code, 
                         'ประเภท': TRUCKS[code]['desc'], 
-                        'Truck Factor': f"{tf:.4f}",
-                        'Default': f"{default_tf:.4f}",
+                        'Truck Factor': f"{tf:.3f}",
+                        'Default': f"{default_tf:.3f}",
                         'สถานะ': status
                     })
                 st.dataframe(pd.DataFrame(tf_display), use_container_width=True, hide_index=True)
