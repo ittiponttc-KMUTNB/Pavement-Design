@@ -156,15 +156,15 @@ def validate_traffic_df(df):
         raise ValueError(f"พบค่า NaN ใน column: {', '.join(nan_cols)}")
 
 
-def calculate_esal_with_acc(traffic_df, truck_factors, lane_factor=0.5, direction_factor=1.0):
+def calculate_esal_with_acc(traffic_df, truck_factors, lane_factor=0.9, direction_factor=0.5):
     """คำนวณ ESAL และ Accumulated ESAL จากข้อมูลปริมาณจราจร
 
     Parameters
     ----------
     traffic_df       : DataFrame ที่มี column Year + รหัสรถ 6 ชนิด
     truck_factors    : dict {truck_code: TF_value}
-    lane_factor      : สัดส่วนปริมาณจราจรในช่องทางออกแบบ (default 0.5)
-    direction_factor : สัดส่วนปริมาณจราจรในทิศทางออกแบบ (default 1.0)
+    lane_factor      : Lane Distribution Factor (default 0.9)
+    direction_factor : Directional Distribution Factor (default 0.5)
 
     Returns
     -------
@@ -890,8 +890,8 @@ def main():
                         st.session_state['input_pavement_type'] = project.get('pavement_type', 'rigid')
                         st.session_state['input_pt'] = project.get('pt', 2.5)
                         st.session_state['input_param'] = project.get('param', 12)
-                        st.session_state['input_lane_factor'] = project.get('lane_factor', 0.5)
-                        st.session_state['input_direction_factor'] = project.get('direction_factor', 0.9)
+                        st.session_state['input_lane_factor'] = project.get('lane_factor', 0.9)
+                        st.session_state['input_direction_factor'] = project.get('direction_factor', 0.5)
                         st.session_state['loaded_tf'] = project.get('truck_factors', {})
                         
                         # โหลด report_settings
@@ -914,8 +914,8 @@ def main():
         default_pavement = st.session_state.get('input_pavement_type', 'rigid')
         default_pt = st.session_state.get('input_pt', 2.5)
         default_param = st.session_state.get('input_param', 12 if default_pavement == 'rigid' else 7)
-        default_lane = st.session_state.get('input_lane_factor', 0.5)
-        default_dir = st.session_state.get('input_direction_factor', 0.9)
+        default_lane = st.session_state.get('input_lane_factor', 0.9)
+        default_dir = st.session_state.get('input_direction_factor', 0.5)
         loaded_tf = st.session_state.get('loaded_tf', {})
         
         st.divider()
@@ -978,10 +978,10 @@ def main():
             key="input_lane_factor"
         )
         direction_factor = st.slider(
-            "Directional Factor", 
-            0.5, 1.0, 
+            "Directional Distribution Factor", 
+            0.1, 1.0, 
             value=st.session_state.get('input_direction_factor', default_dir), 
-            step=0.1,
+            step=0.05,
             key="input_direction_factor"
         )
         
