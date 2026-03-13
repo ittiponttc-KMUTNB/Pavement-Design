@@ -835,9 +835,9 @@ with tab5:
                         cell.alignment = left_al
 
             # Total row
+            last_col = len(headers)
             if rows:
                 tr = len(rows) + 3
-                last_col = len(headers)
                 for ci in range(1, last_col+1):
                     cell = ws.cell(row=tr, column=ci)
                     cell.fill = fill_tot
