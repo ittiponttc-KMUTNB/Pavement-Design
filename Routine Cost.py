@@ -31,6 +31,41 @@ X3_LOWER = [0,501,601,701,801,901,1001,1101,1201,1301,1401,1501,1601,1701,1801,1
 X3_UPPER = [500,600,700,800,900,1000,1100,1200,1300,1400,1500,1600,1700,1800,1900,2000,2200,2400,2600,2800,3000,3300,3600,3900,4200,4500,4600,5100,5400,5700,999999]
 X3_VAL   = [0,0.04,0.08,0.12,0.16,0.20,0.24,0.29,0.33,0.37,0.41,0.45,0.49,0.53,0.57,0.61,0.69,0.78,0.86,0.94,1.02,1.14,1.27,1.37,1.51,1.64,1.76,1.88,2.00,2.13,2.25]
 
+# X3 Dropdown options: label → factor value
+X3_OPTIONS = {
+    f"0 – 500       (X3 = 0.00)": 0.00,
+    f"501 – 600     (X3 = 0.04)": 0.04,
+    f"601 – 700     (X3 = 0.08)": 0.08,
+    f"701 – 800     (X3 = 0.12)": 0.12,
+    f"801 – 900     (X3 = 0.16)": 0.16,
+    f"901 – 1,000   (X3 = 0.20)": 0.20,
+    f"1,001 – 1,100 (X3 = 0.24)": 0.24,
+    f"1,101 – 1,200 (X3 = 0.29)": 0.29,
+    f"1,201 – 1,300 (X3 = 0.33)": 0.33,
+    f"1,301 – 1,400 (X3 = 0.37)": 0.37,
+    f"1,401 – 1,500 (X3 = 0.41)": 0.41,
+    f"1,501 – 1,600 (X3 = 0.45)": 0.45,
+    f"1,601 – 1,700 (X3 = 0.49)": 0.49,
+    f"1,701 – 1,800 (X3 = 0.53)": 0.53,
+    f"1,801 – 1,900 (X3 = 0.57)": 0.57,
+    f"1,901 – 2,000 (X3 = 0.61)": 0.61,
+    f"2,001 – 2,200 (X3 = 0.69)": 0.69,
+    f"2,201 – 2,400 (X3 = 0.78)": 0.78,
+    f"2,401 – 2,600 (X3 = 0.86)": 0.86,
+    f"2,601 – 2,800 (X3 = 0.94)": 0.94,
+    f"2,801 – 3,000 (X3 = 1.02)": 1.02,
+    f"3,001 – 3,300 (X3 = 1.14)": 1.14,
+    f"3,301 – 3,600 (X3 = 1.27)": 1.27,
+    f"3,601 – 3,900 (X3 = 1.37)": 1.37,
+    f"3,901 – 4,200 (X3 = 1.51)": 1.51,
+    f"4,201 – 4,500 (X3 = 1.64)": 1.64,
+    f"4,501 – 4,800 (X3 = 1.76)": 1.76,
+    f"4,801 – 5,100 (X3 = 1.88)": 1.88,
+    f"5,101 – 5,400 (X3 = 2.00)": 2.00,
+    f"5,401 – 5,700 (X3 = 2.13)": 2.13,
+    f"5,701+         (X3 = 2.25)": 2.25,
+}
+
 # ── KA: X4 ──────────────────────────────────
 X4_BREAKS = [(0,3,0.00),(4,4,0.20),(5,5,0.40),(6,6,0.60),(7,7,0.80),(8,8,1.00),(9,9,1.20),(10,10,1.40),(11,11,1.60),(12,99999,1.80)]
 
@@ -64,6 +99,22 @@ Z2_BREAKS = [(0,2,1.00),(2.01,3,0.75),(3.01,4,0.50),(4.01,5,0.25),(5.01,999,0.00
 Z3_LOWER = [0,1001,2001,3001,4001,5001,6001,7001,8001,9001,10001,15001]
 Z3_UPPER = [1000,2000,3000,4000,5000,6000,7000,8000,9000,10000,15000,999999]
 Z3_VAL   = [0,0.20,0.30,0.50,0.75,1.00,1.25,1.50,1.75,2.00,2.50,3.00]
+
+# Z3 Dropdown options: label → factor value
+Z3_OPTIONS = {
+    "0 – 1,000        (Z3 = 0.00)": 0.00,
+    "1,001 – 2,000    (Z3 = 0.20)": 0.20,
+    "2,001 – 3,000    (Z3 = 0.30)": 0.30,
+    "3,001 – 4,000    (Z3 = 0.50)": 0.50,
+    "4,001 – 5,000    (Z3 = 0.75)": 0.75,
+    "5,001 – 6,000    (Z3 = 1.00)": 1.00,
+    "6,001 – 7,000    (Z3 = 1.25)": 1.25,
+    "7,001 – 8,000    (Z3 = 1.50)": 1.50,
+    "8,001 – 9,000    (Z3 = 1.75)": 1.75,
+    "9,001 – 10,000   (Z3 = 2.00)": 2.00,
+    "10,001 – 15,000  (Z3 = 2.50)": 2.50,
+    "15,001+           (Z3 = 3.00)": 3.00,
+}
 
 # ── KC: Z4 ──────────────────────────────────
 Z4_BREAKS = [(0,6.49,0.00),(6.50,6.99,0.08),(7.00,9999,0.17)]
@@ -104,7 +155,7 @@ def calc_Ka(x1, x2_cbr, x3_aadt, x4_age, x5_width, x6_terrain,
             y1_row, y2_shoulder, y3_terrain, y4_terrain, y5_bridge, y6_terrain):
     X1 = x1
     X2 = lookup_range(x2_cbr, X2_BREAKS)
-    X3 = lookup_list(x3_aadt, X3_LOWER, X3_UPPER, X3_VAL)
+    X3 = x3_aadt  # รับค่า factor โดยตรงจาก dropdown
     X4 = lookup_range(x4_age, X4_BREAKS)
     X5 = lookup_range(x5_width, X5_BREAKS)
     X6 = X6_MAP[x6_terrain]
@@ -123,7 +174,7 @@ def calc_Kc(z1, z2_cbr, z3_aadt, z4_width,
             y1_row, y2_shoulder, y3_terrain, y4_terrain, y5_bridge, y6_terrain):
     Z1 = Z1_MAP.get(z1, 0)
     Z2 = lookup_range(z2_cbr, Z2_BREAKS)
-    Z3 = lookup_list(z3_aadt, Z3_LOWER, Z3_UPPER, Z3_VAL)
+    Z3 = z3_aadt  # รับค่า factor โดยตรงจาก dropdown
     Z4 = lookup_range(z4_width, Z4_BREAKS)
     Y1 = lookup_range(y1_row, Y1_BREAKS)
     Y2 = lookup_range(y2_shoulder, Y2_BREAKS)
@@ -340,9 +391,8 @@ with tab2:
             x2_val = lookup_range(x2_cbr, X2_BREAKS)
             st.caption(f"X2 = {x2_val:.2f}")
         with cx3:
-            x3_aadt = st.number_input("X3 AADT (คัน/วัน ต่อ 2 ช่อง)", value=974, min_value=0, step=50, key="ac_x3")
-            x3_val = lookup_list(x3_aadt, X3_LOWER, X3_UPPER, X3_VAL)
-            st.caption(f"X3 = {x3_val:.2f}")
+            x3_lbl = st.selectbox("X3 AADT ต่อ 2 ช่อง (คัน/วัน)", list(X3_OPTIONS.keys()), index=5, key="ac_x3")
+            x3_val = X3_OPTIONS[x3_lbl]
 
         cx4, cx5, cx6 = st.columns(3)
         with cx4:
@@ -361,7 +411,7 @@ with tab2:
         st.markdown("#### Factor Y (เขตทาง / สิ่งก่อสร้าง)")
         y1, y2, y3t, y4t, y5, y6t = y_factors_form("ac")
 
-        Ka, factors_ac = calc_Ka(x1_val, x2_cbr, x3_aadt, x4_age, x5_width,
+        Ka, factors_ac = calc_Ka(x1_val, x2_cbr, x3_val, x4_age, x5_width,
                                   TERRAIN_MAP[x6_lbl], y1, y2, y3t, y4t, y5, y6t)
         Kap = calc_K_prime(Ka, warranty_ac)
         budget_ac = calc_budget(dist_ac, Ka, st.session_state["Km_a"], st.session_state["Na"])
@@ -488,9 +538,8 @@ with tab3:
             z2_val = lookup_range(z2_cbr, Z2_BREAKS)
             st.caption(f"Z2 = {z2_val:.2f}")
         with cz3:
-            z3_aadt = st.number_input("Z3 AADT (คัน/วัน ต่อ 2 ช่อง)", value=5000, min_value=0, step=100, key="cc_z3")
-            z3_val = lookup_list(z3_aadt, Z3_LOWER, Z3_UPPER, Z3_VAL)
-            st.caption(f"Z3 = {z3_val:.2f}")
+            z3_lbl = st.selectbox("Z3 AADT ต่อ 2 ช่อง (คัน/วัน)", list(Z3_OPTIONS.keys()), index=4, key="cc_z3")
+            z3_val = Z3_OPTIONS[z3_lbl]
         with cz4:
             z4_width = st.number_input("Z4 ความกว้างผิวทาง ต่อ 2 ช่อง (ม.)", value=7.0, min_value=0.0, step=0.5, key="cc_z4")
             z4_val = lookup_range(z4_width, Z4_BREAKS)
@@ -499,7 +548,7 @@ with tab3:
         st.markdown("#### Factor Y (เขตทาง / สิ่งก่อสร้าง)")
         y1c, y2c, y3ct, y4ct, y5c, y6ct = y_factors_form("cc")
 
-        Kc, factors_cc = calc_Kc(z1_idx, z2_cbr, z3_aadt, z4_width,
+        Kc, factors_cc = calc_Kc(z1_idx, z2_cbr, z3_val, z4_width,
                                    y1c, y2c, y3ct, y4ct, y5c, y6ct)
         Kcp = calc_K_prime(Kc, warranty_cc)
         budget_cc = calc_budget(dist_cc, Kc, st.session_state["Km_c"], st.session_state["Nc"])
