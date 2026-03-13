@@ -187,7 +187,7 @@ def init_state():
         "project_name": "โครงการบำรุงรักษาทางหลวง",
         "district": "",
         "year": "2568",
-        "Na": 7000.0, "Ns": 6500.0, "Nc": 6000.0,
+        "Na": 35000.0, "Ns": 6500.0, "Nc": 35000.0,
         "Km_a": 1.0,  "Km_s": 1.0,  "Km_c": 1.0,
         "rows_ac": [], "rows_cc": [], "rows_gr": [],
         "json_version": 0,
@@ -673,7 +673,7 @@ with tab1:
     with col_na:
         st.markdown("**ผิวแอสฟัลท์**")
         na = st.number_input("Na (บาท/กม./ปี)",
-                             value=float(get_default("Na", 7000.0)),
+                             value=float(get_default("Na", 35000.0)),
                              min_value=0.0, step=500.0, format="%.0f",
                              key=f"Na_v{v}")
         st.session_state["Na"] = na
@@ -697,7 +697,7 @@ with tab1:
     with col_nc:
         st.markdown("**ผิวคอนกรีต**")
         nc = st.number_input("Nc (บาท/กม./ปี)",
-                             value=float(get_default("Nc", 6000.0)),
+                             value=float(get_default("Nc", 35000.0)),
                              min_value=0.0, step=500.0, format="%.0f",
                              key=f"Nc_v{v}")
         st.session_state["Nc"] = nc
@@ -880,10 +880,17 @@ with tab2:
         st.markdown(f"#### 📋 ตารางผิวแอสฟัลท์ ({len(st.session_state['rows_ac'])} สายทาง)")
         df_ac = pd.DataFrame(st.session_state["rows_ac"])
         st.dataframe(df_ac[["ตอนควบคุม","ชื่อสายทาง","ระยะทาง(กม.)","K","K'","Workload(หน่วย)","งบประมาณ(บาท/ปี)"]], use_container_width=True, hide_index=True)
-        m1, m2 = st.columns(2)
+        # ปุ่มลบรายการ
+        del_cols_ac = st.columns(min(len(st.session_state["rows_ac"]), 6))
+        for i, r in enumerate(st.session_state["rows_ac"]):
+            col_idx = i % 6
+            if del_cols_ac[col_idx].button(f"🗑️ #{i+1} {r.get('ชื่อสายทาง','')[:10]}", key=f"del_ac_{i}"):
+                st.session_state["rows_ac"].pop(i); st.rerun()
+        st.markdown("")
+        m1, m2, m3 = st.columns(3)
         m1.metric("งบประมาณรวม (บาท/ปี)", f"{sum(r['งบประมาณ(บาท/ปี)'] for r in st.session_state['rows_ac']):,.0f}")
         m2.metric("Workload รวม (หน่วย)",  f"{sum(r['Workload(หน่วย)']   for r in st.session_state['rows_ac']):.3f}")
-        if st.button("🗑️ ล้างตาราง", key="clr_ac"):
+        if m3.button("🗑️ ล้างทั้งหมด", key="clr_ac"):
             st.session_state["rows_ac"] = []; st.rerun()
 
 # ─────────────────────────────────────────────
@@ -1004,10 +1011,16 @@ with tab3:
         st.markdown(f"#### 📋 ตารางผิวคอนกรีต ({len(st.session_state['rows_cc'])} สายทาง)")
         df_cc = pd.DataFrame(st.session_state["rows_cc"])
         st.dataframe(df_cc[["ตอนควบคุม","ชื่อสายทาง","ระยะทาง(กม.)","K","K'","Workload(หน่วย)","งบประมาณ(บาท/ปี)"]], use_container_width=True, hide_index=True)
-        m1c, m2c = st.columns(2)
+        del_cols_cc = st.columns(min(len(st.session_state["rows_cc"]), 6))
+        for i, r in enumerate(st.session_state["rows_cc"]):
+            col_idx = i % 6
+            if del_cols_cc[col_idx].button(f"🗑️ #{i+1} {r.get('ชื่อสายทาง','')[:10]}", key=f"del_cc_{i}"):
+                st.session_state["rows_cc"].pop(i); st.rerun()
+        st.markdown("")
+        m1c, m2c, m3c = st.columns(3)
         m1c.metric("งบประมาณรวม (บาท/ปี)", f"{sum(r['งบประมาณ(บาท/ปี)'] for r in st.session_state['rows_cc']):,.0f}")
         m2c.metric("Workload รวม (หน่วย)",  f"{sum(r['Workload(หน่วย)']   for r in st.session_state['rows_cc']):.3f}")
-        if st.button("🗑️ ล้างตาราง", key="clr_cc"):
+        if m3c.button("🗑️ ล้างทั้งหมด", key="clr_cc"):
             st.session_state["rows_cc"] = []; st.rerun()
 
 # ─────────────────────────────────────────────
@@ -1099,10 +1112,16 @@ with tab4:
         st.markdown(f"#### 📋 ตารางผิวลูกรัง ({len(st.session_state['rows_gr'])} สายทาง)")
         df_gr = pd.DataFrame(st.session_state["rows_gr"])
         st.dataframe(df_gr[["ตอนควบคุม","ชื่อสายทาง","ระยะทาง(กม.)","K","K'","Workload(หน่วย)","งบประมาณ(บาท/ปี)"]], use_container_width=True, hide_index=True)
-        m1g, m2g = st.columns(2)
+        del_cols_gr = st.columns(min(len(st.session_state["rows_gr"]), 6))
+        for i, r in enumerate(st.session_state["rows_gr"]):
+            col_idx = i % 6
+            if del_cols_gr[col_idx].button(f"🗑️ #{i+1} {r.get('ชื่อสายทาง','')[:10]}", key=f"del_gr_{i}"):
+                st.session_state["rows_gr"].pop(i); st.rerun()
+        st.markdown("")
+        m1g, m2g, m3g = st.columns(3)
         m1g.metric("งบประมาณรวม (บาท/ปี)", f"{sum(r['งบประมาณ(บาท/ปี)'] for r in st.session_state['rows_gr']):,.0f}")
         m2g.metric("Workload รวม (หน่วย)",  f"{sum(r['Workload(หน่วย)']   for r in st.session_state['rows_gr']):.3f}")
-        if st.button("🗑️ ล้างตาราง", key="clr_gr"):
+        if m3g.button("🗑️ ล้างทั้งหมด", key="clr_gr"):
             st.session_state["rows_gr"] = []; st.rerun()
 
 # ─────────────────────────────────────────────
