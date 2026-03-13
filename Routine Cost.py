@@ -458,9 +458,10 @@ def generate_word_report(include_gravel=True):
             doc.add_paragraph()
     doc.add_paragraph()
 
-    add_heading_word(doc, "3.3  ผิวลูกรัง (Ks)", level=2)
-    add_thai_para(doc, "Ks = 1 + 0.70 × (A1 + A2 + A3) + 0.30 × (B1 + B2 + B3 + B4)",
-                  first_indent=False)
+    if include_gravel:
+        add_heading_word(doc, "3.3  ผิวลูกรัง (Ks)", level=2)
+        add_thai_para(doc, "Ks = 1 + 0.70 × (A1 + A2 + A3) + 0.30 × (B1 + B2 + B3 + B4)",
+                      first_indent=False)
 
     add_heading_word(doc, "3.4  งบประมาณและ Workload", level=2)
     add_thai_para(doc, "งบประมาณ (บาท/ปี)  =  ระยะทาง × K × Km × N  (ปัดเป็นหลักร้อย)",
@@ -534,17 +535,18 @@ def generate_word_report(include_gravel=True):
     dist_cc = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_cc"])
     dist_gr = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_gr"])
 
-    # สร้างแถวข้อมูลตามที่เลือก
-    sum_rows = [["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}"]]
-    sum_rows.append(["ผิวคอนกรีต (Kc)", n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}"])
+    # สร้างแถวข้อมูลตามที่เลือก — เพิ่มคอลัมน์ บาท/กม./ปี
+    def rpc(bud, dist): return f"{bud/dist:,.2f}" if dist > 0 else "-"
+    sum_rows = [["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)]]
+    sum_rows.append(["ผิวคอนกรีต (Kc)", n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)])
     if include_gravel:
-        sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}"])
+        sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
 
     add_heading_word(doc, "7.  สรุปผลการคำนวณ", level=1)
     add_table_word(doc,
-        headers=["ประเภทผิวทาง", "จำนวนสายทาง", "ระยะทาง (กม.)", "Workload (หน่วย)", "งบประมาณ (บาท/ปี)"],
+        headers=["ประเภทผิวทาง", "จำนวนสายทาง", "ระยะทาง (กม.)", "Workload (หน่วย)", "งบประมาณ (บาท/ปี)", "อัตรา (บาท/กม./ปี)"],
         rows=sum_rows,
-        col_widths=[5, 3, 3.5, 4, 4],
+        col_widths=[4, 2.5, 3, 3.5, 3.5, 3.5],
     )
     doc.add_paragraph()
 
