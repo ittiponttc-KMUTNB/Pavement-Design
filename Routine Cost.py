@@ -336,7 +336,7 @@ def add_mixed_para(doc, parts, first_indent=True):
 # WORD REPORT GENERATOR
 # ─────────────────────────────────────────────
 
-def generate_word_report():
+def generate_word_report(include_gravel=True):
     import io
     from docx import Document
     from docx.shared import Pt, Cm
@@ -469,9 +469,10 @@ def generate_word_report():
 
     write_surface_section("4", "แอสฟัลท์ (Ka)", ss["rows_ac"])
     write_surface_section("5", "คอนกรีต (Kc)",  ss["rows_cc"])
-    write_surface_section("6", "ลูกรัง (Ks)",   ss["rows_gr"])
+    if include_gravel:
+        write_surface_section("6", "ลูกรัง (Ks)", ss["rows_gr"])
 
-    # ── หัวข้อ 7: สรุปผล ──────────────────────
+    # ── หัวข้อ 7: สรุปผล (แยกประเภท ไม่มีแถวรวม) ──
     n_ac = len(ss["rows_ac"]); n_cc = len(ss["rows_cc"]); n_gr = len(ss["rows_gr"])
     bud_ac  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_ac"])
     bud_cc  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_cc"])
@@ -482,32 +483,20 @@ def generate_word_report():
     dist_ac = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_ac"])
     dist_cc = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_cc"])
     dist_gr = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_gr"])
-    bud_tot = bud_ac + bud_cc + bud_gr
-    wl_tot  = wl_ac + wl_cc + wl_gr
-    dist_tot= dist_ac + dist_cc + dist_gr
+
+    # สร้างแถวข้อมูลตามที่เลือก
+    sum_rows = [["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}"]]
+    sum_rows.append(["ผิวคอนกรีต (Kc)", n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}"])
+    if include_gravel:
+        sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}"])
 
     add_heading_word(doc, "7.  สรุปผลการคำนวณ", level=1)
-    sum_tbl = add_table_word(doc,
+    add_table_word(doc,
         headers=["ประเภทผิวทาง", "จำนวนสายทาง", "ระยะทาง (กม.)", "Workload (หน่วย)", "งบประมาณ (บาท/ปี)"],
-        rows=[
-            ["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}"],
-            ["ผิวคอนกรีต (Kc)",  n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}"],
-            ["ผิวลูกรัง (Ks)",   n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}"],
-        ],
+        rows=sum_rows,
         col_widths=[5, 3, 3.5, 4, 4],
     )
-    add_total_row_word(sum_tbl, [
-        "รวม", n_ac+n_cc+n_gr,
-        f"{dist_tot:.3f}", f"{wl_tot:.3f}", f"{bud_tot:,.0f}",
-    ])
     doc.add_paragraph()
-
-    rpc = bud_tot / dist_tot if dist_tot > 0 else 0
-    add_mixed_para(doc, [
-        ("อัตราค่าบำรุงปกติเฉลี่ยรวม = ", False),
-        (f"{rpc:,.2f} บาท/กม./ปี", True),
-        (f"  (ระยะทางรวม {dist_tot:.3f} กม.  งบประมาณรวม {bud_tot:,.0f} บาท/ปี)", False),
-    ])
 
     # ── หัวข้อ 8: หมายเหตุ ────────────────────
     doc.add_paragraph()
@@ -977,6 +966,13 @@ with tab3:
 
 with tab4:
     st.markdown('<div class="note-box">⚠️ A2 (ลักษณะลมฟ้าอากาศ) ใช้ค่า 0.00 — กรมทางหลวงยังอยู่ระหว่างการศึกษาเก็บสถิติ</div>', unsafe_allow_html=True)
+
+    st.checkbox(
+        "📄 รวมผิวลูกรังในรายงาน Word",
+        value=st.session_state.get("include_gravel_report", False),
+        key="include_gravel_report",
+        help="หากไม่ติ๊ก ผิวลูกรังจะไม่ปรากฏในรายงาน Word แต่ยังคำนวณและแสดงในตารางสรุปตามปกติ",
+    )
     st.markdown("---")
 
     st.markdown("#### ข้อมูลสายทาง")
@@ -1222,7 +1218,8 @@ with tab5:
             if st.button("📄 สร้างรายงาน Word", type="primary", key="make_word"):
                 with st.spinner("กำลังสร้างรายงาน..."):
                     try:
-                        word_buf = generate_word_report()
+                        include_gr = st.session_state.get("include_gravel_report", False)
+                        word_buf = generate_word_report(include_gravel=include_gr)
                         st.download_button(
                             "⬇️ ดาวน์โหลด Word (.docx)",
                             data=word_buf,
