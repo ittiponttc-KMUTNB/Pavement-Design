@@ -1958,7 +1958,7 @@ def main():
         if layer_no in status_placeholders:
             with status_placeholders[layer_no]:
                 if layer['is_ok']:
-                    st.success("✅ ผ่าน ✓")
+                    st.success(f"✅ ผ่าน (ต้องการ ≥ {layer['min_thickness_cm']:.1f} cm)")
                 else:
                     shortage = layer['min_thickness_cm'] - layer['design_thickness_cm']
                     st.error(f"❌ ไม่ผ่าน (ต้องเพิ่มอีก {shortage:.1f} cm)")
