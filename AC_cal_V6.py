@@ -927,11 +927,11 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
         add_thai_paragraph(doc, 'การคำนวณความหนาขั้นต่ำ:', size_pt=15, bold=True)
         if ln == 1:
             add_equation_paragraph(doc,
-                f'D_1 >= SN_1 / (a_1 × m_1)   ผ่าน ✓',
+                f'D_1 >= SN_1 / (a_1 × m_1)',
                 size_pt=11, italic=True)
         else:
             add_equation_paragraph(doc,
-                f'D_{ln} >= (SN_{ln} − SN_{ln-1}) / (a_{ln} × m_{ln})   ผ่าน ✓',
+                f'D_{ln} >= (SN_{ln} − SN_{ln-1}) / (a_{ln} × m_{ln})',
                 size_pt=11, italic=True)
 
         # --- ความหนาที่เลือก ---
@@ -1399,12 +1399,12 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         _run(p_th, 'การคำนวณความหนาขั้นต่ำ:', bold=True)
         if layer_no == 1:
             _eq_para(
-                'D_1 >= SN_1 / (a_1 \u00d7 m_1)   \u0e1c\u0e48\u0e32\u0e19 \u2713',
+                'D_1 >= SN_1 / (a_1 \u00d7 m_1)',
                 indent_cm=2.5, italic=True
             )
         else:
             _eq_para(
-                f'D_{layer_no} >= (SN_{layer_no} \u2212 SN_{layer_no-1}) / (a_{layer_no} \u00d7 m_{layer_no})   \u0e1c\u0e48\u0e32\u0e19 \u2713',
+                f'D_{layer_no} >= (SN_{layer_no} \u2212 SN_{layer_no-1}) / (a_{layer_no} \u00d7 m_{layer_no})',
                 indent_cm=2.5, italic=True
             )
 
