@@ -1448,6 +1448,33 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         _run(p_st, f'\u0e2a\u0e16\u0e32\u0e19\u0e30:  {status_txt}  \u2014  {status_note}',
              bold=True, color=GREEN if is_ok else RED)
 
+    # ===== Section .5 ตารางสรุปการคำนวณ SN =====
+    _heading(f'{sec_no}.5  ตารางสรุปการคำนวณ Structural Number', level=3, size=15)
+
+    sn_sum_tbl = doc.add_table(rows=1, cols=8)
+    sn_sum_tbl.style = 'Table Grid'
+    sn_sum_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    for j, h in enumerate(['ชั้น', 'วัสดุ', 'aᵢ', 'mᵢ', 'Dᵢ (นิ้ว)', 'Dᵢ (ซม.)', 'ΔSNᵢ', 'ΣSN']):
+        _tbl_cell(sn_sum_tbl.rows[0].cells[j], h, bold=True, fill='D9E2F3',
+                  align=WD_ALIGN_PARAGRAPH.CENTER)
+    for layer in calc_results.get('layers', []):
+        row = sn_sum_tbl.add_row()
+        for j, (val, align) in enumerate([
+            (str(layer['layer_no']),                          WD_ALIGN_PARAGRAPH.CENTER),
+            (short_material_name(layer['material']),          WD_ALIGN_PARAGRAPH.LEFT),
+            (f'{layer["a_i"]:.2f}',                           WD_ALIGN_PARAGRAPH.CENTER),
+            (f'{layer["m_i"]:.2f}',                           WD_ALIGN_PARAGRAPH.CENTER),
+            (f'{layer["design_thickness_inch"]:.2f}',         WD_ALIGN_PARAGRAPH.CENTER),
+            (f'{layer["design_thickness_cm"]:.0f}',           WD_ALIGN_PARAGRAPH.CENTER),
+            (f'{layer["sn_contribution"]:.3f}',               WD_ALIGN_PARAGRAPH.CENTER),
+            (f'{layer["cumulative_sn"]:.2f}',                 WD_ALIGN_PARAGRAPH.CENTER),
+        ]):
+            _tbl_cell(row.cells[j], val, align=align)
+
+    doc.add_paragraph()
+    p_sn_formula = _para(indent_cm=2.0, space_before=4)
+    _eq(p_sn_formula, 'SN = \u03a3(a\u1d62 \u00d7 D\u1d62 \u00d7 m\u1d62)', italic=True)
+
     # สรุปผล — ตารางผลการตรวจสอบ
     doc.add_paragraph()
     p_chk_cap = _para(indent_cm=0, space_before=6)
