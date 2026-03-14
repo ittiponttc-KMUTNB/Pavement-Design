@@ -1963,6 +1963,9 @@ def main():
                     shortage = layer['min_thickness_cm'] - layer['design_thickness_cm']
                     st.error(f"❌ ไม่ผ่าน (ต้องเพิ่มอีก {shortage:.1f} cm)")
 
+    # fig_lang — ใช้ร่วมกันทั้ง Tab 3 และ Tab 4
+    fig_lang = 'th' if figure_language == "ภาษาไทย" else 'en'
+
     # ========================================
     # TAB 3: RESULTS
     # ========================================
@@ -2081,7 +2084,6 @@ def main():
 
         # ===== PAVEMENT SECTION FIGURE =====
         st.subheader("📐 ภาพตัดขวางโครงสร้างถนน")
-        fig_lang = 'th' if figure_language == "ภาษาไทย" else 'en'
         fig = plot_pavement_section(calc_results['layers'], Mr, CBR, lang=fig_lang)
         st.pyplot(fig)
         plt.close(fig)
@@ -2231,7 +2233,7 @@ def main():
                          use_container_width=True,
                          help="รายงานรูปแบบสำหรับรวมกับบทรายงานอื่น"):
                 with st.spinner("กำลังสร้างรายงาน..."):
-                    fig_intro = plot_pavement_section(calc_results['layers'], Mr, CBR, lang='th')
+                    fig_intro = plot_pavement_section(calc_results['layers'], Mr, CBR, lang=fig_lang)
                     doc_intro_bytes = create_word_report_intro(
                         project_title, inputs, calc_results, design_check, fig_intro, report_settings)
                     plt.close(fig_intro)
@@ -2246,7 +2248,7 @@ def main():
         with col_r2:
             if st.button("📝 สร้างรายงานแบบย่อ", use_container_width=True):
                 with st.spinner("กำลังสร้างรายงาน..."):
-                    fig_thai = plot_pavement_section(calc_results['layers'], Mr, CBR, lang='th')
+                    fig_thai = plot_pavement_section(calc_results['layers'], Mr, CBR, lang=fig_lang)
                     doc_bytes = create_word_report(project_title, inputs, calc_results, design_check, fig_thai)
                     plt.close(fig_thai)
                 st.download_button(
