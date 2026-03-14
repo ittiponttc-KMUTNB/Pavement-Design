@@ -923,24 +923,16 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
             f'จากสมการ AASHTO 1993:   SN_{ln} = {sn_at:.2f}',
             size_pt=11, bold=True, italic=True)
 
-        # --- ความหนาขั้นต่ำ + แทนค่าตัวเลข ---
+        # --- ความหนาขั้นต่ำ (แสดงเฉพาะสมการทั่วไป) ---
         add_thai_paragraph(doc, 'การคำนวณความหนาขั้นต่ำ:', size_pt=15, bold=True)
         if ln == 1:
             add_equation_paragraph(doc,
-                f'D_1 >= SN_1 / (a_1 × m_1)',
+                f'D_1 >= SN_1 / (a_1 × m_1)   ผ่าน ✓',
                 size_pt=11, italic=True)
-            add_equation_paragraph(doc,
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน ✓',
-                size_pt=11, bold=True, italic=False)
         else:
-            prev_sn = calc_results['layers'][ln-2]['cumulative_sn']
             add_equation_paragraph(doc,
-                f'D_{ln} >= (SN_{ln} − SN_{ln-1}) / (a_{ln} × m_{ln})',
+                f'D_{ln} >= (SN_{ln} − SN_{ln-1}) / (a_{ln} × m_{ln})   ผ่าน ✓',
                 size_pt=11, italic=True)
-            add_equation_paragraph(doc,
-                f'D_{ln} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
-                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน ✓',
-                size_pt=11, bold=True, italic=False)
 
         # --- ความหนาที่เลือก ---
         add_thai_paragraph(doc, 'เลือกใช้ความหนา:', size_pt=15, bold=True)
@@ -1402,32 +1394,18 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         _eq_para(f'จากสมการ AASHTO 1993:   SN_{layer_no} = {sn_at:.2f}',
                  indent_cm=2.0, bold=True, italic=True)
 
-        # --- ความหนาขั้นต่ำ พร้อมแทนค่าตัวเลข ---
+        # --- ความหนาขั้นต่ำ (แสดงเฉพาะสมการทั่วไป) ---
         p_th = _para(indent_cm=1.5)
         _run(p_th, 'การคำนวณความหนาขั้นต่ำ:', bold=True)
         if layer_no == 1:
-            # สมการทั่วไป
             _eq_para(
-                f'D_1 >= SN_1 / (a_1 × m_1)',
+                'D_1 >= SN_1 / (a_1 \u00d7 m_1)   \u0e1c\u0e48\u0e32\u0e19 \u2713',
                 indent_cm=2.5, italic=True
-            )
-            # แทนค่าตัวเลข + ผ่าน ✓
-            _eq_para(
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน \u2713',
-                indent_cm=2.5, bold=True, italic=False
             )
         else:
-            prev_sn = calc_results['layers'][layer_no - 2]['cumulative_sn']
-            # สมการทั่วไป
             _eq_para(
-                f'D_{layer_no} >= (SN_{layer_no} − SN_{layer_no-1}) / (a_{layer_no} × m_{layer_no})',
+                f'D_{layer_no} >= (SN_{layer_no} \u2212 SN_{layer_no-1}) / (a_{layer_no} \u00d7 m_{layer_no})   \u0e1c\u0e48\u0e32\u0e19 \u2713',
                 indent_cm=2.5, italic=True
-            )
-            # แทนค่าตัวเลข + ผ่าน ✓
-            _eq_para(
-                f'D_{layer_no} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
-                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน \u2713',
-                indent_cm=2.5, bold=True, italic=False
             )
 
         # --- ความหนาที่เลือกใช้ ---
@@ -1442,21 +1420,20 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         p_sn2 = _para(indent_cm=1.5)
         _run(p_sn2, 'SN contribution:', bold=True)
         _eq_para(
-            f'ΔSN_{layer_no} = a_{layer_no} × D_{layer_no} × m_{layer_no}'
-            f'  =  {a_i:.2f} × {d_in:.2f} × {m_i:.2f}  =  {sn_cont:.3f}',
+            f'\u0394SN_{layer_no} = a_{layer_no} \u00d7 D_{layer_no} \u00d7 m_{layer_no}'
+            f'  =  {a_i:.2f} \u00d7 {d_in:.2f} \u00d7 {m_i:.2f}  =  {sn_cont:.3f}',
             indent_cm=2.5, italic=True
         )
         _eq_para(
-            f'ΣSN  =  {sn_cum:.2f}',
+            f'\u03a3SN  =  {sn_cum:.2f}',
             indent_cm=2.5, bold=True, italic=False
         )
 
-        # --- สถานะ ---
-        status_txt  = '✓ OK' if is_ok else '✗ NG'
-        status_note = (f'ความหนาเพียงพอ ({d_cm:.0f} ≥ {d_min_cm:.1f} cm)'
-                       if is_ok else f'ต้องเพิ่มความหนาอีก {d_min_cm - d_cm:.1f} cm')
+        # --- สถานะ (ไม่แสดงวงเล็บตัวเลข) ---
+        status_txt  = '\u2713 OK' if is_ok else '\u2717 NG'
+        status_note = '\u0e04\u0e27\u0e32\u0e21\u0e2b\u0e19\u0e32\u0e40\u0e1e\u0e35\u0e22\u0e07\u0e1e\u0e2d' if is_ok else f'\u0e15\u0e49\u0e2d\u0e07\u0e40\u0e1e\u0e34\u0e48\u0e21\u0e04\u0e27\u0e32\u0e21\u0e2b\u0e19\u0e32\u0e2d\u0e35\u0e01 {d_min_cm - d_cm:.1f} cm'
         p_st = _para(indent_cm=2.0)
-        _run(p_st, f'สถานะ:  {status_txt}  —  {status_note}',
+        _run(p_st, f'\u0e2a\u0e16\u0e32\u0e19\u0e30:  {status_txt}  \u2014  {status_note}',
              bold=True, color=GREEN if is_ok else RED)
 
     # สรุปผล
@@ -1591,9 +1568,15 @@ def main():
                             st.session_state[f'rs_{key}'] = rs[key]
                     layers = loaded_data.get('layers', [])
                     for i, layer in enumerate(layers):
-                        st.session_state[f'layer{i+1}_mat']   = layer.get('material', '')
+                        mat_name = layer.get('material', '')
+                        st.session_state[f'layer{i+1}_mat']   = mat_name
                         st.session_state[f'layer{i+1}_thick'] = layer.get('thickness_cm', 15.0)
                         st.session_state[f'layer{i+1}_m']     = layer.get('drainage_coeff', 1.0)
+                        # Bug fix: restore a_i จาก JSON ถ้ามี ไม่อย่างนั้นใช้ค่า default ของวัสดุ
+                        if 'layer_coeff' in layer:
+                            st.session_state[f'layer{i+1}_a'] = layer['layer_coeff']
+                        elif mat_name in MATERIALS:
+                            st.session_state[f'layer{i+1}_a'] = MATERIALS[mat_name]['layer_coeff']
                     st.success("✅ โหลดข้อมูลสำเร็จ!")
                     st.rerun()
             except Exception as e:
@@ -1665,7 +1648,10 @@ def main():
                 Pt = st.number_input("Pₜ (Terminal)", min_value=1.5, max_value=3.5,
                     value=st.session_state.get('input_Pt', 2.5), step=0.1, key="input_Pt")
             delta_psi = P0 - Pt
-            st.success(f"**ΔPSI = {delta_psi:.1f}**")
+            if delta_psi <= 0:
+                st.error(f"⚠️ **ΔPSI = {delta_psi:.1f}** — P₀ ต้องมากกว่า Pₜ! กรุณาตรวจสอบค่า")
+            else:
+                st.success(f"**ΔPSI = {delta_psi:.1f}**")
 
             st.subheader("3️⃣ Subgrade (ดินเดิม/ดินถม)")
             CBR = st.number_input("CBR (%)", min_value=1.0, max_value=30.0,
@@ -1933,6 +1919,11 @@ def main():
         'W18': W18, 'reliability': reliability, 'Zr': Zr, 'So': So,
         'P0': P0, 'Pt': Pt, 'delta_psi': delta_psi, 'CBR': CBR, 'Mr': Mr
     }
+
+    if delta_psi <= 0:
+        st.error("❌ ไม่สามารถคำนวณได้: P₀ ต้องมากกว่า Pₜ (ΔPSI > 0) — กรุณาตรวจสอบค่าใน Tab ข้อมูลนำเข้า")
+        st.stop()
+
     ac_sublayers = st.session_state.get('ac_sublayers', None)
     calc_results  = calculate_layer_thicknesses(W18, Zr, So, delta_psi, Mr, layer_data, ac_sublayers)
     design_check  = check_design(calc_results['total_sn_required'], calc_results['total_sn_provided'])
@@ -1967,7 +1958,7 @@ def main():
         if layer_no in status_placeholders:
             with status_placeholders[layer_no]:
                 if layer['is_ok']:
-                    st.success(f"✅ ผ่าน (ต้องการ ≥ {layer['min_thickness_cm']:.1f} cm)")
+                    st.success("✅ ผ่าน ✓")
                 else:
                     shortage = layer['min_thickness_cm'] - layer['design_thickness_cm']
                     st.error(f"❌ ไม่ผ่าน (ต้องเพิ่มอีก {shortage:.1f} cm)")
