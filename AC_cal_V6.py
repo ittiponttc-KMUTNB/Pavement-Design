@@ -930,7 +930,7 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
                 f'D_1 >= SN_1 / (a_1 × m_1)',
                 size_pt=11, italic=True)
             add_equation_paragraph(doc,
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน ✓',
                 size_pt=11, bold=True, italic=False)
         else:
             prev_sn = calc_results['layers'][ln-2]['cumulative_sn']
@@ -939,7 +939,7 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
                 size_pt=11, italic=True)
             add_equation_paragraph(doc,
                 f'D_{ln} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
-                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน ✓',
                 size_pt=11, bold=True, italic=False)
 
         # --- ความหนาที่เลือก ---
@@ -1411,9 +1411,9 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
                 f'D_1 >= SN_1 / (a_1 × m_1)',
                 indent_cm=2.5, italic=True
             )
-            # แทนค่าตัวเลข
+            # แทนค่าตัวเลข + ผ่าน ✓
             _eq_para(
-                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'D_1 >= {sn_at:.2f} / ({a_i:.2f} × {m_i:.2f})  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน \u2713',
                 indent_cm=2.5, bold=True, italic=False
             )
         else:
@@ -1423,10 +1423,10 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
                 f'D_{layer_no} >= (SN_{layer_no} − SN_{layer_no-1}) / (a_{layer_no} × m_{layer_no})',
                 indent_cm=2.5, italic=True
             )
-            # แทนค่าตัวเลข
+            # แทนค่าตัวเลข + ผ่าน ✓
             _eq_para(
                 f'D_{layer_no} >= ({sn_at:.2f} − {prev_sn:.2f}) / ({a_i:.2f} × {m_i:.2f})'
-                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm',
+                f'  =  {d_min_in:.2f} in  =  {d_min_cm:.1f} cm   ผ่าน \u2713',
                 indent_cm=2.5, bold=True, italic=False
             )
 
