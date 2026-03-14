@@ -1458,6 +1458,7 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     chk_tbl.style = 'Table Grid'
     chk_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
     passed = design_check.get('passed', False)
+    safety_margin = design_check.get('safety_margin', sn_prov - sn_req)
     for i, (param, value) in enumerate([
         ('SN Required (จากสมการ AASHTO)', f'{sn_req:.2f}'),
         ('SN Provided (จากชั้นทาง)',       f'{sn_prov:.2f}'),
