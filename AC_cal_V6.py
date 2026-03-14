@@ -982,9 +982,6 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
             r = p.add_run(val)
             set_thai_font(r, size_pt=15)
 
-    doc.add_paragraph()
-    add_equation_paragraph(doc, 'สูตร: SN = Σ(aᵢ × Dᵢ × mᵢ)', size_pt=11, italic=True)
-
     # Section 6: Design Check
     h2_6 = doc.add_heading('6. ผลการตรวจสอบการออกแบบ', level=2)
     for run in h2_6.runs:
@@ -1472,8 +1469,6 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
             _tbl_cell(row.cells[j], val, align=align)
 
     doc.add_paragraph()
-    p_sn_formula = _para(indent_cm=2.0, space_before=4)
-    _eq(p_sn_formula, 'SN = \u03a3(a\u1d62 \u00d7 D\u1d62 \u00d7 m\u1d62)', italic=True)
 
     # สรุปผล — ตารางผลการตรวจสอบ
     doc.add_paragraph()
