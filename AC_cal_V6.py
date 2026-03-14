@@ -990,33 +990,45 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
     for run in h2_6.runs:
         set_thai_font(run, size_pt=16, bold=True)
 
+    sn_req  = calc_results['total_sn_required']
+    sn_prov = calc_results['total_sn_provided']
+    passed  = design_check['passed']
     result_table = doc.add_table(rows=4, cols=2)
     result_table.style = 'Table Grid'
+    result_table.alignment = WD_TABLE_ALIGNMENT.CENTER
     for i, (param, value) in enumerate([
-        ('SN Required (จากสมการ AASHTO)', f'{calc_results["total_sn_required"]:.2f}'),
-        ('SN Provided (จากชั้นทาง)', f'{calc_results["total_sn_provided"]:.2f}'),
-        ('Safety Margin', f'{design_check["safety_margin"]:.2f}'),
-        ('ผลการตรวจสอบ', 'ผ่าน (OK)' if design_check['passed'] else 'ไม่ผ่าน (NG)'),
+        ('SN Required (จากสมการ AASHTO)', f'{sn_req:.2f}'),
+        ('SN Provided (จากชั้นทาง)',       f'{sn_prov:.2f}'),
+        ('Safety Margin',                  f'{design_check["safety_margin"]:.2f}'),
+        ('ผลการตรวจสอบ',                   'ผ่าน (OK)' if passed else 'ไม่ผ่าน (NG)'),
     ]):
         for j, val in enumerate([param, value]):
             result_table.rows[i].cells[j].text = ''
             p = result_table.rows[i].cells[j].paragraphs[0]
             p.alignment = WD_ALIGN_PARAGRAPH.LEFT if j == 0 else WD_ALIGN_PARAGRAPH.CENTER
             r = p.add_run(val)
-            set_thai_font(r, size_pt=15)
+            bold_val = (i == 3)  # ผลการตรวจสอบ bold
+            set_thai_font(r, size_pt=15, bold=bold_val)
+            if i == 3:  # สีผลการตรวจสอบ
+                r.font.color.rgb = RGBColor(0x00, 0x70, 0x00) if passed else RGBColor(0xC0, 0x00, 0x00)
 
     doc.add_paragraph()
     w18_sup = calculate_w18_supported(
-        calc_results['total_sn_provided'], inputs['Zr'], inputs['So'], inputs['delta_psi'], inputs['Mr'])
-    add_thai_paragraph(doc, f'W₁₈ ที่โครงสร้างรองรับได้ = {w18_sup/1e6:,.2f} ล้าน ESALs', size_pt=15, bold=True)
+        sn_prov, inputs['Zr'], inputs['So'], inputs['delta_psi'], inputs['Mr'])
+    add_thai_paragraph(doc,
+        f'W₁₈ ที่โครงสร้างรองรับได้ = {w18_sup/1e6:,.2f} ล้าน ESALs',
+        size_pt=15, bold=True)
 
-    if design_check['passed']:
-        add_thai_paragraph(doc,
-            f'สรุป: การออกแบบผ่านเกณฑ์ SN_provided ({calc_results["total_sn_provided"]:.2f}) '
-            f'≥ SN_required ({calc_results["total_sn_required"]:.2f})', size_pt=15, bold=True)
+    doc.add_paragraph()
+    if passed:
+        summary_text = (f'สรุป: การออกแบบผ่านเกณฑ์ เนื่องจาก SN_provided ({sn_prov:.2f}) '
+                        f'≥ SN_required ({sn_req:.2f})')
     else:
-        add_thai_paragraph(doc, 'สรุป: การออกแบบไม่ผ่านเกณฑ์ กรุณาปรับเพิ่มความหนาชั้นทาง',
-                           size_pt=15, bold=True)
+        summary_text = (f'สรุป: การออกแบบไม่ผ่านเกณฑ์ เนื่องจาก SN_provided ({sn_prov:.2f}) '
+                        f'< SN_required ({sn_req:.2f}) กรุณาปรับเพิ่มความหนาชั้นทาง')
+    p_sum = add_thai_paragraph(doc, summary_text, size_pt=15, bold=True)
+    for run in p_sum.runs:
+        run.font.color.rgb = RGBColor(0x00, 0x70, 0x00) if passed else RGBColor(0xC0, 0x00, 0x00)
 
     # Section 7: Figure
     h2_7 = doc.add_heading('7. ภาพตัดขวางโครงสร้างถนน', level=2)
@@ -1436,20 +1448,42 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         _run(p_st, f'\u0e2a\u0e16\u0e32\u0e19\u0e30:  {status_txt}  \u2014  {status_note}',
              bold=True, color=GREEN if is_ok else RED)
 
-    # สรุปผล
+    # สรุปผล — ตารางผลการตรวจสอบ
     doc.add_paragraph()
-    safety_margin = design_check.get('safety_margin', sn_prov - sn_req)
-    p_sum = _para(indent_cm=1.0)
-    _run(p_sum, 'สรุปผลการออกแบบ:', bold=True)
-    p_sum2 = _para(indent_cm=2.0)
-    _run(p_sum2,
-         f'SN required  =  {sn_req:.2f}   |   '
-         f'SN provided  =  {sn_prov:.2f}   |   '
-         f'Safety Margin  =  {safety_margin:.2f}', bold=True)
-    p_sum3 = _para(indent_cm=2.0)
-    result_txt = '✓ ผ่านเกณฑ์ (OK)' if design_check.get('passed') else '✗ ไม่ผ่านเกณฑ์ (NG)'
-    _run(p_sum3, f'ผลการออกแบบ:  {result_txt}', bold=True,
-         color=GREEN if design_check.get('passed') else RED)
+    p_chk_cap = _para(indent_cm=0, space_before=6)
+    p_chk_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _run(p_chk_cap, 'ผลการตรวจสอบการออกแบบ', bold=True)
+
+    chk_tbl = doc.add_table(rows=4, cols=2)
+    chk_tbl.style = 'Table Grid'
+    chk_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+    passed = design_check.get('passed', False)
+    for i, (param, value) in enumerate([
+        ('SN Required (จากสมการ AASHTO)', f'{sn_req:.2f}'),
+        ('SN Provided (จากชั้นทาง)',       f'{sn_prov:.2f}'),
+        ('Safety Margin',                  f'{safety_margin:.2f}'),
+        ('ผลการตรวจสอบ',                   'ผ่าน (OK)' if passed else 'ไม่ผ่าน (NG)'),
+    ]):
+        for j, val in enumerate([param, value]):
+            chk_tbl.rows[i].cells[j].text = ''
+            p = chk_tbl.rows[i].cells[j].paragraphs[0]
+            p.alignment = WD_ALIGN_PARAGRAPH.LEFT if j == 0 else WD_ALIGN_PARAGRAPH.CENTER
+            r = p.add_run(val)
+            bold_val = (i == 3)
+            set_thai_font(r, size_pt=15, bold=bold_val)
+            if i == 3:
+                r.font.color.rgb = RGBColor(0x00, 0x70, 0x00) if passed else RGBColor(0xC0, 0x00, 0x00)
+
+    doc.add_paragraph()
+    if passed:
+        summary_text = (f'สรุป: การออกแบบผ่านเกณฑ์ เนื่องจาก SN_provided ({sn_prov:.2f}) '
+                        f'\u2265 SN_required ({sn_req:.2f})')
+    else:
+        summary_text = (f'สรุป: การออกแบบไม่ผ่านเกณฑ์ เนื่องจาก SN_provided ({sn_prov:.2f}) '
+                        f'< SN_required ({sn_req:.2f}) กรุณาปรับเพิ่มความหนาชั้นทาง')
+    p_sum_final = _para(indent_cm=0, space_before=4)
+    _run(p_sum_final, summary_text, bold=True,
+         color=RGBColor(0x00, 0x70, 0x00) if passed else RGBColor(0xC0, 0x00, 0x00))
 
     # ตารางสรุปโครงสร้างชั้นทาง
     doc.add_paragraph()
