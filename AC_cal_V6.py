@@ -2187,40 +2187,22 @@ def main():
         # ===== Report Settings =====
         st.markdown("### 📝 ตั้งค่าหมายเลขหัวข้อและตารางสำหรับรายงาน Word")
 
-        col_num1, col_num2, col_num3 = st.columns(3)
-        with col_num1:
+        # --- กลุ่ม 1: เลขหัวข้อ / เลขรูป / ชื่อหัวข้อ ---
+        st.markdown("**📌 หัวข้อและรูป**")
+        col_g1a, col_g1b, col_g1c = st.columns([1, 1, 3])
+        with col_g1a:
             rs_section_number = st.text_input(
                 "เลขหัวข้อ",
                 value=st.session_state.get('rs_section_number', '4.4'),
                 key='rs_section_number'
             )
-        with col_num2:
-            rs_table_number_inputs = st.text_input(
-                "เลขตารางพารามิเตอร์",
-                value=st.session_state.get('rs_table_number_inputs', '4-8'),
-                key='rs_table_number_inputs'
-            )
-        with col_num3:
-            rs_table_number_materials = st.text_input(
-                "เลขตารางวัสดุ",
-                value=st.session_state.get('rs_table_number_materials', '4-9'),
-                key='rs_table_number_materials'
-            )
-
-        col_num4, col_num4b, col_num5 = st.columns([1, 1, 2])
-        with col_num4:
+        with col_g1b:
             rs_figure_number = st.text_input(
                 "เลขรูป",
                 value=st.session_state.get('rs_figure_number', '4-8'),
                 key='rs_figure_number'
             )
-        with col_num4b:
-            rs_table_number_sn = st.text_input(
-                "เลขตารางสรุป SN",
-                value=st.session_state.get('rs_table_number_sn', '4-10'),
-                key='rs_table_number_sn'
-            )
-        with col_num5:
+        with col_g1c:
             rs_section_title = st.text_input(
                 "ชื่อหัวข้อ",
                 value=st.session_state.get('rs_section_title',
@@ -2228,6 +2210,30 @@ def main():
                 key='rs_section_title'
             )
 
+        # --- กลุ่ม 2: เลขตาราง 3 ตาราง ---
+        st.markdown("**📋 เลขตาราง**")
+        col_g2a, col_g2b, col_g2c = st.columns(3)
+        with col_g2a:
+            rs_table_number_inputs = st.text_input(
+                "เลขตารางพารามิเตอร์",
+                value=st.session_state.get('rs_table_number_inputs', '4-8'),
+                key='rs_table_number_inputs'
+            )
+        with col_g2b:
+            rs_table_number_materials = st.text_input(
+                "เลขตารางวัสดุ",
+                value=st.session_state.get('rs_table_number_materials', '4-9'),
+                key='rs_table_number_materials'
+            )
+        with col_g2c:
+            rs_table_number_sn = st.text_input(
+                "เลขตารางสรุป SN",
+                value=st.session_state.get('rs_table_number_sn', '4-10'),
+                key='rs_table_number_sn'
+            )
+
+        # --- กลุ่ม 3: คำบรรยาย ---
+        st.markdown("**🗒️ คำบรรยาย**")
         col_cap1, col_cap2 = st.columns(2)
         with col_cap1:
             rs_table_caption_inputs = st.text_input(
@@ -2244,18 +2250,20 @@ def main():
                 key='rs_table_caption_materials'
             )
 
-        rs_table_caption_sn = st.text_input(
-            "คำบรรยายตารางสรุป SN",
-            value=st.session_state.get('rs_table_caption_sn',
-                  'สรุปผลการคำนวณ Structural Number ของโครงสร้างชั้นทาง'),
-            key='rs_table_caption_sn'
-        )
-
-        rs_figure_caption = st.text_input(
-            "คำบรรยายรูป",
-            value=st.session_state.get('rs_figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ'),
-            key='rs_figure_caption'
-        )
+        col_cap3, col_cap4 = st.columns(2)
+        with col_cap3:
+            rs_table_caption_sn = st.text_input(
+                "คำบรรยายตารางสรุป SN",
+                value=st.session_state.get('rs_table_caption_sn',
+                      'สรุปผลการคำนวณ Structural Number ของโครงสร้างชั้นทาง'),
+                key='rs_table_caption_sn'
+            )
+        with col_cap4:
+            rs_figure_caption = st.text_input(
+                "คำบรรยายรูป",
+                value=st.session_state.get('rs_figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ'),
+                key='rs_figure_caption'
+            )
 
         report_settings = {
             'section_number':          rs_section_number,
