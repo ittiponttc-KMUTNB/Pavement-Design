@@ -770,7 +770,7 @@ def add_table_header_shading(cell, fill_hex='BDD7EE'):
     tc_pr.append(shading)
 
 
-def create_word_report(project_title, inputs, calc_results, design_check, fig):
+def create_word_report(project_title, inputs, calc_results, design_check, fig, report_settings=None):
     """รายงาน Word แบบย่อ"""
     doc = Document()
 
@@ -958,6 +958,16 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig):
     for run in h2_5.runs:
         set_thai_font(run, size_pt=16, bold=True)
 
+    # caption ตารางสรุป SN
+    if report_settings:
+        tbl_no_sn   = report_settings.get('table_number_sn', '')
+        tbl_cap_sn  = report_settings.get('table_caption_sn', 'สรุปผลการคำนวณ Structural Number ของโครงสร้างชั้นทาง')
+        if tbl_no_sn:
+            p_sn_cap = doc.add_paragraph()
+            p_sn_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r_sn_cap = p_sn_cap.add_run(f'ตารางที่ {tbl_no_sn}  {tbl_cap_sn}')
+            set_thai_font(r_sn_cap, size_pt=15, bold=True)
+
     sn_table = doc.add_table(rows=1, cols=8)
     sn_table.style = 'Table Grid'
     for i, h in enumerate(['ชั้น', 'วัสดุ', 'aᵢ', 'mᵢ', 'Dᵢ (นิ้ว)', 'Dᵢ (ซม.)', 'ΔSNᵢ', 'ΣSN']):
@@ -1133,10 +1143,12 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     sec_no   = report_settings.get('section_number', '4.4')
     tbl_inp  = report_settings.get('table_number_inputs', '4-8')
     tbl_mat  = report_settings.get('table_number_materials', '4-9')
+    tbl_sn   = report_settings.get('table_number_sn', '4-10')
     fig_no   = report_settings.get('figure_number', '4-8')
     sec_title = report_settings.get('section_title', 'การออกแบบผิวทางลาดยาง (Flexible Pavement)')
     tbl_cap_inp  = report_settings.get('table_caption_inputs', 'ค่าพารามิเตอร์ที่ใช้ในการออกแบบผิวทางยืดหยุ่น')
     tbl_cap_mat  = report_settings.get('table_caption_materials', 'ค่าสัมประสิทธิ์และค่าโมดูลัสของวัสดุโครงสร้างชั้นทาง')
+    tbl_cap_sn   = report_settings.get('table_caption_sn', 'สรุปผลการคำนวณ Structural Number ของโครงสร้างชั้นทาง')
     fig_cap  = report_settings.get('figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ')
 
     RED   = RGBColor(0xCC, 0x00, 0x00)
@@ -1447,6 +1459,12 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
 
     # ===== Section .5 ตารางสรุปการคำนวณ SN =====
     _heading(f'{sec_no}.5  ตารางสรุปการคำนวณ Structural Number', level=3, size=15)
+
+    # caption ตารางสรุป SN
+    if tbl_sn:
+        p_sn_cap = _para(indent_cm=0, space_before=4)
+        p_sn_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _run(p_sn_cap, f'ตารางที่ {tbl_sn}  {tbl_cap_sn}', bold=True)
 
     sn_sum_tbl = doc.add_table(rows=1, cols=8)
     sn_sum_tbl.style = 'Table Grid'
@@ -2189,12 +2207,18 @@ def main():
                 key='rs_table_number_materials'
             )
 
-        col_num4, col_num5 = st.columns([1, 2])
+        col_num4, col_num4b, col_num5 = st.columns([1, 1, 2])
         with col_num4:
             rs_figure_number = st.text_input(
                 "เลขรูป",
                 value=st.session_state.get('rs_figure_number', '4-8'),
                 key='rs_figure_number'
+            )
+        with col_num4b:
+            rs_table_number_sn = st.text_input(
+                "เลขตารางสรุป SN",
+                value=st.session_state.get('rs_table_number_sn', '4-10'),
+                key='rs_table_number_sn'
             )
         with col_num5:
             rs_section_title = st.text_input(
@@ -2220,6 +2244,13 @@ def main():
                 key='rs_table_caption_materials'
             )
 
+        rs_table_caption_sn = st.text_input(
+            "คำบรรยายตารางสรุป SN",
+            value=st.session_state.get('rs_table_caption_sn',
+                  'สรุปผลการคำนวณ Structural Number ของโครงสร้างชั้นทาง'),
+            key='rs_table_caption_sn'
+        )
+
         rs_figure_caption = st.text_input(
             "คำบรรยายรูป",
             value=st.session_state.get('rs_figure_caption', 'รูปตัดโครงสร้างชั้นทางที่ออกแบบ'),
@@ -2230,10 +2261,12 @@ def main():
             'section_number':          rs_section_number,
             'table_number_inputs':     rs_table_number_inputs,
             'table_number_materials':  rs_table_number_materials,
+            'table_number_sn':         rs_table_number_sn,
             'figure_number':           rs_figure_number,
             'section_title':           rs_section_title,
             'table_caption_inputs':    rs_table_caption_inputs,
             'table_caption_materials': rs_table_caption_materials,
+            'table_caption_sn':        rs_table_caption_sn,
             'figure_caption':          rs_figure_caption,
         }
 
@@ -2306,7 +2339,7 @@ def main():
             if st.button("📝 สร้างรายงานแบบย่อ", use_container_width=True):
                 with st.spinner("กำลังสร้างรายงาน..."):
                     fig_thai = plot_pavement_section(calc_results['layers'], Mr, CBR, lang=fig_lang)
-                    doc_bytes = create_word_report(project_title, inputs, calc_results, design_check, fig_thai)
+                    doc_bytes = create_word_report(project_title, inputs, calc_results, design_check, fig_thai, report_settings)
                     plt.close(fig_thai)
                 st.download_button(
                     label="⬇️ ดาวน์โหลดรายงานแบบย่อ (.docx)",
