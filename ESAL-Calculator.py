@@ -339,30 +339,36 @@ def create_excel_report(results_df, pavement_type, pt, param, lane_factor, direc
 # ============================================================
 def increment_table_number(base_number, offset):
     """
-    เพิ่มเลขตารางอัตโนมัติ เช่น "4-1" + offset=1 → "4-2", "4-1" + offset=2 → "4-3"
-    รองรับรูปแบบ: "4-1", "4.1", "1"
+    เพิ่มเลขตารางอัตโนมัติ โดยบวก offset เข้ากับเลขท้ายสุด
+    รองรับรูปแบบ:
+      "4-1"   + 1 -> "4-2"
+      "3.2-1" + 1 -> "3.2-2"   (X.Y-Z)
+      "4.1"   + 1 -> "4.2"
+      "1"     + 2 -> "3"
     """
+    s = base_number.strip()
+
+    # รูปแบบ "X.Y-Z" เช่น "3.2-1" — ต้องตรวจก่อน "X-Y"
+    match = re.match(r'^(\d+\.\d+)-(\d+)$', s)
+    if match:
+        return f"{match.group(1)}-{int(match.group(2)) + offset}"
+
     # รูปแบบ "X-Y" เช่น "4-1"
-    match = re.match(r'^(\d+)-(\d+)$', base_number.strip())
+    match = re.match(r'^(\d+)-(\d+)$', s)
     if match:
-        prefix = match.group(1)
-        num = int(match.group(2))
-        return f"{prefix}-{num + offset}"
-    
+        return f"{match.group(1)}-{int(match.group(2)) + offset}"
+
     # รูปแบบ "X.Y" เช่น "4.1"
-    match = re.match(r'^(\d+)\.(\d+)$', base_number.strip())
+    match = re.match(r'^(\d+)\.(\d+)$', s)
     if match:
-        prefix = match.group(1)
-        num = int(match.group(2))
-        return f"{prefix}.{num + offset}"
-    
+        return f"{match.group(1)}.{int(match.group(2)) + offset}"
+
     # รูปแบบตัวเลขเดียว เช่น "1"
-    match = re.match(r'^(\d+)$', base_number.strip())
+    match = re.match(r'^(\d+)$', s)
     if match:
-        num = int(match.group(1))
-        return str(num + offset)
-    
-    return f"{base_number}+{offset}"
+        return str(int(match.group(1)) + offset)
+
+    return f"{base_number}+{offset}"  # fallback
 
 
 # ============================================================
