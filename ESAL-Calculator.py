@@ -701,7 +701,273 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
                       align=WD_ALIGN_PARAGRAPH.RIGHT)
     
     doc.add_paragraph()
-    
+
+    # ===== 4.5 สมการคำนวณ ESAL (ตามรูปแบบรายงานที่ปรึกษา) =====
+    def _add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE):
+        """
+        เพิ่มสมการ ESAL (W18) ลงใน Word document
+        รูปแบบตามรายงานที่ปรึกษากรมทางหลวง:
+          W_{18,j} = { Σ_{i=1}^{6} A_i } × TF × L × D × 365
+          W_{18}   = Σ_{j=1}^{k=20} W_{18,j}
+        ตามด้วยตาราง "โดยที่" ไม่มีเส้น border
+        """
+        from docx.shared import Pt, Cm
+        from docx.enum.text import WD_ALIGN_PARAGRAPH
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
+
+        EQ_FONT  = 'Times New Roman'
+        EQ_SIZE  = 11
+        TH_FONT  = FONT_NAME
+        TH_SIZE  = FONT_SIZE
+
+        # ── helpers ──────────────────────────────────────────────
+        def _r(para, text, fname=EQ_FONT, fsize=EQ_SIZE, bold=False, italic=True):
+            """เพิ่ม run พร้อม font"""
+            run = para.add_run(text)
+            run.font.name  = fname
+            run.font.size  = Pt(fsize)
+            run.bold       = bold
+            run.italic     = italic
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), fname)
+            return run
+
+        def _sub(para, text, fname=EQ_FONT, fsize=EQ_SIZE - 1):
+            run = para.add_run(text)
+            run.font.name      = fname
+            run.font.size      = Pt(fsize)
+            run.font.subscript = True
+            run.italic         = True
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), fname)
+            return run
+
+        def _sup(para, text, fname=EQ_FONT, fsize=EQ_SIZE - 1):
+            run = para.add_run(text)
+            run.font.name        = fname
+            run.font.size        = Pt(fsize)
+            run.font.superscript = True
+            run.italic           = True
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), fname)
+            return run
+
+        def _th(para, text, fname=None, fsize=None, bold=False):
+            """Thai run — ไม่ italic"""
+            fn = fname or TH_FONT
+            fs = fsize or TH_SIZE
+            run = para.add_run(text)
+            run.font.name  = fn
+            run.font.size  = Pt(fs)
+            run.bold       = bold
+            run.italic     = False
+            run._element.rPr.rFonts.set(qn('w:eastAsia'), fn)
+            return run
+
+        def _thai_justify(para):
+            pPr = para._element.get_or_add_pPr()
+            jc  = OxmlElement('w:jc')
+            jc.set(qn('w:val'), 'thaiDistribute')
+            pPr.append(jc)
+
+        def _remove_tbl_border(tbl):
+            tblPr     = tbl._tbl.tblPr
+            tblBorder = OxmlElement('w:tblBorders')
+            for side in ('top','left','bottom','right','insideH','insideV'):
+                b = OxmlElement(f'w:{side}')
+                b.set(qn('w:val'), 'none')
+                b.set(qn('w:sz'),  '0')
+                b.set(qn('w:space'), '0')
+                b.set(qn('w:color'), 'auto')
+                tblBorder.append(b)
+            tblPr.append(tblBorder)
+
+        def _remove_cell_border(cell):
+            tc   = cell._tc
+            tcPr = tc.get_or_add_tcPr()
+            tcBorder = OxmlElement('w:tcBorders')
+            for side in ('top','left','bottom','right'):
+                b = OxmlElement(f'w:{side}')
+                b.set(qn('w:val'), 'none')
+                b.set(qn('w:sz'),  '0')
+                b.set(qn('w:space'), '0')
+                b.set(qn('w:color'), 'auto')
+                tcBorder.append(b)
+            tcPr.append(tcBorder)
+
+        # ── ย่อหน้าเกริ่นนำ (ตามภาพ) ────────────────────────────
+        # "โดยที่ค่าปริมาณเพลามาตรฐาน Equivalent Single Axle Load 18 kips (W₁₈)
+        #  หมายถึง ปริมาณการจราจรของรถบรรทุกมาตรฐานที่วิ่งผ่านช่องจราจรออกแบบ
+        #  (Design Lane) ในช่วงระยะเวลาออกแบบ (Design Period) โดยสามารถคำนวณจากสมการ"
+        p_intro = doc.add_paragraph()
+        p_intro.paragraph_format.first_line_indent = Cm(1.25)
+        p_intro.paragraph_format.space_after = Pt(6)
+        _thai_justify(p_intro)
+
+        # "โดยที่ค่าปริมาณเพลามาตรฐาน "
+        _th(p_intro, 'โดยที่ค่าปริมาณเพลามาตรฐาน ')
+
+        # "Equivalent Single Axle Load 18 kips (W" — TH font แต่ขึ้นต้นด้วย Latin
+        _th(p_intro, 'Equivalent Single Axle Load 18 kips (W')
+
+        # "18" subscript
+        r_sub = p_intro.add_run('18')
+        r_sub.font.name      = TH_FONT
+        r_sub.font.size      = Pt(TH_SIZE)
+        r_sub.font.subscript = True
+        r_sub.italic         = False
+        r_sub._element.rPr.rFonts.set(qn('w:eastAsia'), TH_FONT)
+
+        # ") หมายถึง ปริมาณการจราจรของรถบรรทุกมาตรฐานที่วิ่งผ่านช่องจราจรออกแบบ ("
+        _th(p_intro, ') หมายถึง ปริมาณการจราจรของรถบรรทุกมาตรฐานที่วิ่งผ่านช่องจราจรออกแบบ (')
+
+        # "Design Lane" — bold ตามภาพ
+        _th(p_intro, 'Design Lane', bold=True)
+
+        # ") ในช่วงระยะเวลาออกแบบ ("
+        _th(p_intro, ') ในช่วงระยะเวลาออกแบบ (')
+
+        # "Design Period" — bold ตามภาพ
+        _th(p_intro, 'Design Period', bold=True)
+
+        # ") โดยสามารถคำนวณจากสมการ"
+        _th(p_intro, ') โดยสามารถคำนวณจากสมการ')
+
+        # ── สมการที่ 1 ───────────────────────────────────────────
+        # W_{18,j}  =  { Σ_{i=1}^{6} A_i }  ×  TF  ×  L  ×  D  ×  365
+        p1 = doc.add_paragraph()
+        p1.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p1.paragraph_format.space_before = Pt(6)
+        p1.paragraph_format.space_after  = Pt(2)
+
+        _r(p1, 'W')
+        _sub(p1, '18')
+        _r(p1, 'j')   # subscript j (italic ปกติ)
+
+        _r(p1, '  =  ', italic=False)
+
+        # วงเล็บปีกกา { Σ A_i }  — ใช้ Unicode ปีกกาใหญ่
+        _r(p1, '\u23A7', fname=EQ_FONT, fsize=EQ_SIZE + 4, italic=False)  # ⎧ บน
+        # ใช้ Σ พร้อม superscript/subscript ในบรรทัดเดียวกัน
+        _sup(p1, '6 ', fsize=EQ_SIZE - 2)
+        _r(p1, '\u03A3', fsize=EQ_SIZE + 2, italic=False)                 # Σ
+        _sub(p1, 'i=1', fsize=EQ_SIZE - 2)
+        _r(p1, ' A', italic=True)
+        _sub(p1, 'i')
+        _r(p1, '\u23AB', fname=EQ_FONT, fsize=EQ_SIZE + 4, italic=False)  # ⎫ ล่าง
+
+        _r(p1, '  \u00D7  TF  \u00D7  L  \u00D7  D  \u00D7  365',
+           italic=False)
+
+        # ── สมการที่ 2 ───────────────────────────────────────────
+        # W_{18}  =  Σ_{j=1}^{k=20} W_{18,j}
+        p2 = doc.add_paragraph()
+        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p2.paragraph_format.space_before = Pt(2)
+        p2.paragraph_format.space_after  = Pt(10)
+
+        _r(p2, 'W')
+        _sub(p2, '18')
+
+        _r(p2, '  =  ', italic=False)
+
+        _sup(p2, f'k={num_years} ', fsize=EQ_SIZE - 2)
+        _r(p2, '\u03A3', fsize=EQ_SIZE + 2, italic=False)
+        _sub(p2, 'j=1', fsize=EQ_SIZE - 2)
+
+        _r(p2, '  W')
+        _sub(p2, '18')
+        _r(p2, 'j', italic=True)
+
+        # ── ส่วน "โดยที่" — ตารางไม่มี border ────────────────────
+        p_label = doc.add_paragraph()
+        p_label.paragraph_format.space_after = Pt(2)
+        _th(p_label, 'โดยที่')
+
+        # คอลัมน์: [สัญลักษณ์] [=] [คำอธิบาย]
+        # ใช้ตาราง 3 คอลัมน์, ไม่มี border
+        legend = [
+            # (sym_runs, desc_text)
+            # sym_runs = list of (text, is_subscript, is_superscript)
+            ([('W', False, False), ('18', True, False)],
+             f'ผลรวมปริมาณเพลาเดี่ยวมาตรฐานออกแบบขนาด 18 kip ถึงอายุออกแบบ (k) เท่ากับ {num_years} ปี'),
+            ([('W', False, False), ('18', True, False), ('j', True, False)],
+             'ผลรวมปริมาณเพลาเดี่ยวมาตรฐานออกแบบขนาด 18 kip ณ ปีใดๆ (j)'),
+            ([('TF', False, False)],
+             'Truck Factor พิจารณาตามข้อมูลด้านชั่งน้ำหนักบริเวณพื้นที่โครงการ หรือใกล้เคียง'),
+            ([('A', False, False), ('i', True, False)],
+             'ปริมาณรถบรรทุกประเภทที่ i หน่วย คัน/วัน จากข้อมูลการคาดการณ์ปริมาณจราจรของโครงการ'),
+            ([('L', False, False)],
+             'Lane Distribution Factor'),
+            ([('D', False, False)],
+             'Directional Distribution Factor'),
+        ]
+
+        leg_tbl = doc.add_table(rows=len(legend), cols=3)
+        leg_tbl.style = 'Table Grid'
+        _remove_tbl_border(leg_tbl)
+
+        # กำหนด indent ซ้ายของตาราง (~2 cm)
+        tblPr = leg_tbl._tbl.tblPr
+        tblInd = OxmlElement('w:tblInd')
+        tblInd.set(qn('w:w'),    '1134')   # ~2 cm  (1 cm = 567 twips)
+        tblInd.set(qn('w:type'), 'dxa')
+        tblPr.append(tblInd)
+
+        # กำหนดความกว้างคอลัมน์: สัญลักษณ์ | = | คำอธิบาย
+        col_widths = ['1400', '400', '6200']
+        tblGrid = OxmlElement('w:tblGrid')
+        for w in col_widths:
+            gc = OxmlElement('w:gridCol')
+            gc.set(qn('w:w'), w)
+            tblGrid.append(gc)
+        leg_tbl._tbl.insert(0, tblGrid)
+
+        for row_idx, (sym_runs, desc) in enumerate(legend):
+            row  = leg_tbl.rows[row_idx]
+            c0, c1, c2 = row.cells[0], row.cells[1], row.cells[2]
+
+            # ลบ border ทุก cell
+            for cell in (c0, c1, c2):
+                _remove_cell_border(cell)
+                # ตั้ง vertical align ให้ชิดบน
+                tcPr = cell._tc.get_or_add_tcPr()
+                vAlign = OxmlElement('w:vAlign')
+                vAlign.set(qn('w:val'), 'top')
+                tcPr.append(vAlign)
+
+            # col 0 — สัญลักษณ์ (italic Times New Roman)
+            p_sym = c0.paragraphs[0]
+            p_sym.alignment = WD_ALIGN_PARAGRAPH.RIGHT
+            for (txt, is_sub, is_sup) in sym_runs:
+                run = p_sym.add_run(txt)
+                run.font.name   = EQ_FONT
+                run.font.size   = Pt(EQ_SIZE)
+                run.italic      = True
+                run.font.subscript   = is_sub
+                run.font.superscript = is_sup
+                run._element.rPr.rFonts.set(qn('w:eastAsia'), EQ_FONT)
+
+            # col 1 — เครื่องหมาย "="
+            p_eq = c1.paragraphs[0]
+            p_eq.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            r_eq = p_eq.add_run('=')
+            r_eq.font.name  = TH_FONT
+            r_eq.font.size  = Pt(TH_SIZE)
+            r_eq.italic     = False
+            r_eq._element.rPr.rFonts.set(qn('w:eastAsia'), TH_FONT)
+
+            # col 2 — คำอธิบาย (TH SarabunPSK)
+            p_desc = c2.paragraphs[0]
+            _thai_justify(p_desc)
+            r_desc = p_desc.add_run(desc)
+            r_desc.font.name  = TH_FONT
+            r_desc.font.size  = Pt(TH_SIZE)
+            r_desc.italic     = False
+            r_desc._element.rPr.rFonts.set(qn('w:eastAsia'), TH_FONT)
+
+        doc.add_paragraph()   # blank line after legend
+
+    _add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE)
+
     # ===== 5. ตารางที่ X-3: ESAL =====
     cap3 = doc.add_paragraph()
     cap3.alignment = WD_ALIGN_PARAGRAPH.CENTER
