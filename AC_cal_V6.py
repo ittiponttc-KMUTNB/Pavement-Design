@@ -1458,7 +1458,21 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
              bold=True, color=GREEN if is_ok else RED)
 
     # ===== Section .5 ตารางสรุปการคำนวณ SN =====
-    _heading(f'{sec_no}.5  ตารางสรุปการคำนวณ Structural Number', level=3, size=15)
+    _heading(f'{sec_no}.5  สรุปการคำนวณ Structural Number', level=3, size=15)
+
+    # เกริ่นนำ 4 บรรทัด
+    p_sn_intro = _para(indent_cm=0, space_before=4)
+    p_sn_intro.paragraph_format.first_line_indent = Cm(1.25)
+    set_thai_distribute(p_sn_intro)
+    _run(p_sn_intro,
+         'เมื่อได้ทำการคำนวณความหนาของแต่ละชั้นทางตามขั้นตอนที่กล่าวมาข้างต้นแล้ว '
+         'สามารถสรุปผลการคำนวณ Structural Number (SN) ของโครงสร้างชั้นทางได้ดังนี้ '
+         'โดย Structural Number คือค่าที่แสดงถึงความสามารถในการรับน้ำหนักสะสมของโครงสร้างถนน '
+         'ซึ่งคำนวณจากผลรวมของค่าสัมประสิทธิ์ชั้นทาง (aᵢ) ค่าสัมประสิทธิ์การระบายน้ำ (mᵢ) '
+         'และความหนาของแต่ละชั้น (Dᵢ) ตามสมการ SN = Σ(aᵢ × Dᵢ × mᵢ) '
+         'การออกแบบจะผ่านเกณฑ์เมื่อ SN ที่ได้จากโครงสร้างชั้นทางที่เลือกใช้ (SN_provided) '
+         'มีค่าไม่น้อยกว่า SN ที่ต้องการตามสมการ AASHTO 1993 (SN_required) '
+         f'ผลการสรุปการคำนวณแสดงในตารางที่ {tbl_sn}')
 
     # caption ตารางสรุป SN
     if tbl_sn:
