@@ -844,15 +844,14 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
 
         _r(p1, '  =  ', italic=False)
 
-        # วงเล็บปีกกา { Σ A_i }  — ใช้ Unicode ปีกกาใหญ่
-        _r(p1, '\u23A7', fname=EQ_FONT, fsize=EQ_SIZE + 4, italic=False)  # ⎧ บน
-        # ใช้ Σ พร้อม superscript/subscript ในบรรทัดเดียวกัน
+        # วงเล็บปีกกา { Σ A_i }  — ใช้ { } ธรรมดา (ตามรูปแบบรายงาน)
+        _r(p1, '{', fname=EQ_FONT, fsize=EQ_SIZE + 2, italic=False)
         _sup(p1, '6 ', fsize=EQ_SIZE - 2)
         _r(p1, '\u03A3', fsize=EQ_SIZE + 2, italic=False)                 # Σ
         _sub(p1, 'i=1', fsize=EQ_SIZE - 2)
         _r(p1, ' A', italic=True)
         _sub(p1, 'i')
-        _r(p1, '\u23AB', fname=EQ_FONT, fsize=EQ_SIZE + 4, italic=False)  # ⎫ ล่าง
+        _r(p1, '}', fname=EQ_FONT, fsize=EQ_SIZE + 2, italic=False)
 
         _r(p1, '  \u00D7  TF  \u00D7  L  \u00D7  D  \u00D7  365',
            italic=False)
@@ -913,7 +912,9 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
         tblPr.append(tblInd)
 
         # กำหนดความกว้างคอลัมน์: สัญลักษณ์ | = | คำอธิบาย
-        col_widths = ['1400', '400', '6200']
+        # รวม ~8200 twips (ภายใน margin ของหน้า A4)
+        # col0=1100 (สัญลักษณ์), col1=400 (=), col2=6700 (คำอธิบาย บรรทัดเดียว)
+        col_widths = ['1100', '400', '6700']
         tblGrid = OxmlElement('w:tblGrid')
         for w in col_widths:
             gc = OxmlElement('w:gridCol')
