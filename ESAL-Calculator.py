@@ -1020,8 +1020,10 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
 
 
 def save_project(pavement_type, pt, param, lane_factor, direction_factor, truck_factors, traffic_df,
-                 report_settings=None):
-    """บันทึก Project เป็น JSON"""
+                 report_settings=None, comb_rigid_params=None):
+    """บันทึก Project เป็น JSON
+    comb_rigid_params = dict ของ rigid params สำหรับรายงานรวม (เฉพาะกรณี flexible)
+    """
     project = {
         'version': '3.0',
         'created': datetime.now().isoformat(),
@@ -1035,6 +1037,9 @@ def save_project(pavement_type, pt, param, lane_factor, direction_factor, truck_
     }
     if report_settings:
         project['report_settings'] = report_settings
+    # บันทึก rigid params สำหรับรายงานรวม (เฉพาะกรณี flexible)
+    if comb_rigid_params:
+        project['comb_rigid_params'] = comb_rigid_params
     return json.dumps(project, ensure_ascii=False, indent=2)
 
 
@@ -1166,6 +1171,14 @@ def main():
                         st.session_state['input_lane_factor'] = project.get('lane_factor', 0.9)
                         st.session_state['input_direction_factor'] = project.get('direction_factor', 0.5)
                         st.session_state['loaded_tf'] = project.get('truck_factors', {})
+
+                        # โหลด comb_rigid_params (สำหรับ flexible project)
+                        crp = project.get('comb_rigid_params', {})
+                        if crp:
+                            st.session_state['comb_rigid_pt']   = crp.get('pt',   2.5)
+                            st.session_state['comb_rigid_d']    = crp.get('param', 13)
+                            st.session_state['comb_rigid_lane'] = crp.get('lane_factor',      0.9)
+                            st.session_state['comb_rigid_dir']  = crp.get('direction_factor', 0.5)
                         
                         # โหลด report_settings
                         rs = project.get('report_settings', {})
@@ -1516,8 +1529,11 @@ def main():
                             comb_rigid_pt = st.selectbox("pt (Rigid)", [2.0, 2.5, 3.0],
                                                           index=1, key="comb_rigid_pt")
                         with col_p2:
-                            comb_rigid_d = st.selectbox("D (นิ้ว)", [10, 11, 12, 13, 14, 15, 16],
-                                                         index=3, key="comb_rigid_d")
+                            _rigid_d_options = [10, 11, 12, 13, 14, 15, 16]
+                            _rigid_d_default = st.session_state.get('comb_rigid_d', 13)
+                            _rigid_d_idx = _rigid_d_options.index(_rigid_d_default) if _rigid_d_default in _rigid_d_options else 3
+                            comb_rigid_d = st.selectbox("D (นิ้ว)", _rigid_d_options,
+                                                         index=_rigid_d_idx, key="comb_rigid_d")
                         with col_p3:
                             comb_rigid_lane = st.number_input("Lane Factor", 0.1, 1.0,
                                                                value=lane_factor, step=0.05,
@@ -1670,9 +1686,19 @@ def main():
                         st.error(f"❌ เกิดข้อผิดพลาด: {e}")
                 
                 with col_dl4:
+                    # รวบรวม comb_rigid_params เฉพาะกรณี flexible
+                    _crp = None
+                    if pavement_type == 'flexible':
+                        _crp = {
+                            'pt':               st.session_state.get('comb_rigid_pt',  2.5),
+                            'param':            st.session_state.get('comb_rigid_d',   13),
+                            'lane_factor':      st.session_state.get('comb_rigid_lane', lane_factor),
+                            'direction_factor': st.session_state.get('comb_rigid_dir',  direction_factor),
+                        }
                     project_json = save_project(
                         pavement_type, pt, param, lane_factor, direction_factor,
-                        truck_factors, traffic_df, report_settings
+                        truck_factors, traffic_df, report_settings,
+                        comb_rigid_params=_crp
                     )
                     st.download_button(
                         label="💾 บันทึก Project",
