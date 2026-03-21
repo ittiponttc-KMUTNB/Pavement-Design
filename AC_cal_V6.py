@@ -1462,7 +1462,13 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     p_intro = _para(indent_cm=0, space_before=6)
     p_intro.paragraph_format.first_line_indent = Cm(1.25)
     set_thai_distribute(p_intro)
-    _run(p_intro, 'ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด การออกแบบโครงสร้างถนนแบบยืดหยุ่น '
+    num_lanes_intro = report_settings.get('num_lanes', 2)
+    direction_intro = report_settings.get('direction', '2 ทิศทาง (ไป-กลับ)')
+    _run(p_intro, 'ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด ')
+    _run(p_intro, f'{num_lanes_intro}', bold=True, color=BLUE)
+    _run(p_intro, ' เลน ')
+    _run(p_intro, direction_intro, bold=True, color=BLUE)
+    _run(p_intro, ' การออกแบบโครงสร้างถนนแบบยืดหยุ่น '
          '(Flexible Pavement) ใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures '
          'โดยพิจารณาปัจจัยด้านปริมาณจราจรสะสม ESALs ความน่าเชื่อถือ และคุณสมบัติของดินรองรับ '
          'สำหรับโครงการนี้ที่ปรึกษาได้กำหนดค่าพารามิเตอร์หลักในการออกแบบ ได้แก่ '
@@ -2486,6 +2492,25 @@ def main():
                 key='rs_figure_caption'
             )
 
+        # --- กลุ่ม 4: ข้อมูลถนน ---
+        st.markdown("**🛣️ ข้อมูลถนน**")
+        col_rd1, col_rd2 = st.columns(2)
+        with col_rd1:
+            rs_num_lanes = st.number_input(
+                "จำนวนเลน (ช่องจราจร)",
+                min_value=1, max_value=10,
+                value=st.session_state.get('rs_num_lanes', 2),
+                step=1, key='rs_num_lanes'
+            )
+        with col_rd2:
+            rs_direction = st.selectbox(
+                "ทิศทางการจราจร",
+                options=["2 ทิศทาง (ไป-กลับ)", "1 ทิศทาง (ทางเดียว)"],
+                index=st.session_state.get('rs_direction_idx', 0),
+                key='rs_direction'
+            )
+            st.session_state['rs_direction_idx'] = ["2 ทิศทาง (ไป-กลับ)", "1 ทิศทาง (ทางเดียว)"].index(rs_direction)
+
         report_settings = {
             'section_number':          rs_section_number,
             'table_number_inputs':     rs_table_number_inputs,
@@ -2497,6 +2522,8 @@ def main():
             'table_caption_materials': rs_table_caption_materials,
             'table_caption_sn':        rs_table_caption_sn,
             'figure_caption':          rs_figure_caption,
+            'num_lanes':               rs_num_lanes,
+            'direction':               rs_direction,
         }
 
         st.markdown("---")
@@ -2520,7 +2547,8 @@ def main():
                 {hl_yellow(rs_section_number)}&nbsp;&nbsp;{hl_yellow(rs_section_title)}
             </p>
             <p style="text-indent:40px;text-align:justify;">
-                ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด การออกแบบโครงสร้างถนนแบบยืดหยุ่น (Flexible Pavement)
+                ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด {hl_purple(rs_num_lanes)} เลน {hl_purple(rs_direction)}
+                การออกแบบโครงสร้างถนนแบบยืดหยุ่น (Flexible Pavement)
                 ใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures โดยพิจารณาปัจจัยด้านปริมาณจราจรสะสม ESALs
                 ความน่าเชื่อถือ และคุณสมบัติของดินรองรับ
                 สำหรับโครงการนี้ที่ปรึกษาได้กำหนดค่าพารามิเตอร์หลักในการออกแบบ ได้แก่
