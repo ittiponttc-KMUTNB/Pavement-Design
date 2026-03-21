@@ -1785,7 +1785,6 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         caption_bold=True, caption_underline=True,
         use_run_fn=_run_for_caption,
     )
-    _fig_caption(f'รูปที่ {fig_no}  {fig_cap}')
 
     # Footer
     doc.add_paragraph()
