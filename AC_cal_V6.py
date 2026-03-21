@@ -1466,7 +1466,7 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     direction_intro = report_settings.get('direction', '2 ทิศทาง (ไป-กลับ)')
     _run(p_intro, 'รูปแบบของถนนลาดยางในโครงการนี้เป็นถนน ')
     _run(p_intro, f'{num_lanes_intro}', bold=True, color=BLUE)
-    _run(p_intro, ' เลน ')
+    _run(p_intro, ' ช่องจราจร ')
     _run(p_intro, direction_intro, bold=True, color=BLUE)
     _run(p_intro, ' การออกแบบโครงสร้างถนนแบบยืดหยุ่น '
          '(Flexible Pavement) ใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures '
@@ -2547,7 +2547,7 @@ def main():
                 {hl_yellow(rs_section_number)}&nbsp;&nbsp;{hl_yellow(rs_section_title)}
             </p>
             <p style="text-indent:40px;text-align:justify;">
-                รูปแบบของถนนลาดยางในโครงการนี้เป็นถนน {hl_purple(rs_num_lanes)} เลน {hl_purple(rs_direction)}
+                รูปแบบของถนนลาดยางในโครงการนี้เป็นถนน {hl_purple(rs_num_lanes)} ช่องจราจร {hl_purple(rs_direction)}
                 การออกแบบโครงสร้างถนนแบบยืดหยุ่น (Flexible Pavement)
                 ใช้วิธี AASHTO 1993 Guide for Design of Pavement Structures โดยพิจารณาปัจจัยด้านปริมาณจราจรสะสม ESALs
                 ความน่าเชื่อถือ และคุณสมบัติของดินรองรับ
