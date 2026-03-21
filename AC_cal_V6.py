@@ -1464,7 +1464,7 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     set_thai_distribute(p_intro)
     num_lanes_intro = report_settings.get('num_lanes', 2)
     direction_intro = report_settings.get('direction', '2 ทิศทาง (ไป-กลับ)')
-    _run(p_intro, 'ถนนลาดยางซึ่งประกอบด้วยวัสดุงานทางหลายชนิด ')
+    _run(p_intro, 'รูปแบบของถนนลาดยางในโครงการนี้เป็นถนน ')
     _run(p_intro, f'{num_lanes_intro}', bold=True, color=BLUE)
     _run(p_intro, ' เลน ')
     _run(p_intro, direction_intro, bold=True, color=BLUE)
