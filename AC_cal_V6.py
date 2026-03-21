@@ -1057,12 +1057,6 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig, r
         caption_text=None,
     )
 
-    doc.add_paragraph()
-    add_thai_paragraph(doc,
-        'รายงานนี้สร้างโดยแอปพลิเคชัน AASHTO 1993 Flexible Pavement Design v6.0\n'
-        'พัฒนาโดย รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.',
-        size_pt=12, alignment=WD_ALIGN_PARAGRAPH.CENTER)
-
     doc_bytes = BytesIO()
     doc.save(doc_bytes)
     doc_bytes.seek(0)
@@ -1785,14 +1779,6 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
         caption_bold=True, caption_underline=True,
         use_run_fn=_run_for_caption,
     )
-
-    # Footer
-    doc.add_paragraph()
-    footer_p = doc.add_paragraph()
-    footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    _run(footer_p,
-         'พัฒนาโดย รศ.ดร.อิทธิพล มีผล // ภาควิชาครุศาสตร์โยธา // มจพ.',
-         size=12, italic=True)
 
     doc_bytes = BytesIO()
     doc.save(doc_bytes)
