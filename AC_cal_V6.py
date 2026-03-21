@@ -1251,19 +1251,31 @@ def _add_summary_layer_table(doc, calc_results, inputs, fig,
         hdr_tc_els.append(tc_el)
     tbl_el.append(tr_hdr)
 
-    # ---- Figure bytes ----
+    # ---- เพิ่มรูปเข้า doc.part ก่อน (เพื่อให้ rId ถูก register ใน doc จริง) ----
+    # สร้าง paragraph ชั่วคราว ใส่รูป แล้วดึง drawing element มาใช้
     fig_buf = get_figure_as_bytes(fig)
+    _tmp_para = doc.add_paragraph()
+    _tmp_run  = _tmp_para.add_run()
+    fig_buf.seek(0)
+    _tmp_run.add_picture(fig_buf, width=Inches(2.4))
+    _drawing_el = _tmp_run._r.find(qn('w:drawing'))
+    # ย้าย drawing element ออกจาก run ชั่วคราว (detach) เพื่อนำไปวางใน tc
+    if _drawing_el is not None:
+        _tmp_run._r.remove(_drawing_el)
+    # ลบ paragraph ชั่วคราวออกจาก body
+    _p_el = _tmp_para._p
+    _p_el.getparent().remove(_p_el)
 
     # ---- Data rows ----
-    data_tc_els = []   # เก็บ tc element ที่สร้างเพื่อใส่รูปและ shading
+    data_tc_els = []
     for i, (mat_name, thick) in enumerate(all_data_rows):
         tr = OxmlElement('w:tr')
 
         # col0: รูปตัดขวาง (vMerge)
-        vm = 'restart' if i == 0 else 'continue'
+        vm  = 'restart' if i == 0 else 'continue'
         tc0 = _make_tc_el(COL_W[0], vmerge=vm, valign='center')
-        if i == 0:
-            # ลบ w:p ว่าง แล้วใส่ paragraph พร้อมรูป
+        if i == 0 and _drawing_el is not None:
+            # ลบ w:p ว่าง แล้วใส่ paragraph พร้อม drawing
             for old_p in tc0.findall(qn('w:p')):
                 tc0.remove(old_p)
             p_el = OxmlElement('w:p')
@@ -1272,8 +1284,10 @@ def _add_summary_layer_table(doc, calc_results, inputs, fig,
             jc.set(qn('w:val'), 'center')
             pPr.append(jc)
             p_el.append(pPr)
+            r_pic = OxmlElement('w:r')
+            r_pic.append(_drawing_el)   # drawing element มี rId ที่ถูกต้องแล้ว
+            p_el.append(r_pic)
             tc0.append(p_el)
-            # จะใส่รูปภายหลังผ่าน python-docx run API
         tr.append(tc0)
 
         # col1: ความหนา
@@ -1289,43 +1303,16 @@ def _add_summary_layer_table(doc, calc_results, inputs, fig,
         tbl_el.append(tr)
         data_tc_els.append((tc0, tc1, tc2))
 
-    # ---- แทรก tbl ใน body ก่อน footer paragraph สุดท้าย ----
-    body = doc.element.body
-    body.append(tbl_el)
+    # ---- แทรก tbl เข้า body ----
+    doc.element.body.append(tbl_el)
 
-    # ---- ใส่รูปใน tc0 ของ row แรก ผ่าน python-docx (หลัง append เข้า body แล้ว) ----
-    tc0_first = data_tc_els[0][0]
-    # หา w:p ใน tc0_first
-    p_in_tc = tc0_first.find(qn('w:p'))
-    if p_in_tc is not None:
-        from docx.oxml.ns import nsmap
-        from docx.text.paragraph import Paragraph
-        from docx.table import _Cell
-        # สร้าง run ผ่าน lxml โดยตรงโดยใช้ InlineImage approach
-        # ง่ายกว่า: สร้าง temporary doc เพื่อ render picture run แล้วย้าย drawing element
-        tmp_doc = Document()
-        fig_buf.seek(0)
-        tmp_doc.add_picture(fig_buf, width=Inches(2.4))
-        # drawing อยู่ใน paragraphs[-1].runs[-1]
-        tmp_p    = tmp_doc.paragraphs[-1]._p
-        tmp_runs = tmp_p.findall(qn('w:r'))
-        drawing_r = None
-        for r in tmp_runs:
-            if r.find(qn('w:drawing')) is not None:
-                drawing_r = r
-                break
-        if drawing_r is not None:
-            from copy import deepcopy
-            p_in_tc.append(deepcopy(drawing_r))
-
-    # ---- ใส่ shading header ผ่าน add_table_header_shading_fn ----
-    # ต้องหา Cell object จาก python-docx table
-    # เนื่องจากตอนนี้ tbl_el อยู่ใน body แล้ว เราหาตารางล่าสุด
+    # ---- ใส่ shading header ----
     real_tbl = doc.tables[-1]
     for j in range(3):
         add_table_header_shading_fn(real_tbl.rows[0].cells[j], fill_hex='BDD7EE')
 
     return real_tbl
+
 
 
 
