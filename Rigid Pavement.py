@@ -1486,50 +1486,58 @@ def _add_design_result_section(doc, inputs, calculated_values, comparison_result
 def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
                               fig_caption="", cbr_subgrade=3.0):
     """
-    ตารางสรุปชั้นทางสำหรับหัวข้อ 4.6  —  รูปแบบภาพ 1
-    โครงสร้าง:
-      ┌──────┬──────────────────────────┬──────────────┐
-      │ ลำดับ│       ชนิดวัสดุ          │ ความหนา (ซม.)│  ← Header สีฟ้า
-      ├──────┼──────────────────────────┼──────────────┤
-      │  1   │ ผิวทางคอนกรีต JPCP      │      28      │
-      │  2   │ ชื่อชั้น                 │       5      │
-      │  ... │ ...                      │     ...      │
-      ├──────┴──────────────────────────┴──────────────┤
-      │         รูปตัดขวาง (merge 3 col)               │
-      ├──────┬──────────────────────────┬──────────────┤
-      │  N   │ ดินคันทาง               │  CBR x.x %   │
-      └──────┴──────────────────────────┴──────────────┘
+    ตารางสรุปชั้นทางสำหรับหัวข้อ 4.6  —  รูปแบบใหม่ตามเอกสารอ้างอิง
+    โครงสร้าง 3 คอลัมน์แนวตั้ง:
+      ┌────────────────────────┬──────────────┬────────────────────────────┐
+      │      รายละเอียด        │  หนา (ซม.)  │        ชนิดวัสดุ           │  ← Header สีฟ้า
+      │  (รูปตัดขวาง rowspan)  │──────────────┼────────────────────────────┤
+      │                        │      28      │  ผิวทางคอนกรีต JPCP/JRCP  │
+      │                        │──────────────┼────────────────────────────┤
+      │                        │       5      │  ชื่อชั้น 2               │
+      │                        │──────────────┼────────────────────────────┤
+      │                        │  Existing    │  Earth Embankment or       │
+      │                        │              │  Subgrade, CBR ≥ x%        │
+      └────────────────────────┴──────────────┴────────────────────────────┘
       Caption: รูปที่ X-X  โครงสร้างชั้นทาง... (bold underline center)
+
+    คอลัมน์ซ้าย: รูปตัดขวาง (rowspan ทั้งตาราง ยกเว้น header)
+    คอลัมน์กลาง: ความหนา (ซม.)
+    คอลัมน์ขวา: ชนิดวัสดุ (ภาษาไทย)
     """
     from docx.shared import Pt, Inches
     from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.enum.table import WD_TABLE_ALIGNMENT
+    from docx.enum.table import WD_TABLE_ALIGNMENT, WD_ALIGN_VERTICAL
     from docx.oxml.ns import qn
     from docx.oxml import OxmlElement
 
     HEADER_BG = 'BDD7EE'
-    FONT  = _get_font_name()
-    FS    = Pt(15)
-    col_w = [934, 6004, 2134]   # ลำดับ | ชนิดวัสดุ | ความหนา  (9072 DXA = เต็มหน้า)
+    FONT = _get_font_name()
+    FS   = Pt(15)
+    # คอลัมน์: รูปตัด | หนา | ชนิดวัสดุ
+    # รวม 9072 DXA ≈ เต็มหน้า A4 (margin 2.5+2.5 cm)
+    col_w = [3800, 1400, 3872]
 
     def _qset(el, attr, val):
         el.set(qn(attr), val)
 
-    def _set_widths(row):
-        for i, cell in enumerate(row.cells):
-            tc = cell._tc; tcPr = tc.get_or_add_tcPr()
-            tcW = OxmlElement('w:tcW')
-            _qset(tcW, 'w:w', str(col_w[i])); _qset(tcW, 'w:type', 'dxa')
-            tcPr.append(tcW)
-
-    def _cell_margin(cell):
+    def _cell_margin(cell, mar=80):
         tc = cell._tc; tcPr = tc.get_or_add_tcPr()
         tcMar = OxmlElement('w:tcMar')
-        for side in ['top','bottom','left','right']:
+        for side in ['top', 'bottom', 'left', 'right']:
             m = OxmlElement(f'w:{side}')
-            _qset(m, 'w:w', '80'); _qset(m, 'w:type', 'dxa')
+            _qset(m, 'w:w', str(mar)); _qset(m, 'w:type', 'dxa')
             tcMar.append(m)
         tcPr.append(tcMar)
+
+    def _set_cell_width(cell, w):
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        tcW = OxmlElement('w:tcW')
+        _qset(tcW, 'w:w', str(w)); _qset(tcW, 'w:type', 'dxa')
+        tcPr.append(tcW)
+
+    def _set_row_widths(row):
+        for i, cell in enumerate(row.cells):
+            _set_cell_width(cell, col_w[i])
 
     def _bg(cell, color):
         tc = cell._tc; tcPr = tc.get_or_add_tcPr()
@@ -1538,81 +1546,124 @@ def _add_summary_layer_table(doc, layers_data, d_cm, pavement_type,
         _qset(shd, 'w:fill', color); tcPr.append(shd)
 
     def _sc(cell, text, bold=False,
-            align=WD_ALIGN_PARAGRAPH.LEFT, bg_color=None):
+            align=WD_ALIGN_PARAGRAPH.LEFT, bg_color=None, font_size=None):
         cell.text = ''
         p = cell.paragraphs[0]; p.alignment = align
         run = p.add_run(text)
-        run.font.name = FONT; run.font.size = FS; run.bold = bold
+        run.font.name = FONT
+        run.font.size = font_size or FS
+        run.bold = bold
         _cell_margin(cell)
-        if bg_color: _bg(cell, bg_color)
+        if bg_color:
+            _bg(cell, bg_color)
 
-    def _merge_row_3col(tbl):
-        """เพิ่มแถวและ merge 3 คอลัมน์"""
-        row = tbl.add_row()
-        a, b, c = row.cells
-        a.merge(c)
-        return row
+    def _set_vmerge(cell, restart=False):
+        """ตั้งค่า vertical merge — restart=True สำหรับ cell แรก"""
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        vMerge = OxmlElement('w:vMerge')
+        if restart:
+            _qset(vMerge, 'w:val', 'restart')
+        tcPr.append(vMerge)
 
-    # ── สร้างตาราง ──────────────────────────────────────────────────────
-    # นับจำนวนชั้นที่มีความหนา > 0
+    def _set_valign(cell, val='center'):
+        """ตั้ง vertical alignment"""
+        tc = cell._tc; tcPr = tc.get_or_add_tcPr()
+        vAlign = OxmlElement('w:vAlign')
+        _qset(vAlign, 'w:val', val)
+        tcPr.append(vAlign)
+
+    # ── เตรียมข้อมูลชั้นทาง ─────────────────────────────────────────────
     valid_layers = [l for l in layers_data if l.get('thickness_cm', 0) > 0]
-    # แถว: header + คอนกรีต + ชั้นวัสดุ + merge(รูป) + subgrade
-    tbl = doc.add_table(rows=1, cols=3)
-    tbl.style = 'Table Grid'
-    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
 
-    # ── Header ──────────────────────────────────────────────────────────
-    hdr = tbl.rows[0]; _set_widths(hdr)
-    _sc(hdr.cells[0], 'ลำดับ',         bold=True,
-        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
-    _sc(hdr.cells[1], 'ชนิดวัสดุ',    bold=True,
-        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
-    _sc(hdr.cells[2], 'ความหนา (ซม.)', bold=True,
-        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
-
-    # ── แถวคอนกรีต ──────────────────────────────────────────────────────
-    row = tbl.add_row(); _set_widths(row)
-    _sc(row.cells[0], '1',  align=WD_ALIGN_PARAGRAPH.CENTER)
-    _sc(row.cells[1], f'ผิวทางคอนกรีต {pavement_type}')
-    _sc(row.cells[2], str(d_cm), align=WD_ALIGN_PARAGRAPH.CENTER)
-
-    # ── แถวชั้นวัสดุ ─────────────────────────────────────────────────────
-    row_num = 2
+    # รายการแถว (ไม่รวม header): คอนกรีต + ชั้นวัสดุ + subgrade
+    data_rows = []
+    data_rows.append({
+        'thick': str(d_cm),
+        'material': f'ผิวทางคอนกรีต\n{pavement_type}',
+    })
     for layer in valid_layers:
-        row = tbl.add_row(); _set_widths(row)
-        _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
-        _sc(row.cells[1], _fmt_layer_name(layer.get('name', '')))
-        _sc(row.cells[2], str(layer.get('thickness_cm', 0)),
-            align=WD_ALIGN_PARAGRAPH.CENTER)
-        row_num += 1
+        data_rows.append({
+            'thick': str(layer.get('thickness_cm', 0)),
+            'material': _fmt_layer_name(layer.get('name', '')),
+        })
+    data_rows.append({
+        'thick': 'Existing',
+        'material': f'Earth Embankment\nor Subgrade, CBR\u2265\n{cbr_subgrade:.0f} %',
+    })
 
-    # ── แถว merge — รูปตัดขวาง ──────────────────────────────────────────
+    n_data = len(data_rows)   # จำนวนแถวข้อมูล (ไม่รวม header)
+
+    # ── สร้างรูปตัดขวาง ─────────────────────────────────────────────────
     fig = create_pavement_structure_figure(valid_layers, d_cm)
-    merged_row = _merge_row_3col(tbl)
-    merged_cell = merged_row.cells[0]
-    # ตั้ง width ของ merged cell = ผลรวมทั้งหมด
-    tc = merged_cell._tc; tcPr = tc.get_or_add_tcPr()
-    tcW = OxmlElement('w:tcW')
-    _qset(tcW, 'w:w', str(sum(col_w))); _qset(tcW, 'w:type', 'dxa')
-    tcPr.append(tcW)
-    _cell_margin(merged_cell)
-
-    p_fig = merged_cell.paragraphs[0]
-    p_fig.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    fig_bytes = None
     if fig:
         img_buf = BytesIO()
         fig.savefig(img_buf, format='png', dpi=150,
                     bbox_inches='tight', facecolor='white')
         img_buf.seek(0)
-        p_fig.add_run().add_picture(img_buf, width=Inches(4.2))
+        fig_bytes = img_buf.read()
         plt.close(fig)
 
-    # ── แถว Subgrade ────────────────────────────────────────────────────
-    row = tbl.add_row(); _set_widths(row)
-    _sc(row.cells[0], str(row_num), align=WD_ALIGN_PARAGRAPH.CENTER)
-    _sc(row.cells[1], 'ดินคันทาง')
-    _sc(row.cells[2], f'CBR \u2265 {cbr_subgrade:.1f} %',
-        align=WD_ALIGN_PARAGRAPH.CENTER)
+    # ── สร้างตาราง: 1 header + n_data แถวข้อมูล ──────────────────────────
+    total_rows = 1 + n_data
+    tbl = doc.add_table(rows=total_rows, cols=3)
+    tbl.style = 'Table Grid'
+    tbl.alignment = WD_TABLE_ALIGNMENT.LEFT
+
+    # ตั้ง table width
+    tbl_xml = tbl._tbl
+    tbl_pr = tbl_xml.find(qn('w:tblPr'))
+    if tbl_pr is None:
+        tbl_pr = OxmlElement('w:tblPr')
+        tbl_xml.insert(0, tbl_pr)
+    tbl_w_el = OxmlElement('w:tblW')
+    _qset(tbl_w_el, 'w:w', str(sum(col_w))); _qset(tbl_w_el, 'w:type', 'dxa')
+    tbl_pr.append(tbl_w_el)
+
+    # ── แถว Header ──────────────────────────────────────────────────────
+    hdr = tbl.rows[0]
+    _set_row_widths(hdr)
+    _sc(hdr.cells[0], 'รายละเอียด',   bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+    _sc(hdr.cells[1], 'หนา\n(ซม.)',   bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+    _sc(hdr.cells[2], 'ชนิดวัสดุ',   bold=True,
+        align=WD_ALIGN_PARAGRAPH.CENTER, bg_color=HEADER_BG)
+
+    # ── แถวข้อมูล ────────────────────────────────────────────────────────
+    for i, dr in enumerate(data_rows):
+        row = tbl.rows[1 + i]
+        _set_row_widths(row)
+
+        # คอลัมน์ซ้าย: รูปตัดขวาง (vMerge)
+        left_cell = row.cells[0]
+        if i == 0:
+            # แถวแรก: ใส่รูป + เริ่ม vMerge
+            _set_vmerge(left_cell, restart=True)
+            _set_cell_width(left_cell, col_w[0])
+            _set_valign(left_cell, 'center')
+            _cell_margin(left_cell)
+            left_cell.text = ''
+            p_img = left_cell.paragraphs[0]
+            p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+            if fig_bytes:
+                p_img.add_run().add_picture(
+                    BytesIO(fig_bytes), width=Inches(2.4))
+        else:
+            # แถวถัดไป: vMerge ต่อเนื่อง (ไม่ใส่เนื้อหา)
+            _set_vmerge(left_cell, restart=False)
+            _set_cell_width(left_cell, col_w[0])
+            left_cell.text = ''
+
+        # คอลัมน์กลาง: ความหนา
+        _sc(row.cells[1], dr['thick'],
+            align=WD_ALIGN_PARAGRAPH.CENTER, font_size=Pt(15))
+        _set_valign(row.cells[1], 'center')
+
+        # คอลัมน์ขวา: ชนิดวัสดุ
+        _sc(row.cells[2], dr['material'],
+            align=WD_ALIGN_PARAGRAPH.LEFT, font_size=Pt(15))
+        _set_valign(row.cells[2], 'center')
 
     # ── Caption ──────────────────────────────────────────────────────────
     if fig_caption:
