@@ -1050,30 +1050,12 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig, r
     for run in h2_8.runs:
         set_thai_font(run, size_pt=16, bold=True)
 
-    structure_rows = _build_structure_rows(calc_results, inputs.get('CBR', 3.0))
-    sum_table = doc.add_table(rows=1 + len(structure_rows), cols=3)
-    sum_table.style = 'Table Grid'
-    sum_table.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for j, h in enumerate(['ลำดับ', 'ชนิดวัสดุ', 'ความหนา (ซม.)']):
-        cell = sum_table.rows[0].cells[j]
-        cell.text = ''
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        r = p.add_run(h)
-        set_thai_font(r, size_pt=15, bold=True)
-        add_table_header_shading(cell)
-    for i, (num, mat_name, thickness) in enumerate(structure_rows):
-        row = sum_table.rows[i + 1]
-        for j, (val, align) in enumerate([
-            (str(num), WD_ALIGN_PARAGRAPH.CENTER),
-            (mat_name, WD_ALIGN_PARAGRAPH.LEFT),
-            (thickness, WD_ALIGN_PARAGRAPH.CENTER)
-        ]):
-            row.cells[j].text = ''
-            p = row.cells[j].paragraphs[0]
-            p.alignment = align
-            r = p.add_run(val)
-            set_thai_font(r, size_pt=15)
+    _add_summary_layer_table(
+        doc, calc_results, inputs, fig,
+        set_thai_font_fn=set_thai_font,
+        add_table_header_shading_fn=add_table_header_shading,
+        caption_text=None,
+    )
 
     doc.add_paragraph()
     add_thai_paragraph(doc,
@@ -1085,6 +1067,267 @@ def create_word_report(project_title, inputs, calc_results, design_check, fig, r
     doc.save(doc_bytes)
     doc_bytes.seek(0)
     return doc_bytes
+
+
+def _add_summary_layer_table(doc, calc_results, inputs, fig,
+                             set_thai_font_fn, add_table_header_shading_fn,
+                             caption_text=None,
+                             caption_bold=True, caption_underline=True,
+                             use_run_fn=None):
+    """
+    ตารางสรุปโครงสร้างชั้นทาง 3 คอลัมน์ (สร้าง XML ระดับ w:tc โดยตรง):
+      ซ้าย  (3800 DXA) : รูปตัดขวาง — vMerge ทอดทุกแถวข้อมูล
+      กลาง  (1400 DXA) : ความหนา (ซม.)
+      ขวา   (3872 DXA) : ชนิดวัสดุ
+    Header: สีฟ้าอ่อน BDD7EE, bold, center
+    """
+    from docx.oxml import OxmlElement
+    from docx.oxml.ns import qn
+    from docx.shared import Pt, Inches
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+    from docx.oxml.parser import parse_xml
+    from lxml import etree
+
+    CBR_val = inputs.get('CBR', 3.0)
+    COL_W   = [3800, 1400, 3872]
+    NS      = 'http://schemas.openxmlformats.org/wordprocessingml/2006/main'
+
+    # ---- build data rows ----
+    structure_rows = []
+    ac_sub  = calc_results.get('ac_sublayers', None)
+    layers  = calc_results.get('layers', [])
+    first   = layers[0] if layers else None
+
+    if ac_sub is not None and first:
+        for key, label in [
+            ('wearing', 'ผิวทางแอสฟัลต์คอนกรีต\n(AC. Wearing Course)'),
+            ('binder',  'รองผิวทางแอสฟัลต์คอนกรีต\n(AC. Binder Course)'),
+            ('base',    'พื้นทางแอสฟัลต์คอนกรีต\n(AC. Base Course)'),
+        ]:
+            if ac_sub.get(key, 0) > 0:
+                structure_rows.append((label, f"{ac_sub[key]:.0f}"))
+        for layer in layers[1:]:
+            structure_rows.append((short_material_name(layer['material']),
+                                   f"{layer['design_thickness_cm']:.0f}"))
+    else:
+        for layer in layers:
+            structure_rows.append((short_material_name(layer['material']),
+                                   f"{layer['design_thickness_cm']:.0f}"))
+
+    subgrade_mat   = f"Earth Embankment\nor Subgrade, CBR\u2265\n{CBR_val:.1f} %"
+    subgrade_thick = "Existing"
+    all_data_rows  = structure_rows + [(subgrade_mat, subgrade_thick)]
+
+    # ---- helper: สร้าง w:tc element ใหม่จาก scratch ----
+    def _make_tc_el(width_dxa, vmerge=None, valign='center'):
+        """
+        สร้าง <w:tc> element ใหม่ พร้อม tcPr (tcW + vMerge? + vAlign)
+        vmerge: None | 'restart' | 'continue'
+        """
+        tc_el = OxmlElement('w:tc')
+        tcPr  = OxmlElement('w:tcPr')
+
+        tcW = OxmlElement('w:tcW')
+        tcW.set(qn('w:w'),    str(width_dxa))
+        tcW.set(qn('w:type'), 'dxa')
+        tcPr.append(tcW)
+
+        if vmerge is not None:
+            vm = OxmlElement('w:vMerge')
+            if vmerge == 'restart':
+                vm.set(qn('w:val'), 'restart')
+            # 'continue' => ไม่ set val attribute (Word ตีความเป็น continue)
+            tcPr.append(vm)
+
+        va = OxmlElement('w:vAlign')
+        va.set(qn('w:val'), valign)
+        tcPr.append(va)
+
+        tc_el.append(tcPr)
+        # empty paragraph (required by OOXML)
+        tc_el.append(OxmlElement('w:p'))
+        return tc_el
+
+    # ---- helper: หา Cell object จาก tc element (เพื่อใส่ text/picture) ----
+    def _wrap_tc(tc_el):
+        """wrap raw tc element เป็น CT_Tc เพื่อใช้ python-docx API"""
+        from docx.oxml.table import CT_Tc
+        # CT_Tc inherit จาก lxml BaseElement แล้วก็เป็น tc_el นั่นเอง
+        return tc_el
+
+    # ---- helper: เพิ่ม paragraph ใน tc element ----
+    def _tc_add_para(tc_el, text, bold=False, center=True, underline=False):
+        # ลบ w:p ว่างที่สร้างไว้แล้ว
+        for old_p in tc_el.findall(qn('w:p')):
+            tc_el.remove(old_p)
+        p_el = OxmlElement('w:p')
+        pPr  = OxmlElement('w:pPr')
+        jc   = OxmlElement('w:jc')
+        jc.set(qn('w:val'), 'center' if center else 'left')
+        pPr.append(jc)
+        p_el.append(pPr)
+
+        # split by newline → multiple runs with <w:br>
+        parts = text.split('\n')
+        for p_idx, part in enumerate(parts):
+            if p_idx > 0:
+                br_r = OxmlElement('w:r')
+                br   = OxmlElement('w:br')
+                br_r.append(br)
+                p_el.append(br_r)
+            r_el = OxmlElement('w:r')
+            rPr  = OxmlElement('w:rPr')
+            rFonts = OxmlElement('w:rFonts')
+            rFonts.set(qn('w:ascii'),    'TH SarabunPSK')
+            rFonts.set(qn('w:hAnsi'),    'TH SarabunPSK')
+            rFonts.set(qn('w:cs'),       'TH SarabunPSK')
+            rPr.append(rFonts)
+            sz = OxmlElement('w:sz')
+            sz.set(qn('w:val'), '30')   # 15pt = 30 half-points
+            szCs = OxmlElement('w:szCs')
+            szCs.set(qn('w:val'), '30')
+            rPr.append(sz)
+            rPr.append(szCs)
+            if bold:
+                rPr.append(OxmlElement('w:b'))
+                rPr.append(OxmlElement('w:bCs'))
+            if underline:
+                u_el = OxmlElement('w:u')
+                u_el.set(qn('w:val'), 'single')
+                rPr.append(u_el)
+            r_el.append(rPr)
+            t_el = OxmlElement('w:t')
+            t_el.text = part
+            if part.startswith(' ') or part.endswith(' '):
+                t_el.set('{http://www.w3.org/XML/1998/namespace}space', 'preserve')
+            r_el.append(t_el)
+            p_el.append(r_el)
+
+        tc_el.append(p_el)
+
+    # ---- caption ----
+    if caption_text:
+        cap_p = doc.add_paragraph()
+        cap_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        if use_run_fn:
+            use_run_fn(cap_p, caption_text, bold=caption_bold, underline=caption_underline)
+        else:
+            r = cap_p.add_run(caption_text)
+            set_thai_font_fn(r, size_pt=15, bold=caption_bold)
+            if caption_underline:
+                r.underline = True
+
+    # ---- build tbl element ----
+    tbl_el = OxmlElement('w:tbl')
+
+    tblPr = OxmlElement('w:tblPr')
+    tblStyle = OxmlElement('w:tblStyle')
+    tblStyle.set(qn('w:val'), 'TableGrid')
+    tblPr.append(tblStyle)
+    tblW_el = OxmlElement('w:tblW')
+    tblW_el.set(qn('w:w'),    str(sum(COL_W)))
+    tblW_el.set(qn('w:type'), 'dxa')
+    tblPr.append(tblW_el)
+    jc_tbl = OxmlElement('w:jc')
+    jc_tbl.set(qn('w:val'), 'center')
+    tblPr.append(jc_tbl)
+    tbl_el.append(tblPr)
+
+    tblGrid = OxmlElement('w:tblGrid')
+    for w in COL_W:
+        gc = OxmlElement('w:gridCol')
+        gc.set(qn('w:w'), str(w))
+        tblGrid.append(gc)
+    tbl_el.append(tblGrid)
+
+    # ---- Header row ----
+    tr_hdr = OxmlElement('w:tr')
+    hdr_labels = ['รายละเอียด', 'หนา (ซม.)', 'ชนิดวัสดุ']
+    hdr_tc_els = []
+    for j, (label, w) in enumerate(zip(hdr_labels, COL_W)):
+        tc_el = _make_tc_el(w, vmerge=None, valign='center')
+        _tc_add_para(tc_el, label, bold=True, center=True)
+        tr_hdr.append(tc_el)
+        hdr_tc_els.append(tc_el)
+    tbl_el.append(tr_hdr)
+
+    # ---- Figure bytes ----
+    fig_buf = get_figure_as_bytes(fig)
+
+    # ---- Data rows ----
+    data_tc_els = []   # เก็บ tc element ที่สร้างเพื่อใส่รูปและ shading
+    for i, (mat_name, thick) in enumerate(all_data_rows):
+        tr = OxmlElement('w:tr')
+
+        # col0: รูปตัดขวาง (vMerge)
+        vm = 'restart' if i == 0 else 'continue'
+        tc0 = _make_tc_el(COL_W[0], vmerge=vm, valign='center')
+        if i == 0:
+            # ลบ w:p ว่าง แล้วใส่ paragraph พร้อมรูป
+            for old_p in tc0.findall(qn('w:p')):
+                tc0.remove(old_p)
+            p_el = OxmlElement('w:p')
+            pPr  = OxmlElement('w:pPr')
+            jc   = OxmlElement('w:jc')
+            jc.set(qn('w:val'), 'center')
+            pPr.append(jc)
+            p_el.append(pPr)
+            tc0.append(p_el)
+            # จะใส่รูปภายหลังผ่าน python-docx run API
+        tr.append(tc0)
+
+        # col1: ความหนา
+        tc1 = _make_tc_el(COL_W[1], vmerge=None, valign='center')
+        _tc_add_para(tc1, thick, bold=False, center=True)
+        tr.append(tc1)
+
+        # col2: ชนิดวัสดุ
+        tc2 = _make_tc_el(COL_W[2], vmerge=None, valign='center')
+        _tc_add_para(tc2, mat_name, bold=False, center=True)
+        tr.append(tc2)
+
+        tbl_el.append(tr)
+        data_tc_els.append((tc0, tc1, tc2))
+
+    # ---- แทรก tbl ใน body ก่อน footer paragraph สุดท้าย ----
+    body = doc.element.body
+    body.append(tbl_el)
+
+    # ---- ใส่รูปใน tc0 ของ row แรก ผ่าน python-docx (หลัง append เข้า body แล้ว) ----
+    tc0_first = data_tc_els[0][0]
+    # หา w:p ใน tc0_first
+    p_in_tc = tc0_first.find(qn('w:p'))
+    if p_in_tc is not None:
+        from docx.oxml.ns import nsmap
+        from docx.text.paragraph import Paragraph
+        from docx.table import _Cell
+        # สร้าง run ผ่าน lxml โดยตรงโดยใช้ InlineImage approach
+        # ง่ายกว่า: สร้าง temporary doc เพื่อ render picture run แล้วย้าย drawing element
+        tmp_doc = Document()
+        fig_buf.seek(0)
+        tmp_doc.add_picture(fig_buf, width=Inches(2.4))
+        # drawing อยู่ใน paragraphs[-1].runs[-1]
+        tmp_p    = tmp_doc.paragraphs[-1]._p
+        tmp_runs = tmp_p.findall(qn('w:r'))
+        drawing_r = None
+        for r in tmp_runs:
+            if r.find(qn('w:drawing')) is not None:
+                drawing_r = r
+                break
+        if drawing_r is not None:
+            from copy import deepcopy
+            p_in_tc.append(deepcopy(drawing_r))
+
+    # ---- ใส่ shading header ผ่าน add_table_header_shading_fn ----
+    # ต้องหา Cell object จาก python-docx table
+    # เนื่องจากตอนนี้ tbl_el อยู่ใน body แล้ว เราหาตารางล่าสุด
+    real_tbl = doc.tables[-1]
+    for j in range(3):
+        add_table_header_shading_fn(real_tbl.rows[0].cells[j], fill_hex='BDD7EE')
+
+    return real_tbl
+
+
 
 
 def _build_structure_rows(calc_results, cbr_val):
@@ -1538,29 +1781,23 @@ def create_word_report_intro(project_title, inputs, calc_results, design_check, 
     _run(p_sum_final, summary_text, bold=True,
          color=RGBColor(0x00, 0x70, 0x00) if passed else RGBColor(0xC0, 0x00, 0x00))
 
-    # ตารางสรุปโครงสร้างชั้นทาง
+    # ตารางสรุปโครงสร้างชั้นทาง (3 คอลัมน์ พร้อมรูปตัดขวาง)
     doc.add_paragraph()
     surf_name = short_material_name(calc_results['layers'][0]['material']) if calc_results.get('layers') else ''
     p_sf = _para(indent_cm=0, space_before=6)
     _run(p_sf, f'รูปแบบที่: {surf_name}', bold=True)
 
-    structure_rows = _build_structure_rows(calc_results, inputs.get('CBR', 3.0))
-    sum_tbl = doc.add_table(rows=1 + len(structure_rows), cols=3)
-    sum_tbl.style = 'Table Grid'
-    sum_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    for j, h in enumerate(['ลำดับ', 'ชนิดวัสดุ', 'ความหนา (ซม.)']):
-        _tbl_cell(sum_tbl.rows[0].cells[j], h, bold=True, fill='BDD7EE')
-    for i, (num, mat_name, thickness) in enumerate(structure_rows):
-        row = sum_tbl.rows[i + 1]
-        _tbl_cell(row.cells[0], str(num))
-        _tbl_cell(row.cells[1], mat_name, align=WD_ALIGN_PARAGRAPH.LEFT)
-        _tbl_cell(row.cells[2], thickness)
+    def _run_for_caption(para, text, bold=False, underline=False):
+        _run(para, text, bold=bold, underline=underline)
 
-    # รูปตัดขวาง + caption
-    doc.add_paragraph()
-    fig_bytes_intro = get_figure_as_bytes(fig)
-    doc.add_picture(fig_bytes_intro, width=Inches(5.5))
-    doc.paragraphs[-1].alignment = WD_ALIGN_PARAGRAPH.CENTER
+    _add_summary_layer_table(
+        doc, calc_results, inputs, fig,
+        set_thai_font_fn=set_thai_font,
+        add_table_header_shading_fn=add_table_header_shading,
+        caption_text=f'ตารางที่ {tbl_sn}  {tbl_cap_sn}',
+        caption_bold=True, caption_underline=True,
+        use_run_fn=_run_for_caption,
+    )
     _fig_caption(f'รูปที่ {fig_no}  {fig_cap}')
 
     # Footer
