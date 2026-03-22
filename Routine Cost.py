@@ -345,7 +345,26 @@ def generate_word_report(include_gravel=True):
     ss = st.session_state
     doc = Document()
 
-    # ตั้งค่า Normal style
+    # ─── Section Counter (dynamic numbering) ────────────────────────────────
+    # ใช้ class เพื่อให้ nested function แก้ไขค่าได้
+    class SC:
+        h1 = 0   # หัวข้อระดับ 1
+        h2 = 0   # หัวข้อระดับ 2 (reset ทุกครั้งที่ h1 เพิ่ม)
+
+    def next_h1(title):
+        """เพิ่มเลข h1 แล้วสร้าง heading พร้อม label เช่น  '3.  สูตรการคำนวณ'"""
+        SC.h1 += 1
+        SC.h2 = 0
+        add_heading_word(doc, f"{SC.h1}.  {title}", level=1)
+        return SC.h1
+
+    def next_h2(title):
+        """เพิ่มเลข h2 แล้วสร้าง heading พร้อม label เช่น '3.2  ผิวคอนกรีต (Kc)'"""
+        SC.h2 += 1
+        add_heading_word(doc, f"{SC.h1}.{SC.h2}  {title}", level=2)
+        return SC.h1, SC.h2
+
+    # ─── ตั้งค่า Normal style ────────────────────────────────────────────────
     normal = doc.styles["Normal"]
     normal.font.name = "TH SarabunPSK"
     normal.font.size = Pt(14)
@@ -357,7 +376,7 @@ def generate_word_report(include_gravel=True):
         section.left_margin   = Cm(3.0)
         section.right_margin  = Cm(2.5)
 
-    # ── ปกรายงาน ──────────────────────────────
+    # ─── ปกรายงาน ───────────────────────────────────────────────────────────
     title_p = doc.add_paragraph()
     title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_t = title_p.add_run("รายการคำนวณงานบำรุงปกติ")
@@ -370,8 +389,8 @@ def generate_word_report(include_gravel=True):
 
     doc.add_paragraph()
 
-    # ── หัวข้อ 1: ข้อมูลโครงการ ───────────────
-    add_heading_word(doc, "1.  ข้อมูลโครงการ", level=1)
+    # ─── หัวข้อ 1: ข้อมูลโครงการ ────────────────────────────────────────────
+    next_h1("ข้อมูลโครงการ")
     add_table_word(doc,
         headers=["รายการ", "ข้อมูล"],
         rows=[
@@ -384,8 +403,8 @@ def generate_word_report(include_gravel=True):
     )
     doc.add_paragraph()
 
-    # ── หัวข้อ 2: อัตราค่าบำรุงมาตรฐาน ───────
-    add_heading_word(doc, "2.  อัตราค่าบำรุงมาตรฐาน (N) และค่า Factor วัสดุ (Km)", level=1)
+    # ─── หัวข้อ 2: อัตราค่าบำรุงมาตรฐาน ────────────────────────────────────
+    next_h1("อัตราค่าบำรุงมาตรฐาน (N) และค่า Factor วัสดุ (Km)")
     add_table_word(doc,
         headers=["ประเภทผิวทาง", "N มาตรฐาน (บาท/กม./ปี)", "Km วัสดุ"],
         rows=[
@@ -397,13 +416,13 @@ def generate_word_report(include_gravel=True):
     )
     doc.add_paragraph()
 
-    # ── หัวข้อ 3: สูตรการคำนวณ ────────────────
-    add_heading_word(doc, "3.  สูตรการคำนวณ", level=1)
+    # ─── หัวข้อ 3: สูตรการคำนวณและค่า Factor ───────────────────────────────
+    next_h1("สูตรการคำนวณและค่า Factor")
 
-    add_heading_word(doc, "3.1  ผิวแอสฟัลท์ (Ka)", level=2)
+    # 3.1  ผิวแอสฟัลท์ (Ka)
+    next_h2("ผิวแอสฟัลท์ (Ka)")
     add_thai_para(doc, "Ka = 1 + 0.50 × (X1 + X2 + X3 + X4 + X5 + X6 + Y1 + Y2 + Y3 + Y4 + Y5 + Y6)",
                   first_indent=False)
-    # ── ตาราง factor Ka แต่ละสายทาง ──────────
     if ss["rows_ac"]:
         for row_ac in ss["rows_ac"]:
             route_lbl = f"{row_ac.get('ชื่อสายทาง','')}  (ตอน {row_ac.get('ตอนควบคุม','')})"
@@ -430,10 +449,10 @@ def generate_word_report(include_gravel=True):
             doc.add_paragraph()
     doc.add_paragraph()
 
-    add_heading_word(doc, "3.2  ผิวคอนกรีต (Kc)", level=2)
+    # 3.2  ผิวคอนกรีต (Kc)
+    next_h2("ผิวคอนกรีต (Kc)")
     add_thai_para(doc, "Kc = 1 + 0.50 × (Z1 + Z2 + Z3 + Z4 + Y1 + Y2 + Y3 + Y4 + Y5 + Y6)",
                   first_indent=False)
-    # ── ตาราง factor Kc แต่ละสายทาง ──────────
     if ss["rows_cc"]:
         for row_cc in ss["rows_cc"]:
             route_lbl = f"{row_cc.get('ชื่อสายทาง','')}  (ตอน {row_cc.get('ตอนควบคุม','')})"
@@ -458,20 +477,43 @@ def generate_word_report(include_gravel=True):
             doc.add_paragraph()
     doc.add_paragraph()
 
+    # 3.3  ผิวลูกรัง (Ks) — แสดงเฉพาะเมื่อ include_gravel=True
     if include_gravel:
-        add_heading_word(doc, "3.3  ผิวลูกรัง (Ks)", level=2)
+        next_h2("ผิวลูกรัง (Ks)")
         add_thai_para(doc, "Ks = 1 + 0.70 × (A1 + A2 + A3) + 0.30 × (B1 + B2 + B3 + B4)",
                       first_indent=False)
+        if ss["rows_gr"]:
+            for row_gr in ss["rows_gr"]:
+                route_lbl = f"{row_gr.get('ชื่อสายทาง','')}  (ตอน {row_gr.get('ตอนควบคุม','')})"
+                add_thai_para(doc, route_lbl, bold=True, first_indent=False)
+                add_table_word(doc,
+                    headers=["Factor", "คำอธิบาย", "ค่าที่ใช้"],
+                    rows=[
+                        ["A1", "ปริมาณจราจร AADT",             f"{float(row_gr.get('A1',0)):.4f}"],
+                        ["A2", "ลมฟ้าอากาศ",                   f"{float(row_gr.get('A2',0)):.4f}"],
+                        ["A3", "ความกว้างผิวทาง",               f"{float(row_gr.get('A3',0)):.4f}"],
+                        ["B1", "ความกว้างเขตทาง",               f"{float(row_gr.get('B1',0)):.4f}"],
+                        ["B2", "ภูมิประเทศ (จราจรสงเคราะห์)",  f"{float(row_gr.get('B2',0)):.4f}"],
+                        ["B3", "ภูมิประเทศ (ท่อระบายน้ำ)",      f"{float(row_gr.get('B3',0)):.4f}"],
+                        ["B4", "สะพาน",                         f"{float(row_gr.get('B4',0)):.4f}"],
+                        ["Ks", "ค่า K ผิวลูกรัง",               f"{float(row_gr.get('K',0)):.4f}"],
+                    ],
+                    col_widths=[1.5, 6, 3],
+                )
+                doc.add_paragraph()
+        doc.add_paragraph()
 
-    add_heading_word(doc, "3.4  งบประมาณและ Workload", level=2)
-    add_thai_para(doc, "งบประมาณ (บาท/ปี)  =  ระยะทาง × K × Km × N  (ปัดเป็นหลักร้อย)",
+    # 3.x  การคำนวณงบประมาณงานบำรุงปกติรายปี
+    next_h2("การคำนวณงบประมาณงานบำรุงปกติรายปี")
+    add_thai_para(doc, "งบประมาณ (บาท/ปี)  =  ระยะทาง (กม.) × K × Km × N  (ปัดเป็นหลักร้อย)",
                   first_indent=False)
-    add_thai_para(doc, "Workload (หน่วย)    =  ระยะเทียบเท่า × K'",
+    add_thai_para(doc, "ระยะเทียบเท่า (กม.) =  ระยะจริง (กม.) × (จำนวนช่องจราจร / 2)",
                   first_indent=False)
-    add_thai_para(doc, "ระยะเทียบเท่า (กม.) =  ระยะจริง × (จำนวนช่องจราจร / 2)",
+    add_thai_para(doc, "Workload (หน่วย)    =  ระยะเทียบเท่า (กม.) × K'",
                   first_indent=False)
 
-    add_heading_word(doc, "3.5  การปรับ K' ตามช่วงประกัน", level=2)
+    # 3.x  การปรับ K' ตามช่วงประกัน
+    next_h2("การปรับค่า K' ตามช่วงระยะเวลาประกัน")
     add_table_word(doc,
         headers=["เงื่อนไข", "สูตร"],
         rows=[
@@ -483,11 +525,12 @@ def generate_word_report(include_gravel=True):
     )
     doc.add_paragraph()
 
-    # ── ฟังก์ชันช่วยสร้างตารางสายทาง ──────────
-    def write_surface_section(sec_num, surf_label, rows_data):
+    # ─── หัวข้อ 4+ : ตารางสายทางแต่ละประเภทผิวทาง ──────────────────────────
+    def write_surface_section(surf_label, rows_data):
+        """สร้าง section ตารางสายทาง โดยใช้ next_h1() เพื่อให้เลขต่อเนื่องอัตโนมัติ"""
         if not rows_data:
             return
-        add_heading_word(doc, f"{sec_num}.  สายทางผิว{surf_label}", level=1)
+        next_h1(f"สายทางผิว{surf_label}")
         headers = ["ตอนควบคุม", "ชื่อสายทาง", "ระยะทาง\n(กม.)", "ช่องจราจร",
                    "ระยะเทียบเท่า\n(กม.)", "K", "ประกัน\n(ปี)", "K'",
                    "Workload\n(หน่วย)", "งบประมาณ\n(บาท/ปี)"]
@@ -518,12 +561,12 @@ def generate_word_report(include_gravel=True):
         ])
         doc.add_paragraph()
 
-    write_surface_section("4", "แอสฟัลท์ (Ka)", ss["rows_ac"])
-    write_surface_section("5", "คอนกรีต (Kc)",  ss["rows_cc"])
+    write_surface_section("แอสฟัลท์ (Ka)", ss["rows_ac"])
+    write_surface_section("คอนกรีต (Kc)",  ss["rows_cc"])
     if include_gravel:
-        write_surface_section("6", "ลูกรัง (Ks)", ss["rows_gr"])
+        write_surface_section("ลูกรัง (Ks)", ss["rows_gr"])
 
-    # ── หัวข้อ 7: สรุปผล (แยกประเภท ไม่มีแถวรวม) ──
+    # ─── หัวข้อ x: สรุปผลการคำนวณ ──────────────────────────────────────────
     n_ac = len(ss["rows_ac"]); n_cc = len(ss["rows_cc"]); n_gr = len(ss["rows_gr"])
     bud_ac  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_ac"])
     bud_cc  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_cc"])
@@ -535,24 +578,33 @@ def generate_word_report(include_gravel=True):
     dist_cc = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_cc"])
     dist_gr = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_gr"])
 
-    # สร้างแถวข้อมูลตามที่เลือก — เพิ่มคอลัมน์ บาท/กม./ปี
     def rpc(bud, dist): return f"{bud/dist:,.2f}" if dist > 0 else "-"
-    sum_rows = [["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)]]
-    sum_rows.append(["ผิวคอนกรีต (Kc)", n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)])
+    sum_rows = [
+        ["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)],
+        ["ผิวคอนกรีต (Kc)",  n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)],
+    ]
     if include_gravel:
         sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
+    bud_total  = bud_ac + bud_cc + (bud_gr if include_gravel else 0)
+    dist_total = dist_ac + dist_cc + (dist_gr if include_gravel else 0)
+    wl_total   = wl_ac + wl_cc + (wl_gr if include_gravel else 0)
+    sum_rows.append(["รวมทุกประเภท", n_ac+n_cc+(n_gr if include_gravel else 0),
+                     f"{dist_total:.3f}", f"{wl_total:.3f}",
+                     f"{bud_total:,.0f}", rpc(bud_total, dist_total)])
 
-    add_heading_word(doc, "7.  สรุปผลการคำนวณ", level=1)
-    add_table_word(doc,
+    next_h1("สรุปผลการคำนวณ")
+    tbl_sum = add_table_word(doc,
         headers=["ประเภทผิวทาง", "จำนวนสายทาง", "ระยะทาง (กม.)", "Workload (หน่วย)", "งบประมาณ (บาท/ปี)", "อัตรา (บาท/กม./ปี)"],
-        rows=sum_rows,
+        rows=sum_rows[:-1],   # ข้อมูลปกติ
         col_widths=[4, 2.5, 3, 3.5, 3.5, 3.5],
     )
+    # เพิ่มแถวรวมด้วย bold
+    add_total_row_word(tbl_sum, list(sum_rows[-1]))
     doc.add_paragraph()
 
-    # ── หัวข้อ 8: หมายเหตุ ────────────────────
+    # ─── หัวข้อ x: หมายเหตุ ─────────────────────────────────────────────────
     doc.add_paragraph()
-    add_heading_word(doc, "8.  หมายเหตุ", level=1)
+    next_h1("หมายเหตุ")
     notes = [
         "การคำนวณอ้างอิงคู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ กองบำรุง กรมทางหลวง มกราคม พ.ศ. 2538",
         "ค่า A2 (ลมฟ้าอากาศ) สำหรับผิวลูกรัง ใช้ค่า 0.00 เนื่องจากกรมทางหลวงยังอยู่ระหว่างการศึกษาเก็บสถิติ",
