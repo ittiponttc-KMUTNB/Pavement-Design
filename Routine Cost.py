@@ -526,11 +526,14 @@ def generate_word_report(include_gravel=True):
     doc.add_paragraph()
 
     # ─── หัวข้อ 4+ : ตารางสายทางแต่ละประเภทผิวทาง ──────────────────────────
+    # IMPORTANT: next_h1() เรียกเสมอ (ไม่ skip) เพื่อให้เลข section ต่อเนื่อง
     def write_surface_section(surf_label, rows_data):
-        """สร้าง section ตารางสายทาง โดยใช้ next_h1() เพื่อให้เลขต่อเนื่องอัตโนมัติ"""
-        if not rows_data:
-            return
+        """สร้าง section ตารางสายทาง — next_h1() เรียกเสมอเพื่อให้เลขต่อเนื่อง"""
         next_h1(f"สายทางผิว{surf_label}")
+        if not rows_data:
+            add_thai_para(doc, "(ไม่มีข้อมูลสายทางประเภทนี้)", first_indent=False)
+            doc.add_paragraph()
+            return
         headers = ["ตอนควบคุม", "ชื่อสายทาง", "ระยะทาง\n(กม.)", "ช่องจราจร",
                    "ระยะเทียบเท่า\n(กม.)", "K", "ประกัน\n(ปี)", "K'",
                    "Workload\n(หน่วย)", "งบประมาณ\n(บาท/ปี)"]
@@ -563,8 +566,7 @@ def generate_word_report(include_gravel=True):
 
     write_surface_section("แอสฟัลท์ (Ka)", ss["rows_ac"])
     write_surface_section("คอนกรีต (Kc)",  ss["rows_cc"])
-    if include_gravel:
-        write_surface_section("ลูกรัง (Ks)", ss["rows_gr"])
+    write_surface_section("ลูกรัง (Ks)",   ss["rows_gr"] if include_gravel else [])
 
     # ─── หัวข้อ x: สรุปผลการคำนวณ ──────────────────────────────────────────
     n_ac = len(ss["rows_ac"]); n_cc = len(ss["rows_cc"]); n_gr = len(ss["rows_gr"])
