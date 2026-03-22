@@ -384,7 +384,7 @@ def generate_word_report(include_gravel=True):
 
     sub_p = doc.add_paragraph()
     sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_s = sub_p.add_run("กองบำรุง กรมทางหลวง — คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ พ.ศ. 2538")
+    run_s = sub_p.add_run("เครดิต : รศ.ดร.อิทธิพล มีผล")
     set_run_font(run_s, size=Pt(14))
 
     doc.add_paragraph()
@@ -416,10 +416,8 @@ def generate_word_report(include_gravel=True):
     add_table_word(doc,
         headers=["รายการ", "ข้อมูล"],
         rows=[
-            ["ชื่อโครงการ",       ss["project_name"]],
-            ["แขวงการทาง",        ss["district"] or "-"],
-            ["ปีงบประมาณ (พ.ศ.)", ss["year"]],
-            ["วันที่จัดทำ",       datetime.now().strftime("%d/%m/%Y %H:%M")],
+            ["ชื่อโครงการ", ss["project_name"]],
+            ["วันที่จัดทำ", datetime.now().strftime("%d/%m/%Y %H:%M")],
         ],
         col_widths=[5, 11],
     )
@@ -732,7 +730,7 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
 
     sub_p = doc.add_paragraph()
     sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run_s = sub_p.add_run("กองบำรุง กรมทางหลวง — คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ พ.ศ. 2538")
+    run_s = sub_p.add_run("เครดิต : รศ.ดร.อิทธิพล มีผล")
     set_run_font(run_s, size=Pt(14))
 
     doc.add_paragraph()
