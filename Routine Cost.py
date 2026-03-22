@@ -1005,12 +1005,17 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
         sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
 
     h1("สรุปผลการคำนวณ")
+    # ── กำหนดป้ายชื่อประเภทผิวทางที่มีข้อมูล ──
+    surf_types = []
+    if n_ac > 0: surf_types.append("ผิวทางลาดยาง")
+    if n_cc > 0: surf_types.append("ผิวทางคอนกรีต")
+    if include_gravel and n_gr > 0: surf_types.append("ผิวทางลูกรัง")
+    surf_label_str = "และ".join(surf_types) if surf_types else "ทุกประเภท"
+    n_types = len(surf_types)
+
     add_thai_para(doc,
-        f"จากการคำนวณงบประมาณงานบำรุงปกติสำหรับสายทางทั้งหมดรวม {n_total} สายทาง "
-        f"ระยะทางรวม {dist_total:.3f} กิโลเมตร "
-        f"ได้งบประมาณรวม {bud_total:,.0f} บาทต่อปี "
-        f"และปริมาณงานรวม {wl_total:.3f} หน่วย "
-        f"รายละเอียดแสดงในตารางสรุป"
+        f"จากการคำนวณงบประมาณงานบำรุงปกติสำหรับสายทางทั้งหมด {n_types} รูปแบบ "
+        f"คือ{surf_label_str} รายละเอียดดังแสดงในตารางสรุป"
     )
     tbl_sum = add_table_word(doc,
         headers=["ประเภทผิวทาง","จำนวนสายทาง","ระยะทาง (กม.)",
