@@ -1064,7 +1064,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.markdown('<div class="main-title">🛣️ ระบบคำนวณงานบำรุงปกติ</div>', unsafe_allow_html=True)
-st.markdown('<div class="sub-title">กองบำรุง กรมทางหลวง — คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ (2538)</div>', unsafe_allow_html=True)
+st.markdown('<div class="sub-title"> พัฒนาโดย รศ.ดร.อิทธิพล มีผล ภาควิชาครุศาสตร์โยธา มจพ.</div>', unsafe_allow_html=True)
 
 tab1, tab2, tab3, tab4, tab5 = st.tabs([
     "⚙️ ตั้งค่าโครงการ",
