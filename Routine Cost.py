@@ -937,19 +937,18 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
     doc.add_paragraph()
 
     def write_surface_section_con(budget_label, rows_data):
-        """ตารางงบประมาณ — h2() เรียกเสมอเพื่อให้เลขต่อเนื่องภายใต้ 3.5.4"""
+        """ตารางงบประมาณ — h2() เรียกเสมอ, ไม่มีคอลัมน์ตอนควบคุม, ไม่มีแถวรวม"""
         h2(f"คำนวณงบประมาณ{budget_label}")
         if not rows_data:
             add_thai_para(doc, "(ไม่มีข้อมูลสายทางประเภทนี้)", first_indent=False)
             doc.add_paragraph()
             return
-        headers = ["ตอนควบคุม","ชื่อสายทาง","ระยะทาง\n(กม.)","ช่องจราจร",
-                   "ระยะเทียบเท่า\n(กม.)","K","ประกัน\n(ปี)","K'",
-                   "Workload\n(หน่วย)","งบประมาณ\n(บาท/ปี)"]
+        headers = ["ชื่อสายทาง", "ระยะทาง\n(กม.)", "ช่องจราจร",
+                   "ระยะเทียบเท่า\n(กม.)", "K", "ประกัน\n(ปี)", "K'",
+                   "Workload\n(หน่วย)", "งบประมาณ\n(บาท/ปี)"]
         table_rows = []
         for r in rows_data:
             table_rows.append([
-                r.get("ตอนควบคุม",""),
                 r.get("ชื่อสายทาง",""),
                 f"{r.get('ระยะทาง(กม.)',0):.3f}",
                 r.get("ช่องจราจร",2),
@@ -961,14 +960,15 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
                 f"{r.get('งบประมาณ(บาท/ปี)',0):,.0f}",
             ])
         tbl = add_table_word(doc, headers=headers, rows=table_rows,
-                             col_widths=[2.5, 4, 2, 1.5, 2.5, 2, 1.5, 2, 2.5, 3])
+                             col_widths=[5, 2, 1.5, 2.5, 2, 1.5, 2, 2.5, 3])
         tot_dist  = sum(r.get("ระยะทาง(กม.)",0)        for r in rows_data)
         tot_equiv = sum(r.get("ระยะเทียบเท่า(กม.)",0)  for r in rows_data)
         tot_wl    = sum(r.get("Workload(หน่วย)",0)      for r in rows_data)
         tot_bud   = sum(r.get("งบประมาณ(บาท/ปี)",0)    for r in rows_data)
         add_total_row_word(tbl, [
-            "รวม","",f"{tot_dist:.3f}","",f"{tot_equiv:.3f}","","","",
-            f"{tot_wl:.3f}",f"{tot_bud:,.0f}",
+            "รวม", f"{tot_dist:.3f}", "",
+            f"{tot_equiv:.3f}", "", "", "",
+            f"{tot_wl:.3f}", f"{tot_bud:,.0f}",
         ])
         doc.add_paragraph()
 
@@ -997,12 +997,13 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
     wl_total   = wl_ac + wl_cc + (wl_gr if include_gravel else 0)
     n_total    = n_ac + n_cc + (n_gr if include_gravel else 0)
 
+    # ── ตารางสรุป: ไม่มี "จำนวนสายทาง" และไม่มีแถว "รวมทุกประเภท" ──
     sum_rows = [
-        ["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)],
-        ["ผิวคอนกรีต (Kc)",  n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)],
+        ["ผิวแอสฟัลท์ (Ka)", f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)],
+        ["ผิวคอนกรีต (Kc)",  f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)],
     ]
     if include_gravel:
-        sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
+        sum_rows.append(["ผิวลูกรัง (Ks)", f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
 
     h1("สรุปผลการคำนวณ")
     # ── กำหนดป้ายชื่อประเภทผิวทางที่มีข้อมูล ──
@@ -1017,16 +1018,12 @@ def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
         f"จากการคำนวณงบประมาณงานบำรุงปกติสำหรับสายทางทั้งหมด {n_types} รูปแบบ "
         f"คือ{surf_label_str} รายละเอียดดังแสดงในตารางสรุป"
     )
-    tbl_sum = add_table_word(doc,
-        headers=["ประเภทผิวทาง","จำนวนสายทาง","ระยะทาง (กม.)",
-                 "Workload (หน่วย)","งบประมาณ (บาท/ปี)","อัตรา (บาท/กม./ปี)"],
+    add_table_word(doc,
+        headers=["ประเภทผิวทาง", "ระยะทาง (กม.)",
+                 "Workload (หน่วย)", "งบประมาณ (บาท/ปี)", "อัตรา (บาท/กม./ปี)"],
         rows=sum_rows,
-        col_widths=[4, 2.5, 3, 3.5, 3.5, 3.5],
+        col_widths=[4.5, 3, 3.5, 3.5, 3.5],
     )
-    add_total_row_word(tbl_sum, [
-        "รวมทุกประเภท", str(n_total), f"{dist_total:.3f}",
-        f"{wl_total:.3f}", f"{bud_total:,.0f}", rpc(bud_total, dist_total),
-    ])
     doc.add_paragraph()
 
     # ── หมายเหตุท้ายรายงาน ──────────────────────────────────────────────────
