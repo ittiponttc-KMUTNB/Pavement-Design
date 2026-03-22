@@ -389,6 +389,28 @@ def generate_word_report(include_gravel=True):
 
     doc.add_paragraph()
 
+    # ─── บทเกริ่นนำ ─────────────────────────────────────────────────────────
+    add_thai_para(doc,
+        f"รายการคำนวณฉบับนี้จัดทำขึ้นเพื่อประกอบการพิจารณาจัดสรรงบประมาณงานบำรุงปกติ "
+        f"สำหรับ{ss['project_name']} ในความรับผิดชอบของ{ss['district'] or 'หน่วยงานที่รับผิดชอบ'} "
+        f"ประจำปีงบประมาณ พ.ศ. {ss['year']} โดยดำเนินการคำนวณตามหลักเกณฑ์และวิธีการที่กำหนดไว้ใน "
+        f"คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ กองบำรุง กรมทางหลวง มกราคม พ.ศ. 2538"
+    )
+    add_thai_para(doc,
+        "การคำนวณงบประมาณงานบำรุงปกติใช้วิธีการกำหนดค่าสัมประสิทธิ์ปรับแก้ (K) "
+        "เพื่อสะท้อนลักษณะเฉพาะของแต่ละสายทาง ได้แก่ ประเภทและสภาพผิวทาง ความสามารถรับแรงของดินคันทาง "
+        "ปริมาณจราจร อายุการใช้งาน ขนาดเรขาคณิตของถนน สภาพภูมิประเทศ รวมถึงองค์ประกอบของงานบำรุงรักษา "
+        "ที่เกี่ยวเนื่อง ทั้งงานจราจรสงเคราะห์ ท่อระบายน้ำ สะพาน และงานทำความสะอาดทางระบายน้ำ "
+        "โดยแบ่งการคำนวณออกเป็น 3 ประเภทตามลักษณะผิวทาง ได้แก่ "
+        "ผิวแอสฟัลท์คอนกรีต (Ka) ผิวคอนกรีตซีเมนต์ (Kc) และผิวลูกรัง (Ks)"
+    )
+    add_thai_para(doc,
+        "ผลการคำนวณที่ได้แสดงถึงงบประมาณที่ต้องการรายปี (บาท/ปี) และปริมาณงาน (Workload) "
+        "ของแต่ละสายทาง ซึ่งนำไปใช้ประกอบการจัดทำแผนงานและของบประมาณในระดับแขวงการทาง "
+        "ตามขั้นตอนของกรมทางหลวงต่อไป"
+    )
+    doc.add_paragraph()
+
     # ─── หัวข้อ 1: ข้อมูลโครงการ ────────────────────────────────────────────
     next_h1("ข้อมูลโครงการ")
     add_table_word(doc,
@@ -622,6 +644,416 @@ def generate_word_report(include_gravel=True):
     doc.save(stream)
     stream.seek(0)
     return stream
+
+# ─────────────────────────────────────────────
+# WORD REPORT — แบบที่ปรึกษา (nested 3.5.x.x)
+# ─────────────────────────────────────────────
+
+def generate_word_report_consultant(include_gravel=True, base_sec="3.5"):
+    """
+    รายงานแบบที่ปรึกษา — section numbering เริ่มต้นที่ base_sec (default 3.5)
+    โครงสร้าง:
+      {base}     การคำนวณงบประมาณงานบำรุงปกติ  [h1-level heading]
+      {base}.1   อัตราค่าบำรุงมาตรฐาน (N) และค่า Factor วัสดุ (Km)
+      {base}.2   สูตรการคำนวณและค่า Factor
+      {base}.2.1 ผิวแอสฟัลท์ (Ka)
+      {base}.2.2 ผิวคอนกรีต (Kc)
+      {base}.2.3 ผิวลูกรัง (Ks)           [เฉพาะ include_gravel=True]
+      {base}.3   วิธีการคำนวณงบประมาณงานบำรุงปกติรายปี
+      {base}.4   การปรับค่า K' ตามช่วงระยะเวลาประกัน
+      {base}.5   สายทางผิวแอสฟัลท์ (Ka)
+      {base}.6   สายทางผิวคอนกรีต (Kc)
+      {base}.7   สายทางผิวลูกรัง (Ks)     [เรียกเสมอ เพื่อให้เลขต่อเนื่อง]
+      {base}.8   สรุปผลการคำนวณ
+    """
+    import io
+    from docx import Document
+    from docx.shared import Pt, Cm
+    from docx.enum.text import WD_ALIGN_PARAGRAPH
+
+    ss  = st.session_state
+    doc = Document()
+
+    # ── Section Counter แบบ nested ──────────────────────────────────────────
+    # base_parts = [3, 5]  →  prefix = "3.5"
+    base_parts = [int(x) for x in base_sec.split(".")]
+
+    class SC:
+        lv1 = 0   # 3.5.X
+        lv2 = 0   # 3.5.X.Y
+
+    def label_lv0():
+        """ป้าย heading หลัก เช่น '3.5' """
+        return ".".join(str(x) for x in base_parts)
+
+    def label_lv1():
+        """ป้าย heading ระดับ 1 เช่น '3.5.1' """
+        return ".".join(str(x) for x in base_parts) + f".{SC.lv1}"
+
+    def label_lv2():
+        """ป้าย heading ระดับ 2 เช่น '3.5.2.1' """
+        return ".".join(str(x) for x in base_parts) + f".{SC.lv2_parent}.{SC.lv2}"
+
+    class SC:
+        lv1 = 0
+        lv2 = 0
+        lv2_parent = 0   # เก็บ lv1 ที่ lv2 อยู่ใต้
+
+    def h0(title):
+        """หัวข้อ base เช่น '3.5  การคำนวณงบประมาณ...' — level=1"""
+        SC.lv1 = 0; SC.lv2 = 0
+        add_heading_word(doc, f"{label_lv0()}  {title}", level=1)
+
+    def h1(title):
+        """หัวข้อระดับ 1 เช่น '3.5.1  อัตราค่าบำรุง...' — level=2"""
+        SC.lv1 += 1; SC.lv2 = 0; SC.lv2_parent = SC.lv1
+        add_heading_word(doc, f"{label_lv1()}  {title}", level=2)
+
+    def h2(title):
+        """หัวข้อระดับ 2 เช่น '3.5.2.1  ผิวแอสฟัลท์' — level=3"""
+        SC.lv2 += 1
+        add_heading_word(doc, f"{label_lv2()}  {title}", level=3)
+
+    # ── ตั้งค่า Normal style ────────────────────────────────────────────────
+    normal = doc.styles["Normal"]
+    normal.font.name = "TH SarabunPSK"
+    normal.font.size = Pt(14)
+    for sec in doc.sections:
+        sec.top_margin    = Cm(2.5)
+        sec.bottom_margin = Cm(2.5)
+        sec.left_margin   = Cm(3.0)
+        sec.right_margin  = Cm(2.5)
+
+    # ── ปกรายงาน ────────────────────────────────────────────────────────────
+    title_p = doc.add_paragraph()
+    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_t = title_p.add_run("รายการคำนวณงานบำรุงปกติ (แบบที่ปรึกษา)")
+    set_run_font(run_t, size=Pt(18), bold=True)
+
+    sub_p = doc.add_paragraph()
+    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
+    run_s = sub_p.add_run("กองบำรุง กรมทางหลวง — คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ พ.ศ. 2538")
+    set_run_font(run_s, size=Pt(14))
+
+    doc.add_paragraph()
+
+    # ── บทเกริ่นนำก่อนหัวข้อ 3.5 ───────────────────────────────────────────
+    add_thai_para(doc,
+        f"รายการคำนวณฉบับนี้จัดทำขึ้นเพื่อประกอบการพิจารณาจัดสรรงบประมาณงานบำรุงปกติ "
+        f"สำหรับ{ss['project_name']} ในความรับผิดชอบของ{ss['district'] or 'หน่วยงานที่รับผิดชอบ'} "
+        f"ประจำปีงบประมาณ พ.ศ. {ss['year']} โดยดำเนินการคำนวณตามหลักเกณฑ์และวิธีการที่กำหนดไว้ใน "
+        f"คู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ กองบำรุง กรมทางหลวง มกราคม พ.ศ. 2538"
+    )
+    doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}  การคำนวณงบประมาณงานบำรุงปกติ
+    # ════════════════════════════════════════════════════════════════════════
+    h0("การคำนวณงบประมาณงานบำรุงปกติ")
+    add_thai_para(doc,
+        "การคำนวณงบประมาณงานบำรุงปกติใช้วิธีการกำหนดค่าสัมประสิทธิ์ปรับแก้ (K) "
+        "เพื่อสะท้อนลักษณะเฉพาะของแต่ละสายทาง ได้แก่ ประเภทและสภาพผิวทาง "
+        "ความสามารถรับแรงของดินคันทาง ปริมาณจราจร อายุการใช้งาน ขนาดเรขาคณิตของถนน "
+        "สภาพภูมิประเทศ รวมถึงองค์ประกอบของงานบำรุงรักษาที่เกี่ยวเนื่อง "
+        "ทั้งงานจราจรสงเคราะห์ ท่อระบายน้ำ สะพาน และงานทำความสะอาดทางระบายน้ำ "
+        "โดยแบ่งการคำนวณออกเป็น 3 ประเภทตามลักษณะผิวทาง ได้แก่ "
+        "ผิวแอสฟัลท์คอนกรีต (Ka) ผิวคอนกรีตซีเมนต์ (Kc) และผิวลูกรัง (Ks)"
+    )
+    doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.1  อัตราค่าบำรุงมาตรฐาน (N) และค่า Factor วัสดุ (Km)
+    # ════════════════════════════════════════════════════════════════════════
+    h1("อัตราค่าบำรุงมาตรฐาน (N) และค่า Factor วัสดุ (Km)")
+    add_thai_para(doc,
+        "อัตราค่าบำรุงมาตรฐาน (N) คือค่าใช้จ่ายพื้นฐานต่อกิโลเมตรต่อปีสำหรับผิวทางแต่ละประเภท "
+        "ก่อนการปรับแก้ด้วยค่าสัมประสิทธิ์ K โดยมีค่า Factor วัสดุ (Km) ใช้ปรับตามราคาวัสดุปัจจุบัน "
+        "ดังแสดงในตารางที่ 1"
+    )
+    add_table_word(doc,
+        headers=["ประเภทผิวทาง", "N มาตรฐาน (บาท/กม./ปี)", "Km วัสดุ"],
+        rows=[
+            ["ผิวแอสฟัลท์ (Ka)", f"{ss['Na']:,.0f}", f"{ss['Km_a']:.3f}"],
+            ["ผิวลูกรัง (Ks)",   f"{ss['Ns']:,.0f}", f"{ss['Km_s']:.3f}"],
+            ["ผิวคอนกรีต (Kc)", f"{ss['Nc']:,.0f}", f"{ss['Km_c']:.3f}"],
+        ],
+        col_widths=[5, 6, 5],
+    )
+    doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.2  สูตรการคำนวณและค่า Factor
+    # ════════════════════════════════════════════════════════════════════════
+    h1("สูตรการคำนวณและค่า Factor")
+    add_thai_para(doc,
+        "ค่าสัมประสิทธิ์ปรับแก้ (K) คำนวณจากผลรวมของค่า Factor ที่สะท้อนลักษณะของสายทาง "
+        "โดยแบ่งเป็น Factor X หรือ A (เกี่ยวกับผิวทางและปริมาณจราจร) และ Factor Y หรือ B "
+        "(เกี่ยวกับเขตทาง ภูมิประเทศ และงานบำรุงรักษาที่เกี่ยวเนื่อง)"
+    )
+    doc.add_paragraph()
+
+    # ── {base}.2.1  ผิวแอสฟัลท์ (Ka) ───────────────────────────────────────
+    h2("ผิวแอสฟัลท์ (Ka)")
+    add_thai_para(doc,
+        "ค่าสัมประสิทธิ์ปรับแก้สำหรับผิวแอสฟัลท์คอนกรีต (Ka) คำนวณตามสมการ"
+    )
+    add_thai_para(doc, "Ka = 1 + 0.50 × (X1 + X2 + X3 + X4 + X5 + X6 + Y1 + Y2 + Y3 + Y4 + Y5 + Y6)",
+                  first_indent=False)
+    if ss["rows_ac"]:
+        add_thai_para(doc, "ผลการคำนวณค่า Factor สำหรับสายทางผิวแอสฟัลท์แสดงดังนี้")
+        for row_ac in ss["rows_ac"]:
+            route_lbl = f"{row_ac.get('ชื่อสายทาง','')}  (ตอน {row_ac.get('ตอนควบคุม','')})"
+            add_thai_para(doc, route_lbl, bold=True, first_indent=False)
+            add_table_word(doc,
+                headers=["Factor", "คำอธิบาย", "ค่าที่ใช้"],
+                rows=[
+                    ["X1","ลักษณะผิวทางและพื้นทาง",       f"{float(row_ac.get('X1',0)):.4f}"],
+                    ["X2","CBR ดินเดิม",                   f"{float(row_ac.get('X2',0)):.4f}"],
+                    ["X3","ปริมาณจราจร AADT",               f"{float(row_ac.get('X3',0)):.4f}"],
+                    ["X4","อายุบริการ",                     f"{float(row_ac.get('X4',0)):.4f}"],
+                    ["X5","ความกว้างผิวทาง",                f"{float(row_ac.get('X5',0)):.4f}"],
+                    ["X6","ภูมิประเทศ",                     f"{float(row_ac.get('X6',0)):.4f}"],
+                    ["Y1","ความกว้างเขตทาง",                f"{float(row_ac.get('Y1',0)):.4f}"],
+                    ["Y2","ไหล่ทางกว้างสุด 1 ข้าง",        f"{float(row_ac.get('Y2',0)):.4f}"],
+                    ["Y3","จราจรสงเคราะห์",                 f"{float(row_ac.get('Y3',0)):.4f}"],
+                    ["Y4","ท่อระบายน้ำ",                    f"{float(row_ac.get('Y4',0)):.4f}"],
+                    ["Y5","สะพาน",                          f"{float(row_ac.get('Y5',0)):.4f}"],
+                    ["Y6","ทำความสะอาดระบาย",               f"{float(row_ac.get('Y6',0)):.4f}"],
+                    ["Ka","ค่า K ผิวแอสฟัลท์",              f"{float(row_ac.get('K',0)):.4f}"],
+                ],
+                col_widths=[1.5, 6, 3],
+            )
+            doc.add_paragraph()
+    doc.add_paragraph()
+
+    # ── {base}.2.2  ผิวคอนกรีต (Kc) ────────────────────────────────────────
+    h2("ผิวคอนกรีตซีเมนต์ (Kc)")
+    add_thai_para(doc,
+        "ค่าสัมประสิทธิ์ปรับแก้สำหรับผิวคอนกรีตซีเมนต์ (Kc) คำนวณตามสมการ"
+    )
+    add_thai_para(doc, "Kc = 1 + 0.50 × (Z1 + Z2 + Z3 + Z4 + Y1 + Y2 + Y3 + Y4 + Y5 + Y6)",
+                  first_indent=False)
+    if ss["rows_cc"]:
+        add_thai_para(doc, "ผลการคำนวณค่า Factor สำหรับสายทางผิวคอนกรีตแสดงดังนี้")
+        for row_cc in ss["rows_cc"]:
+            route_lbl = f"{row_cc.get('ชื่อสายทาง','')}  (ตอน {row_cc.get('ตอนควบคุม','')})"
+            add_thai_para(doc, route_lbl, bold=True, first_indent=False)
+            add_table_word(doc,
+                headers=["Factor", "คำอธิบาย", "ค่าที่ใช้"],
+                rows=[
+                    ["Z1","ดัชนีสภาพผิวทาง",               f"{float(row_cc.get('Z1',0)):.4f}"],
+                    ["Z2","CBR ดินคันทาง",                  f"{float(row_cc.get('Z2',0)):.4f}"],
+                    ["Z3","ปริมาณจราจร AADT",               f"{float(row_cc.get('Z3',0)):.4f}"],
+                    ["Z4","ความกว้างผิวทาง",                 f"{float(row_cc.get('Z4',0)):.4f}"],
+                    ["Y1","ความกว้างเขตทาง",                 f"{float(row_cc.get('Y1',0)):.4f}"],
+                    ["Y2","ไหล่ทางกว้างสุด 1 ข้าง",         f"{float(row_cc.get('Y2',0)):.4f}"],
+                    ["Y3","จราจรสงเคราะห์",                  f"{float(row_cc.get('Y3',0)):.4f}"],
+                    ["Y4","ท่อระบายน้ำ",                     f"{float(row_cc.get('Y4',0)):.4f}"],
+                    ["Y5","สะพาน",                           f"{float(row_cc.get('Y5',0)):.4f}"],
+                    ["Y6","ทำความสะอาดระบาย",                f"{float(row_cc.get('Y6',0)):.4f}"],
+                    ["Kc","ค่า K ผิวคอนกรีต",                f"{float(row_cc.get('K',0)):.4f}"],
+                ],
+                col_widths=[1.5, 6, 3],
+            )
+            doc.add_paragraph()
+    doc.add_paragraph()
+
+    # ── {base}.2.3  ผิวลูกรัง (Ks) ─────────────────────────────────────────
+    if include_gravel:
+        h2("ผิวทางลูกรัง (Ks)")
+        add_thai_para(doc,
+            "ค่าสัมประสิทธิ์ปรับแก้สำหรับผิวทางลูกรัง (Ks) คำนวณตามสมการ"
+        )
+        add_thai_para(doc, "Ks = 1 + 0.70 × (A1 + A2 + A3) + 0.30 × (B1 + B2 + B3 + B4)",
+                      first_indent=False)
+        add_thai_para(doc,
+            "ทั้งนี้ ค่า A2 (ลมฟ้าอากาศ) ใช้ค่าเท่ากับ 0.00 "
+            "เนื่องจากกรมทางหลวงยังอยู่ระหว่างการศึกษาเก็บสถิติข้อมูล"
+        )
+        if ss["rows_gr"]:
+            add_thai_para(doc, "ผลการคำนวณค่า Factor สำหรับสายทางผิวลูกรังแสดงดังนี้")
+            for row_gr in ss["rows_gr"]:
+                route_lbl = f"{row_gr.get('ชื่อสายทาง','')}  (ตอน {row_gr.get('ตอนควบคุม','')})"
+                add_thai_para(doc, route_lbl, bold=True, first_indent=False)
+                add_table_word(doc,
+                    headers=["Factor", "คำอธิบาย", "ค่าที่ใช้"],
+                    rows=[
+                        ["A1","ปริมาณจราจร AADT",            f"{float(row_gr.get('A1',0)):.4f}"],
+                        ["A2","ลมฟ้าอากาศ",                  f"{float(row_gr.get('A2',0)):.4f}"],
+                        ["A3","ความกว้างผิวทาง",              f"{float(row_gr.get('A3',0)):.4f}"],
+                        ["B1","ความกว้างเขตทาง",              f"{float(row_gr.get('B1',0)):.4f}"],
+                        ["B2","ภูมิประเทศ (จราจรสงเคราะห์)", f"{float(row_gr.get('B2',0)):.4f}"],
+                        ["B3","ภูมิประเทศ (ท่อระบายน้ำ)",     f"{float(row_gr.get('B3',0)):.4f}"],
+                        ["B4","สะพาน",                        f"{float(row_gr.get('B4',0)):.4f}"],
+                        ["Ks","ค่า K ผิวลูกรัง",              f"{float(row_gr.get('K',0)):.4f}"],
+                    ],
+                    col_widths=[1.5, 6, 3],
+                )
+                doc.add_paragraph()
+        doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.3  วิธีการคำนวณงบประมาณงานบำรุงปกติรายปี
+    # ════════════════════════════════════════════════════════════════════════
+    h1("วิธีการคำนวณงบประมาณงานบำรุงปกติรายปี")
+    add_thai_para(doc,
+        "งบประมาณงานบำรุงปกติรายปีของแต่ละสายทางคำนวณจากผลคูณของระยะทาง "
+        "ค่าสัมประสิทธิ์ปรับแก้ (K) ค่า Factor วัสดุ (Km) และอัตราค่าบำรุงมาตรฐาน (N) "
+        "โดยปัดค่าที่ได้เป็นหลักร้อยบาทตามแนวทางของกรมทางหลวง ดังสมการ"
+    )
+    add_thai_para(doc, "งบประมาณ (บาท/ปี)  =  ระยะทาง (กม.) × K × Km × N  (ปัดเป็นหลักร้อย)",
+                  first_indent=False)
+    add_thai_para(doc,
+        "ปริมาณงาน (Workload) คำนวณจากระยะเทียบเท่า (กม.) คูณด้วยค่า K' "
+        "ซึ่งเป็น K ที่ปรับแล้วตามช่วงระยะเวลาประกัน โดยระยะเทียบเท่าคำนวณตามสมการ"
+    )
+    add_thai_para(doc, "ระยะเทียบเท่า (กม.) =  ระยะจริง (กม.) × (จำนวนช่องจราจร / 2)",
+                  first_indent=False)
+    add_thai_para(doc, "Workload (หน่วย)    =  ระยะเทียบเท่า (กม.) × K'",
+                  first_indent=False)
+    doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.4  การปรับค่า K' ตามช่วงระยะเวลาประกัน
+    # ════════════════════════════════════════════════════════════════════════
+    h1("การปรับค่า K' ตามช่วงระยะเวลาประกัน")
+    add_thai_para(doc,
+        "ในกรณีที่สายทางอยู่ในช่วงระยะเวลาประกันผลงาน ค่าสัมประสิทธิ์ที่ใช้คำนวณ Workload "
+        "จะถูกลดทอนลงตามเงื่อนไขที่กำหนด เพื่อสะท้อนภาระงานที่ผู้รับจ้างยังรับผิดชอบอยู่ "
+        "ดังแสดงในตาราง"
+    )
+    add_table_word(doc,
+        headers=["เงื่อนไข", "สูตร", "หมายเหตุ"],
+        rows=[
+            ["ไม่มีประกัน",      "K' = K",          "ใช้ค่า K เต็ม"],
+            ["มีประกัน 1 ปี",   "K' = 0.50 × K",   "ลด 50%"],
+            ["มีประกัน > 1 ปี", "K' = 0.25 × K",   "ลด 75%"],
+        ],
+        col_widths=[4.5, 5, 6.5],
+    )
+    doc.add_paragraph()
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.5 / .6 / .7  ตารางสายทางแต่ละประเภท
+    # ════════════════════════════════════════════════════════════════════════
+    def write_surface_section_con(surf_label, rows_data, intro_text=""):
+        """ตารางสายทาง — h1() เรียกเสมอเพื่อให้เลขต่อเนื่อง"""
+        h1(f"สายทางผิว{surf_label}")
+        if intro_text:
+            add_thai_para(doc, intro_text)
+        if not rows_data:
+            add_thai_para(doc, "(ไม่มีข้อมูลสายทางประเภทนี้)", first_indent=False)
+            doc.add_paragraph()
+            return
+        headers = ["ตอนควบคุม","ชื่อสายทาง","ระยะทาง\n(กม.)","ช่องจราจร",
+                   "ระยะเทียบเท่า\n(กม.)","K","ประกัน\n(ปี)","K'",
+                   "Workload\n(หน่วย)","งบประมาณ\n(บาท/ปี)"]
+        table_rows = []
+        for r in rows_data:
+            table_rows.append([
+                r.get("ตอนควบคุม",""),
+                r.get("ชื่อสายทาง",""),
+                f"{r.get('ระยะทาง(กม.)',0):.3f}",
+                r.get("ช่องจราจร",2),
+                f"{r.get('ระยะเทียบเท่า(กม.)',0):.3f}",
+                f"{r.get('K',0):.4f}",
+                r.get("ประกัน(ปี)",0),
+                f"{r.get(chr(75)+chr(39),0):.4f}",
+                f"{r.get('Workload(หน่วย)',0):.3f}",
+                f"{r.get('งบประมาณ(บาท/ปี)',0):,.0f}",
+            ])
+        tbl = add_table_word(doc, headers=headers, rows=table_rows,
+                             col_widths=[2.5, 4, 2, 1.5, 2.5, 2, 1.5, 2, 2.5, 3])
+        tot_dist  = sum(r.get("ระยะทาง(กม.)",0)        for r in rows_data)
+        tot_equiv = sum(r.get("ระยะเทียบเท่า(กม.)",0)  for r in rows_data)
+        tot_wl    = sum(r.get("Workload(หน่วย)",0)      for r in rows_data)
+        tot_bud   = sum(r.get("งบประมาณ(บาท/ปี)",0)    for r in rows_data)
+        add_total_row_word(tbl, [
+            "รวม","",f"{tot_dist:.3f}","",f"{tot_equiv:.3f}","","","",
+            f"{tot_wl:.3f}",f"{tot_bud:,.0f}",
+        ])
+        doc.add_paragraph()
+
+    write_surface_section_con(
+        "แอสฟัลท์ (Ka)", ss["rows_ac"],
+        "ตารางแสดงผลการคำนวณงบประมาณและ Workload สำหรับสายทางผิวแอสฟัลท์คอนกรีตทั้งหมด"
+    )
+    write_surface_section_con(
+        "คอนกรีต (Kc)", ss["rows_cc"],
+        "ตารางแสดงผลการคำนวณงบประมาณและ Workload สำหรับสายทางผิวคอนกรีตซีเมนต์ทั้งหมด"
+    )
+    write_surface_section_con(
+        "ลูกรัง (Ks)", ss["rows_gr"] if include_gravel else [],
+        "ตารางแสดงผลการคำนวณงบประมาณและ Workload สำหรับสายทางผิวลูกรังทั้งหมด"
+    )
+
+    # ════════════════════════════════════════════════════════════════════════
+    # {base}.8  สรุปผลการคำนวณ
+    # ════════════════════════════════════════════════════════════════════════
+    n_ac = len(ss["rows_ac"]); n_cc = len(ss["rows_cc"]); n_gr = len(ss["rows_gr"])
+    bud_ac  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_ac"])
+    bud_cc  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_cc"])
+    bud_gr  = sum(r["งบประมาณ(บาท/ปี)"] for r in ss["rows_gr"])
+    wl_ac   = sum(r["Workload(หน่วย)"]   for r in ss["rows_ac"])
+    wl_cc   = sum(r["Workload(หน่วย)"]   for r in ss["rows_cc"])
+    wl_gr   = sum(r["Workload(หน่วย)"]   for r in ss["rows_gr"])
+    dist_ac = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_ac"])
+    dist_cc = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_cc"])
+    dist_gr = sum(r["ระยะทาง(กม.)"]      for r in ss["rows_gr"])
+
+    def rpc(bud, dist): return f"{bud/dist:,.2f}" if dist > 0 else "-"
+
+    bud_total  = bud_ac + bud_cc + (bud_gr if include_gravel else 0)
+    dist_total = dist_ac + dist_cc + (dist_gr if include_gravel else 0)
+    wl_total   = wl_ac + wl_cc + (wl_gr if include_gravel else 0)
+    n_total    = n_ac + n_cc + (n_gr if include_gravel else 0)
+
+    sum_rows = [
+        ["ผิวแอสฟัลท์ (Ka)", n_ac, f"{dist_ac:.3f}", f"{wl_ac:.3f}", f"{bud_ac:,.0f}", rpc(bud_ac, dist_ac)],
+        ["ผิวคอนกรีต (Kc)",  n_cc, f"{dist_cc:.3f}", f"{wl_cc:.3f}", f"{bud_cc:,.0f}", rpc(bud_cc, dist_cc)],
+    ]
+    if include_gravel:
+        sum_rows.append(["ผิวลูกรัง (Ks)", n_gr, f"{dist_gr:.3f}", f"{wl_gr:.3f}", f"{bud_gr:,.0f}", rpc(bud_gr, dist_gr)])
+
+    h1("สรุปผลการคำนวณ")
+    add_thai_para(doc,
+        f"จากการคำนวณงบประมาณงานบำรุงปกติสำหรับสายทางทั้งหมดรวม {n_total} สายทาง "
+        f"ระยะทางรวม {dist_total:.3f} กิโลเมตร "
+        f"ได้งบประมาณรวม {bud_total:,.0f} บาทต่อปี "
+        f"และปริมาณงานรวม {wl_total:.3f} หน่วย "
+        f"รายละเอียดแสดงในตารางสรุป"
+    )
+    tbl_sum = add_table_word(doc,
+        headers=["ประเภทผิวทาง","จำนวนสายทาง","ระยะทาง (กม.)",
+                 "Workload (หน่วย)","งบประมาณ (บาท/ปี)","อัตรา (บาท/กม./ปี)"],
+        rows=sum_rows,
+        col_widths=[4, 2.5, 3, 3.5, 3.5, 3.5],
+    )
+    add_total_row_word(tbl_sum, [
+        "รวมทุกประเภท", str(n_total), f"{dist_total:.3f}",
+        f"{wl_total:.3f}", f"{bud_total:,.0f}", rpc(bud_total, dist_total),
+    ])
+    doc.add_paragraph()
+
+    # ── หมายเหตุท้ายรายงาน ──────────────────────────────────────────────────
+    doc.add_paragraph()
+    add_heading_word(doc, "หมายเหตุ", level=2)
+    notes = [
+        "การคำนวณอ้างอิงคู่มือการคิดค่าปริมาณงานและงานบำรุงปกติ กองบำรุง กรมทางหลวง มกราคม พ.ศ. 2538",
+        "ค่า A2 (ลมฟ้าอากาศ) สำหรับผิวลูกรัง ใช้ค่า 0.00 เนื่องจากกรมทางหลวงยังอยู่ระหว่างการศึกษาเก็บสถิติ",
+        "งบประมาณปัดเป็นหลักร้อย ตามแนวทางของกรมทางหลวง",
+        "ระยะเทียบเท่า = ระยะจริง × (จำนวนช่องจราจร / 2)",
+    ]
+    for note in notes:
+        p = add_thai_para(doc, first_indent=False)
+        run_n = p.add_run(f"- {note}")
+        set_run_font(run_n, size=Pt(13))
+
+    stream = io.BytesIO()
+    doc.save(stream)
+    stream.seek(0)
+    return stream
+
 
 # ─────────────────────────────────────────────
 # CSS
@@ -1252,8 +1684,8 @@ with tab5:
 
     st.markdown("---")
 
-    # ── 4 ปุ่ม Export ─────────────────────────
-    col_e1, col_e2, col_e3, col_e4 = st.columns(4)
+    # ── 5 ปุ่ม Export ─────────────────────────
+    col_e1, col_e2, col_e3, col_e4, col_e5 = st.columns(5)
 
     # ── Excel ──────────────────────────────────
     with col_e1:
@@ -1364,16 +1796,16 @@ with tab5:
         else:
             st.info("ยังไม่มีข้อมูล")
 
-    # ── Word Report ────────────────────────────
+    # ── Word Report (แบบย่อ) ──────────────────
     with col_e2:
         if bud_total > 0:
-            if st.button("📄 สร้างรายงาน Word", type="primary", key="make_word"):
+            if st.button("📄 รายงาน Word (แบบย่อ)", type="primary", key="make_word"):
                 with st.spinner("กำลังสร้างรายงาน..."):
                     try:
                         include_gr = st.session_state.get("include_gravel_report", False)
                         word_buf = generate_word_report(include_gravel=include_gr)
                         st.download_button(
-                            "⬇️ ดาวน์โหลด Word (.docx)",
+                            "⬇️ ดาวน์โหลด Word (แบบย่อ)",
                             data=word_buf,
                             file_name=f"routine_report_{st.session_state['year']}_{st.session_state['project_name'].replace(' ','_')}.docx",
                             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -1384,8 +1816,37 @@ with tab5:
         else:
             st.info("ยังไม่มีข้อมูล")
 
-    # ── JSON Save ──────────────────────────────
+    # ── Word Report (แบบที่ปรึกษา) ────────────
     with col_e3:
+        if bud_total > 0:
+            base_sec_input = st.text_input(
+                "Base Section (เช่น 3.5)",
+                value="3.5",
+                key="consultant_base_sec",
+                help="ระบุเลข section หลักของรายงานที่ปรึกษา เช่น 3.5 หรือ 4.2"
+            )
+            if st.button("📋 รายงาน Word (ที่ปรึกษา)", type="primary", key="make_word_con"):
+                with st.spinner("กำลังสร้างรายงานแบบที่ปรึกษา..."):
+                    try:
+                        include_gr = st.session_state.get("include_gravel_report", False)
+                        word_buf_con = generate_word_report_consultant(
+                            include_gravel=include_gr,
+                            base_sec=base_sec_input.strip() or "3.5",
+                        )
+                        st.download_button(
+                            "⬇️ ดาวน์โหลด Word (ที่ปรึกษา)",
+                            data=word_buf_con,
+                            file_name=f"routine_consultant_{st.session_state['year']}_{st.session_state['project_name'].replace(' ','_')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key="dl_word_con",
+                        )
+                    except Exception as e:
+                        st.error(f"สร้างรายงานไม่ได้: {e}")
+        else:
+            st.info("ยังไม่มีข้อมูล")
+
+    # ── JSON Save ──────────────────────────────
+    with col_e4:
         json_bytes5 = json.dumps(build_json_data(), ensure_ascii=False, indent=2).encode("utf-8")
         st.download_button(
             "💾 บันทึก JSON",
@@ -1396,7 +1857,7 @@ with tab5:
         )
 
     # ── Send to LCCA ───────────────────────────
-    with col_e4:
+    with col_e5:
         if bud_total > 0:
             if st.button("📤 ส่งให้ LCCA", type="secondary", key="send_lcca"):
                 rpc = bud_total / dist_total if dist_total > 0 else 0
