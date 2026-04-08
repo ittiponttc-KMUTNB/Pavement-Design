@@ -2373,8 +2373,8 @@ def main():
                 k_input_x = st.slider("ตำแหน่ง k บนแกน X", 0, w2, int(w2*0.5), key="k_pos_x")
                 intersect_y = int(m_red * k_input_x + c_red) if m_red else h2//2
                 
-                draw2.line([(k_input_x, axis_bottom_y), (k_input_x, intersect_y)], fill="springgreen", width=5)
-                draw_arrow_fixed(draw2, (k_input_x, intersect_y), (axis_left_x, intersect_y), "springgreen", width=5)
+                draw2.line([(k_input_x, axis_bottom_y), (k_input_x, intersect_y)], fill="blue", width=5)
+                draw_arrow_fixed(draw2, (k_input_x, intersect_y), (axis_left_x, intersect_y), "blue", width=5)
                 draw2.ellipse([(k_input_x-8, intersect_y-8), (k_input_x+8, intersect_y+8)], fill="black", outline="white", width=2)
                 
                 st.markdown("---")
