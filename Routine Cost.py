@@ -1116,9 +1116,30 @@ with tab1:
                                   "rows_ac","rows_cc","rows_gr"]:
                             if k in loaded_data:
                                 st.session_state[k] = loaded_data[k]
+                        n_ac = len(st.session_state["rows_ac"])
+                        n_cc = len(st.session_state["rows_cc"])
+                        n_gr = len(st.session_state["rows_gr"])
+                        st.success(f"✅ โหลดสำเร็จ — แอสฟัลท์ {n_ac} สาย | คอนกรีต {n_cc} สาย | ลูกรัง {n_gr} สาย")
                         st.rerun()  # ← rerun เฉพาะเมื่อโหลดข้อมูลใหม่จริงๆ
                     else:
-                        st.info("✅ โหลดไฟล์นี้แล้ว (ข้อมูลใน tab 2–4 แสดงอยู่แล้ว)")
+                        n_ac = len(st.session_state["rows_ac"])
+                        n_cc = len(st.session_state["rows_cc"])
+                        n_gr = len(st.session_state["rows_gr"])
+                        st.info(f"✅ โหลดไฟล์นี้แล้ว — แอสฟัลท์ {n_ac} สาย | คอนกรีต {n_cc} สาย | ลูกรัง {n_gr} สาย")
+
+    st.markdown("---")
+
+    # ── DEBUG: ตรวจสอบ session_state ──────────────────────────────────────
+    with st.expander("🔍 ตรวจสอบข้อมูลที่โหลด (debug)", expanded=False):
+        st.write({
+            "rows_ac (แอสฟัลท์)": len(st.session_state.get("rows_ac", [])),
+            "rows_cc (คอนกรีต)":  len(st.session_state.get("rows_cc", [])),
+            "rows_gr (ลูกรัง)":   len(st.session_state.get("rows_gr", [])),
+            "json_version": st.session_state.get("json_version", 0),
+            "hash (8 ตัวแรก)": (st.session_state.get("loaded_json_hash") or "")[:8],
+        })
+        if st.session_state.get("rows_ac"):
+            st.write("rows_ac[0] sample:", st.session_state["rows_ac"][0])
 
     st.markdown("---")
 
