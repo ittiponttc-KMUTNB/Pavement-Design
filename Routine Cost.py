@@ -1116,7 +1116,9 @@ with tab1:
                                   "rows_ac","rows_cc","rows_gr"]:
                             if k in loaded_data:
                                 st.session_state[k] = loaded_data[k]
-                    st.rerun()
+                        st.rerun()  # ← rerun เฉพาะเมื่อโหลดข้อมูลใหม่จริงๆ
+                    else:
+                        st.info("✅ โหลดไฟล์นี้แล้ว (ข้อมูลใน tab 2–4 แสดงอยู่แล้ว)")
 
     st.markdown("---")
 
