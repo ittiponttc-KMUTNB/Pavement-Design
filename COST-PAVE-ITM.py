@@ -527,28 +527,46 @@ def render_layer_editor(
         hide_index=True,
     )
 
+    # นับจำนวนชั้น AC จริง เพื่อคำนวณ Tack Coat quantity
+    ac_layer_count = sum(
+        1 for _, row in edited_surf.iterrows()
+        if any(kw in str(row.get('name', '')).lower()
+               for kw in ['wearing', 'binder', 'ac base', 'pma', 'asphalt base'])
+        and float(row.get('thickness', 0) or 0) > 0
+    )
+    # Tack Coat = (จำนวนชั้น AC - 1) รอยต่อ  เช่น 3 ชั้น → 2 ครั้ง
+    tack_multiplier = max(ac_layer_count - 1, 1)
+
     # Auto-update ราคาจาก library เมื่อชื่อ/ความหนาเปลี่ยน
     for _, row in edited_surf.iterrows():
         name  = str(row.get('name', '') or '')
         thick = float(row.get('thickness', 0) or 0)
         if not name or thick == 0:
             continue
-        # ราคาจาก library (ถ้าผู้ใช้ไม่แก้ หรือยังเป็น 0)
         lib_price = lookup_price(name, thick, ptype)
         unit_cost = float(row.get('unit_cost', 0) or 0)
         if unit_cost == 0 and lib_price > 0:
             unit_cost = lib_price
 
+        is_tack = 'tack' in name.lower()
         unit = 'cm' if thick > 1 else 'ชั้น'
+        qty  = proj_area * tack_multiplier if is_tack else proj_area
+
         updated_layers.append({
-            'name':       name,
-            'thickness':  thick,
-            'unit':       unit,
-            'quantity':   proj_area,
-            'qty_unit':   'sq.m',
-            'unit_cost':  unit_cost,
+            'name':         name,
+            'thickness':    thick,
+            'unit':         unit,
+            'quantity':     qty,
+            'qty_unit':     'sq.m',
+            'unit_cost':    unit_cost,
             'cost_per_sqm': unit_cost,
         })
+
+    if ptype == 'AC' and ac_layer_count > 1:
+        st.caption(
+            f"Tack Coat: {tack_multiplier} ครั้ง x {proj_area:,.0f} ตร.ม."
+            f" = {proj_area * tack_multiplier:,.0f} ตร.ม. (AC {ac_layer_count} ชั้น)"
+        )
 
     # บันทึก state กลับ
     st.session_state[sk_surf] = edited_surf.copy()
@@ -1302,17 +1320,39 @@ def main():
             key="tab2_cp_editor",
         )
 
-        st.subheader("🪨 ราคาวัสดุพื้นทาง (บาท/ลบ.ม.)")
-        bp_rows = [{'วัสดุ': k, 'ราคา (บาท/ลบ.ม.)': v} for k, v in lib['base_prices'].items()]
-        bp_edited = st.data_editor(
-            pd.DataFrame(bp_rows),
+        # แยก base_prices เป็น 2 กลุ่ม
+        SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
+        bp_cum_rows = [{'วัสดุ': k, 'ราคา (บาท/ลบ.ม.)': v}
+                       for k, v in lib['base_prices'].items() if k not in SQMKEYS]
+        bp_sqm_rows = [{'วัสดุ': k, 'ราคา (บาท/ตร.ม.)': v}
+                       for k, v in lib['base_prices'].items() if k in SQMKEYS]
+
+        st.subheader("🪨 ราคาวัสดุพื้นทาง / รองพื้นทาง (บาท/ลบ.ม.)")
+        bp_cum_edited = st.data_editor(
+            pd.DataFrame(bp_cum_rows),
+            column_config={
+                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
+                'ราคา (บาท/ลบ.ม.)': st.column_config.NumberColumn('ราคา (บาท/ลบ.ม.)', min_value=0.0, step=10.0, format='%.2f'),
+            },
             use_container_width=True,
             hide_index=True,
-            key="tab2_bp_editor",
+            key="tab2_bp_cum_editor",
+        )
+
+        st.subheader("🧴 ราคาวัสดุผิว / อุปกรณ์ (บาท/ตร.ม.)")
+        st.caption("Prime Coat, Tack Coat, Non Woven Geotextile, Wire Mesh — คิดตามพื้นที่ ไม่ใช่ปริมาตร")
+        bp_sqm_edited = st.data_editor(
+            pd.DataFrame(bp_sqm_rows),
+            column_config={
+                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
+                'ราคา (บาท/ตร.ม.)': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=1.0, format='%.2f'),
+            },
+            use_container_width=True,
+            hide_index=True,
+            key="tab2_bp_sqm_editor",
         )
 
         if st.button("💾 บันทึกราคาที่แก้ไขลง Library", type="primary"):
-            # อ่านจาก edited tables → update price_library
             new_ac: dict = {}
             for _, row in ac_edited.iterrows():
                 mat = str(row['วัสดุ'])
@@ -1324,8 +1364,10 @@ def main():
                 new_cp[ct] = {int(float(c.replace('cm', ''))): float(row[c])
                               for c in cp_edited.columns if c.endswith('cm')}
             new_bp: dict = {}
-            for _, row in bp_edited.iterrows():
+            for _, row in bp_cum_edited.iterrows():
                 new_bp[str(row['วัสดุ'])] = float(row['ราคา (บาท/ลบ.ม.)'])
+            for _, row in bp_sqm_edited.iterrows():
+                new_bp[str(row['วัสดุ'])] = float(row['ราคา (บาท/ตร.ม.)'])
 
             st.session_state['price_library'] = {
                 'ac_prices': new_ac,
