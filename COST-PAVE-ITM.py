@@ -294,27 +294,23 @@ def get_default_layers(ptype: str, area_per_km: float = 22000) -> list:
 
     if ptype == 'AC':
         return [
-            {'name': 'AC Wearing Course',  'thickness': 7,  'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': ap('AC Wearing Course', 7)},
-            {'name': 'AC Binder Course',   'thickness': 7,  'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': ap('AC Binder Course', 7)},
-            {'name': 'AC Base Course',     'thickness': 10, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': ap('AC Base Course', 10)},
+            {'name': 'AC Wearing Course',  'thickness': 7,  'unit': 'cm',    'quantity': area_per_km,   'qty_unit': 'sq.m', 'unit_cost': ap('AC Wearing Course', 7)},
+            {'name': 'AC Binder Course',   'thickness': 7,  'unit': 'cm',    'quantity': area_per_km,   'qty_unit': 'sq.m', 'unit_cost': ap('AC Binder Course', 7)},
+            {'name': 'AC Base Course',     'thickness': 10, 'unit': 'cm',    'quantity': area_per_km,   'qty_unit': 'sq.m', 'unit_cost': ap('AC Base Course', 10)},
             {'name': 'Tack Coat',          'thickness': 1,  'unit': 'Layer', 'quantity': area_per_km*2, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Tack Coat', 20))},
+            {'name': 'Prime Coat',         'thickness': 1,  'unit': 'Layer', 'quantity': area_per_km,   'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Prime Coat', 37.47))},
         ]
     if ptype == 'JPCP':
         return [
             {'name': 'Concrete Slab (JPCP)', 'thickness': 28, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': cp.get('JPCP', {}).get(28, 1000)},
-            {'name': 'Non Woven Geotextile', 'thickness': 1,  'unit': 'ชั้น', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Non Woven Geotextile', 78))},
         ]
     if ptype == 'JRCP':
         return [
             {'name': 'Concrete Slab (JRCP)', 'thickness': 28, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': cp.get('JRCP', {}).get(28, 1002)},
-            {'name': 'Wire Mesh',            'thickness': 1,  'unit': 'ชั้น', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Wire Mesh', 100))},
-            {'name': 'Non Woven Geotextile', 'thickness': 1,  'unit': 'ชั้น', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Non Woven Geotextile', 78))},
         ]
     if ptype == 'CRCP':
         return [
             {'name': 'Concrete Slab (CRCP)', 'thickness': 25, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': cp.get('CRCP', {}).get(25, 1245)},
-            {'name': 'Wire Mesh',            'thickness': 1,  'unit': 'ชั้น', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Wire Mesh', 100))},
-            {'name': 'Non Woven Geotextile', 'thickness': 1,  'unit': 'ชั้น', 'quantity': area_per_km, 'qty_unit': 'sq.m', 'unit_cost': float(bp.get('Non Woven Geotextile', 78))},
         ]
     return []
 
@@ -336,12 +332,18 @@ def get_default_base_layers(ptype: str, area_per_km: float = 22000) -> list:
             {'name': 'Sand Embankment',           'thickness': 40, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
              'unit_cost': b('Sand Embankment', 40), 'cost_cum': float(bp.get('Sand Embankment', 220))},
         ]
-    # Concrete types
+    # Concrete types — JPCP/JRCP/CRCP ใช้ default เดียวกัน
+    # (ผู้ใช้คัดลอกจาก JPCP ไปยัง JRCP/CRCP ได้ด้วยปุ่ม)
     return [
-        {'name': 'Soil Cement Subbase (UCS 7 ksc)', 'thickness': 20, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
-         'unit_cost': b('Soil Cement Subbase (UCS 7 ksc)', 20), 'cost_cum': float(bp.get('Soil Cement Subbase (UCS 7 ksc)', 854))},
-        {'name': 'Sand Embankment',                  'thickness': 50, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
-         'unit_cost': b('Sand Embankment', 50), 'cost_cum': float(bp.get('Sand Embankment', 220))},
+        {'name': 'Cement Modified Crushed Rock Base (UCS 24.5 ksc)', 'thickness': 20, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
+         'unit_cost': b('Cement Modified Crushed Rock Base (UCS 24.5 ksc)', 20),
+         'cost_cum': float(bp.get('Cement Modified Crushed Rock Base (UCS 24.5 ksc)', 864))},
+        {'name': 'Soil Aggregate Subbase', 'thickness': 20, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
+         'unit_cost': b('Soil Aggregate Subbase', 20),
+         'cost_cum': float(bp.get('Soil Aggregate Subbase', 375))},
+        {'name': 'Sand Embankment', 'thickness': 50, 'unit': 'cm', 'quantity': area_per_km, 'qty_unit': 'sq.m',
+         'unit_cost': b('Sand Embankment', 50),
+         'cost_cum': float(bp.get('Sand Embankment', 220))},
     ]
 
 
@@ -594,45 +596,51 @@ def render_layer_editor(
         )
 
     # ══════════════════════════════════════════════════════════════
-    # SECTION B: Checkboxes (AC Interlayer / Prime Coat / Geotextile)
-    #            เฉพาะโครงสร้างคอนกรีต
+    # SECTION B: Checkboxes วัสดุประกอบ (คอนกรีตทุกประเภท)
+    # AC Interlayer / Prime Coat / Non Woven Geotextile / Wire Mesh
     # ══════════════════════════════════════════════════════════════
     if is_concrete:
         st.markdown("---")
-        col_cb1, col_cb2, col_cb3 = st.columns(3)
+        st.markdown("**🔧 วัสดุประกอบ** — ติ๊กเลือกและปรับแก้ได้")
 
+        # แถวที่ 1: AC Interlayer + Prime Coat
+        col_cb1, col_cb2 = st.columns(2)
         with col_cb1:
-            use_acil = st.checkbox(
-                "AC Interlayer รองใต้แผ่น",
-                value=True,
-                key=f"{key_prefix}_use_acil_v{v}",
-                help="ชั้น AC ที่รองใต้แผ่นคอนกรีต ทั่วไป 5 cm"
-            )
+            use_acil = st.checkbox("AC Interlayer รองใต้แผ่นคอนกรีต", value=True,
+                key=f"{key_prefix}_use_acil_v{v}", help="ชั้น AC รองใต้แผ่น ทั่วไป 5 cm")
         with col_cb2:
-            use_pc = st.checkbox(
-                "Prime Coat",
-                value=True,
-                key=f"{key_prefix}_use_pc_v{v}",
-                help="ราดบน Base ก่อนปู AC Interlayer"
-            )
+            use_pc = st.checkbox("Prime Coat", value=True,
+                key=f"{key_prefix}_use_pc_v{v}", help="ราดบน Base ก่อนปู AC Interlayer (บาท/ตร.ม.)")
+
+        # แถวที่ 2: Non Woven Geotextile + Wire Mesh (Wire Mesh เฉพาะ JRCP/CRCP)
+        col_cb3, col_cb4 = st.columns(2)
         with col_cb3:
-            use_geo = st.checkbox(
-                "Non Woven Geotextile (แผ่น)",
-                value=False,
-                key=f"{key_prefix}_use_geo_v{v}",
-                help="แผ่น Geotextile รองใต้แผ่นคอนกรีต (นอกเหนือจาก Editor ด้านบน)"
+            use_geo = st.checkbox("Non Woven Geotextile", value=True,
+                key=f"{key_prefix}_use_geo_v{v}", help="แผ่น Geotextile รองใต้แผ่นคอนกรีต")
+        with col_cb4:
+            use_wire = st.checkbox(
+                "Wire Mesh" if ptype != 'JPCP' else "Wire Mesh (ไม่ใช้กับ JPCP)",
+                value=(ptype != 'JPCP'),
+                disabled=(ptype == 'JPCP'),
+                key=f"{key_prefix}_use_wire_v{v}",
+                help="ตะแกรงเหล็กในแผ่นคอนกรีต (JRCP/CRCP เท่านั้น)"
             )
 
+        # ── AC Interlayer ──
         if use_acil:
-            acil_thick = st.number_input(
-                "ความหนา AC Interlayer (cm)",
-                value=5.0, min_value=1.0, max_value=15.0, step=1.0,
-                key=f"{key_prefix}_acil_thick_v{v}",
-            )
-            acil_price = lookup_price('AC Binder Course', acil_thick, ptype)
-            if acil_price == 0:
-                acil_price = 251.0
-            st.caption(f"AC Interlayer {acil_thick:.0f} cm → **{acil_price:,.2f}** บาท/ตร.ม.")
+            c1, c2, c3 = st.columns([2, 1, 2])
+            with c1:
+                acil_thick = st.number_input("ความหนา AC Interlayer (cm)",
+                    value=5.0, min_value=1.0, max_value=15.0, step=1.0,
+                    key=f"{key_prefix}_acil_thick_v{v}")
+            with c2:
+                acil_price = lookup_price('AC Binder Course', acil_thick, ptype)
+                if acil_price == 0:
+                    acil_price = 251.0
+            with c3:
+                acil_price = st.number_input("ราคา (บาท/ตร.ม.)",
+                    value=acil_price, min_value=0.0, step=5.0,
+                    key=f"{key_prefix}_acil_price_v{v}")
             updated_layers.append({
                 'name': f'AC Interlayer ({acil_thick:.0f} cm)',
                 'thickness': acil_thick, 'unit': 'cm',
@@ -640,39 +648,87 @@ def render_layer_editor(
                 'unit_cost': acil_price, 'cost_per_sqm': acil_price,
             })
 
+        # ── Prime Coat ──
         if use_pc:
             pc_default = float(lib['base_prices'].get('Prime Coat', 37.47))
-            pc_price = st.number_input(
-                "ราคา Prime Coat (บาท/ตร.ม.)",
-                value=pc_default, min_value=0.0, step=1.0,
-                key=f"{key_prefix}_pc_price_v{v}",
-            )
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
+            with c2:
+                pc_price = st.number_input("ราคา Prime Coat (บาท/ตร.ม.)",
+                    value=pc_default, min_value=0.0, step=1.0,
+                    key=f"{key_prefix}_pc_price_v{v}", label_visibility="collapsed")
             updated_layers.append({
                 'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
                 'unit_cost': pc_price, 'cost_per_sqm': pc_price,
             })
 
+        # ── Non Woven Geotextile ──
         if use_geo:
             geo_price = float(lib['base_prices'].get('Non Woven Geotextile', 78))
-            st.caption(f"Non Woven Geotextile → **{geo_price:,.2f}** บาท/ตร.ม.")
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
+            with c2:
+                geo_price = st.number_input("ราคา Geotextile (บาท/ตร.ม.)",
+                    value=geo_price, min_value=0.0, step=1.0,
+                    key=f"{key_prefix}_geo_price_v{v}", label_visibility="collapsed")
             updated_layers.append({
                 'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
                 'unit_cost': geo_price, 'cost_per_sqm': geo_price,
             })
 
+        # ── Wire Mesh (JRCP/CRCP เท่านั้น) ──
+        if use_wire and ptype != 'JPCP':
+            wire_price = float(lib['base_prices'].get('Wire Mesh', 100))
+            c1, c2 = st.columns([3, 1])
+            with c1:
+                st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
+            with c2:
+                wire_price = st.number_input("ราคา Wire Mesh (บาท/ตร.ม.)",
+                    value=wire_price, min_value=0.0, step=5.0,
+                    key=f"{key_prefix}_wire_price_v{v}", label_visibility="collapsed")
+            updated_layers.append({
+                'name': 'Wire Mesh', 'thickness': 1, 'unit': 'ชั้น',
+                'quantity': proj_area, 'qty_unit': 'sq.m',
+                'unit_cost': wire_price, 'cost_per_sqm': wire_price,
+            })
+
     # ══════════════════════════════════════════════════════════════
     # SECTION C: พื้นทาง / รองพื้นทาง
     # ══════════════════════════════════════════════════════════════
     st.markdown("---")
-    st.markdown('<div class="section-card"><b>🪨 พื้นทาง / รองพื้นทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(ราคาแสดงเป็น บาท/ตร.ม., คำนวณจาก บาท/ลบ.ม. × ความหนา)</span></div>', unsafe_allow_html=True)
+
+    # ── Header + ปุ่มคัดลอกจาก JPCP (เฉพาะ JRCP/CRCP) ──────────
+    hcol1, hcol2 = st.columns([3, 1])
+    with hcol1:
+        st.markdown('<div class="section-card"><b>🪨 พื้นทาง / รองพื้นทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">บาท/ลบ.ม. × ความหนา = บาท/ตร.ม.</span></div>', unsafe_allow_html=True)
+    with hcol2:
+        if is_concrete and ptype != 'JPCP':
+            if st.button(f"📋 คัดลอก Base จาก JPCP", key=f"{key_prefix}_copy_base_v{v}",
+                         use_container_width=True, type="secondary"):
+                # คัดลอก sk_base_data จาก JPCP มาใส่ใน ptype นี้
+                jpcp_base_key = f"jpcp_base_data_v{v}"
+                if jpcp_base_key in st.session_state:
+                    src_df = st.session_state[jpcp_base_key].copy()
+                else:
+                    src_df = pd.DataFrame(get_default_base_layers('JPCP', area_per_km))
+                    if 'cost_cum' not in src_df.columns:
+                        src_df['cost_cum'] = src_df['unit_cost'] / (src_df['thickness'] / 100).replace(0, 1)
+                    src_df = src_df[['name', 'thickness', 'cost_cum', 'unit_cost']]
+                st.session_state[sk_base_data] = src_df.copy()
+                # ล้าง editor state เดิมเพื่อให้ reload
+                if ek_base in st.session_state:
+                    del st.session_state[ek_base]
+                st.rerun()
 
     st.data_editor(
         st.session_state[sk_base_data],
         column_config={
             'name':      st.column_config.SelectboxColumn('วัสดุ', options=BASE_MATERIAL_LIST, required=True, width='large'),
-            'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, max_value=150.0, step=5.0, format='%.0f'),
+            'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, step=5.0, format='%.0f'),
             'cost_cum':  st.column_config.NumberColumn('ราคา (บาท/ลบ.ม.)', min_value=0.0, step=10.0, format='%.0f'),
             'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.) — auto', min_value=0.0, step=1.0, format='%.2f', disabled=True),
         },
@@ -682,7 +738,7 @@ def render_layer_editor(
         hide_index=True,
         on_change=None,
     )
-    st.caption("💡 แก้ **ราคา (บาท/ลบ.ม.)** ระบบคำนวณ บาท/ตร.ม. อัตโนมัติ")
+    st.caption("💡 แก้ **ราคา (บาท/ลบ.ม.)** → ระบบคำนวณ บาท/ตร.ม. อัตโนมัติ")
 
     # อ่านผล base editor
     _base_state = st.session_state.get(ek_base, {})
@@ -701,14 +757,25 @@ def render_layer_editor(
         if del_idxs:
             edited_base = edited_base.drop(index=del_idxs).reset_index(drop=True)
 
-    for _, row in edited_base.iterrows():
+    # ดึง default cost_cum ต่อชื่อวัสดุจาก library (ใช้เปรียบเทียบกับ init)
+    _lib_cum_defaults = {mat: lookup_price(mat, 20) for mat in BASE_MATERIAL_LIST}
+    _init_df = st.session_state[sk_base_data]
+
+    for i, row in edited_base.iterrows():
         name  = str(row.get('name', '') or '')
         thick = float(row.get('thickness', 0) or 0)
         if not name or thick == 0:
             continue
+
         cost_cum = float(row.get('cost_cum', 0) or 0)
-        if cost_cum == 0:
-            cost_cum = lookup_price(name, thick)
+
+        # ตรวจว่า name เปลี่ยนจาก init หรือ cost_cum ยังเป็น 0 → ดึงจาก library
+        init_name = str(_init_df.at[i, 'name']) if i < len(_init_df) else ''
+        if cost_cum == 0 or name != init_name:
+            cost_cum = _lib_cum_defaults.get(name, 0)
+            if cost_cum == 0:
+                cost_cum = lookup_price(name, thick)
+
         cost_sqm = cost_cum * thick / 100
 
         updated_layers.append({
