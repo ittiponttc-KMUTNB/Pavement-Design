@@ -472,23 +472,32 @@ def render_layer_editor(
 ) -> list:
     """
     แสดง editor โครงสร้างชั้นทางด้วย st.data_editor
-    คืน updated_layers list สำหรับส่งต่อ calculate_layer_cost()
+    Pattern ที่ถูกต้อง:
+      - เก็บ DataFrame ใน session_state[sk_surf_data] / [sk_base_data]
+      - ส่ง key เดิมเข้า data_editor ทุก run
+      - อ่านผลจาก session_state[editor_key] หลัง render (Streamlit อัพเดทให้อัตโนมัติ)
+      - ไม่ overwrite session_state[sk_*_data] ซ้ำหลัง init ครั้งแรก
     """
     area_per_km = total_width * 1000
     proj_area   = area_per_km * road_length
     lib         = get_price_library()
     is_concrete = ptype in ('JPCP', 'JRCP', 'CRCP')
 
-    # ── โหลด state ────────────────────────────────────────────────────────────
-    sk_surf = f"{key_prefix}_surf_df_v{v}"
-    sk_base = f"{key_prefix}_base_df_v{v}"
+    sk_surf_data = f"{key_prefix}_surf_data_v{v}"
+    sk_base_data = f"{key_prefix}_base_data_v{v}"
+    ek_surf      = f"{key_prefix}_surf_editor_v{v}"   # editor key
+    ek_base      = f"{key_prefix}_base_editor_v{v}"
 
-    if sk_surf not in st.session_state:
-        defaults = get_default_layers(ptype, area_per_km)
-        st.session_state[sk_surf] = pd.DataFrame(defaults)
-    if sk_base not in st.session_state:
-        defaults_b = get_default_base_layers(ptype, area_per_km)
-        st.session_state[sk_base] = pd.DataFrame(defaults_b)
+    # Init เพียงครั้งเดียว — ไม่ overwrite เมื่อ user แก้แล้ว
+    if sk_surf_data not in st.session_state:
+        st.session_state[sk_surf_data] = pd.DataFrame(
+            get_default_layers(ptype, area_per_km)
+        )[['name', 'thickness', 'unit_cost']]
+
+    if sk_base_data not in st.session_state:
+        st.session_state[sk_base_data] = pd.DataFrame(
+            get_default_base_layers(ptype, area_per_km)
+        )[['name', 'thickness', 'cost_cum', 'unit_cost']]
 
     updated_layers: list = []
 
@@ -497,9 +506,6 @@ def render_layer_editor(
     # ══════════════════════════════════════════════════════════════
     st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.)</span></div>', unsafe_allow_html=True)
 
-    surf_df = st.session_state[sk_surf].copy()
-
-    # กำหนด columns ที่ user แก้ได้
     if is_concrete:
         surf_options = ['Concrete Slab (JPCP)', 'Concrete Slab (JRCP)', 'Concrete Slab (CRCP)',
                         'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat', 'Prime Coat']
@@ -516,16 +522,35 @@ def render_layer_editor(
             'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=10.0, format='%.2f'),
         }
 
-    display_surf = surf_df[['name', 'thickness', 'unit_cost']].copy() if all(c in surf_df.columns for c in ['name', 'thickness', 'unit_cost']) else pd.DataFrame(columns=['name', 'thickness', 'unit_cost'])
-
-    edited_surf = st.data_editor(
-        display_surf,
+    # ส่ง sk_surf_data เข้า editor — Streamlit จะอ่าน/เขียน state ผ่าน ek_surf
+    st.data_editor(
+        st.session_state[sk_surf_data],
         column_config=editable_cols,
         num_rows='dynamic',
         use_container_width=True,
-        key=f"{key_prefix}_surf_editor_v{v}",
+        key=ek_surf,
         hide_index=True,
+        on_change=None,
     )
+    # อ่านผล: Streamlit เก็บ edited DataFrame ใน session_state[ek_surf]
+    _surf_state = st.session_state.get(ek_surf, {})
+    edited_surf = st.session_state[sk_surf_data].copy()
+    if isinstance(_surf_state, dict):
+        # apply edited_rows
+        for idx_str, changes in _surf_state.get("edited_rows", {}).items():
+            idx = int(idx_str)
+            if idx < len(edited_surf):
+                for col, val in changes.items():
+                    edited_surf.at[idx, col] = val
+        # apply added_rows
+        for new_row in _surf_state.get("added_rows", []):
+            edited_surf = pd.concat(
+                [edited_surf, pd.DataFrame([new_row])], ignore_index=True
+            )
+        # apply deleted_rows
+        del_idxs = _surf_state.get("deleted_rows", [])
+        if del_idxs:
+            edited_surf = edited_surf.drop(index=del_idxs).reset_index(drop=True)
 
     # นับจำนวนชั้น AC จริง เพื่อคำนวณ Tack Coat quantity
     ac_layer_count = sum(
@@ -567,9 +592,6 @@ def render_layer_editor(
             f"Tack Coat: {tack_multiplier} ครั้ง x {proj_area:,.0f} ตร.ม."
             f" = {proj_area * tack_multiplier:,.0f} ตร.ม. (AC {ac_layer_count} ชั้น)"
         )
-
-    # บันทึก state กลับ
-    st.session_state[sk_surf] = edited_surf.copy()
 
     # ══════════════════════════════════════════════════════════════
     # SECTION B: Checkboxes (AC Interlayer / Prime Coat / Geotextile)
@@ -646,32 +668,44 @@ def render_layer_editor(
     st.markdown("---")
     st.markdown('<div class="section-card"><b>🪨 พื้นทาง / รองพื้นทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(ราคาแสดงเป็น บาท/ตร.ม., คำนวณจาก บาท/ลบ.ม. × ความหนา)</span></div>', unsafe_allow_html=True)
 
-    base_df = st.session_state[sk_base].copy()
-    display_base = base_df[['name', 'thickness', 'unit_cost', 'cost_cum']].copy() if all(c in base_df.columns for c in ['name', 'thickness', 'unit_cost', 'cost_cum']) else pd.DataFrame(columns=['name', 'thickness', 'unit_cost', 'cost_cum'])
-
-    edited_base = st.data_editor(
-        display_base,
+    st.data_editor(
+        st.session_state[sk_base_data],
         column_config={
             'name':      st.column_config.SelectboxColumn('วัสดุ', options=BASE_MATERIAL_LIST, required=True, width='large'),
             'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, max_value=150.0, step=5.0, format='%.0f'),
             'cost_cum':  st.column_config.NumberColumn('ราคา (บาท/ลบ.ม.)', min_value=0.0, step=10.0, format='%.0f'),
-            'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=1.0, format='%.2f', disabled=True),
+            'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.) — auto', min_value=0.0, step=1.0, format='%.2f', disabled=True),
         },
         num_rows='dynamic',
         use_container_width=True,
-        key=f"{key_prefix}_base_editor_v{v}",
+        key=ek_base,
         hide_index=True,
+        on_change=None,
     )
+    st.caption("💡 แก้ **ราคา (บาท/ลบ.ม.)** ระบบคำนวณ บาท/ตร.ม. อัตโนมัติ")
 
-    st.caption("💡 แก้ **ราคา (บาท/ลบ.ม.)** ระบบจะคำนวณ บาท/ตร.ม. ให้อัตโนมัติ")
+    # อ่านผล base editor
+    _base_state = st.session_state.get(ek_base, {})
+    edited_base = st.session_state[sk_base_data].copy()
+    if isinstance(_base_state, dict):
+        for idx_str, changes in _base_state.get("edited_rows", {}).items():
+            idx = int(idx_str)
+            if idx < len(edited_base):
+                for col, val in changes.items():
+                    edited_base.at[idx, col] = val
+        for new_row in _base_state.get("added_rows", []):
+            edited_base = pd.concat(
+                [edited_base, pd.DataFrame([new_row])], ignore_index=True
+            )
+        del_idxs = _base_state.get("deleted_rows", [])
+        if del_idxs:
+            edited_base = edited_base.drop(index=del_idxs).reset_index(drop=True)
 
     for _, row in edited_base.iterrows():
         name  = str(row.get('name', '') or '')
         thick = float(row.get('thickness', 0) or 0)
         if not name or thick == 0:
             continue
-
-        # ดึงราคา/ลบ.ม. จาก library ถ้า cost_cum ยังเป็น 0
         cost_cum = float(row.get('cost_cum', 0) or 0)
         if cost_cum == 0:
             cost_cum = lookup_price(name, thick)
@@ -687,8 +721,6 @@ def render_layer_editor(
             'cost_per_sqm': cost_sqm,
             'cost_cum':   cost_cum,
         })
-
-    st.session_state[sk_base] = edited_base.copy()
 
     return updated_layers
 
@@ -722,11 +754,28 @@ def render_joint_editor(
         joint_label = 'Transverse Joint @10m'
         spacing = 10
 
-    sk_joint = f"{key_prefix}_joint_df_v{v}"
+    # init default เพียงครั้งเดียว — คำนวณ qty อัตโนมัติแล้วใส่ใน init
+    sk_joint_init = f"{key_prefix}_joint_init_v{v}"
 
-    if sk_joint not in st.session_state:
+    if ptype in ('JPCP', 'JRCP'):
+        auto_trans = (road_length * 1000 / spacing) * width_m
+        auto_long  = max(1, round(width_m / lane_w) - 1) * road_length * 1000
+    else:
+        auto_trans = 0.0
+        auto_long  = max(1, round(width_m / lane_w) - 1) * road_length * 1000
+
+    if sk_joint_init not in st.session_state:
         defaults_j = get_default_joints(ptype, area_per_km, road_length)
-        st.session_state[sk_joint] = pd.DataFrame(defaults_j)
+        rows_init = []
+        for j in defaults_j:
+            name = j['name']
+            qty  = j['quantity']
+            if 'transverse' in name.lower():
+                qty = auto_trans if ptype in ('JPCP', 'JRCP') else qty
+            elif 'longitudinal' in name.lower() or 'steel' in name.lower():
+                qty = auto_long
+            rows_init.append({'name': name, 'quantity': qty, 'unit_cost': float(j['unit_cost'])})
+        st.session_state[sk_joint_init] = pd.DataFrame(rows_init)
 
     st.markdown("---")
     col_h1, col_h2 = st.columns([3, 1])
@@ -739,33 +788,10 @@ def render_joint_editor(
         _cb_label = "รวมราคา Steel & Joints" if ptype == 'CRCP' else "รวมราคา Joints"
         include_joints = st.checkbox(_cb_label, value=True, key=f"{key_prefix}_include_joints_v{v}")
 
-    joint_df = st.session_state[sk_joint].copy()
-    display_joint = joint_df[['name', 'quantity', 'unit_cost']].copy() if all(c in joint_df.columns for c in ['name', 'quantity', 'unit_cost']) else pd.DataFrame(columns=['name', 'quantity', 'unit_cost'])
+    ek_joint = f"{key_prefix}_joint_editor_v{v}"
 
-    # คำนวณ auto qty
-    if ptype in ('JPCP', 'JRCP'):
-        auto_trans = (road_length * 1000 / spacing) * width_m
-        auto_long  = max(1, round(width_m / lane_w) - 1) * road_length * 1000
-    else:
-        auto_trans = 0.0
-        auto_long  = max(1, round(width_m / lane_w) - 1) * road_length * 1000
-
-    # ปรับ quantity ใน display ตาม ptype
-    rows = []
-    for _, row in display_joint.iterrows():
-        name = str(row.get('name', ''))
-        qty  = float(row.get('quantity', 0))
-        if 'transverse' in name.lower():
-            qty = auto_trans if ptype in ('JPCP', 'JRCP') else qty
-        elif 'longitudinal' in name.lower() or 'steel' in name.lower():
-            qty = auto_long
-        rows.append({'name': name, 'quantity': qty, 'unit_cost': float(row.get('unit_cost', 0))})
-
-    if rows:
-        display_joint = pd.DataFrame(rows)
-
-    edited_joint = st.data_editor(
-        display_joint,
+    st.data_editor(
+        st.session_state[sk_joint_init],
         column_config={
             'name':      st.column_config.TextColumn('รายการ', width='large'),
             'quantity':  st.column_config.NumberColumn('ปริมาณ (ม.)', min_value=0.0, step=100.0, format='%.0f'),
@@ -773,9 +799,27 @@ def render_joint_editor(
         },
         num_rows='dynamic',
         use_container_width=True,
-        key=f"{key_prefix}_joint_editor_v{v}",
+        key=ek_joint,
         hide_index=True,
+        on_change=None,
     )
+
+    # อ่านผล joint editor
+    _joint_state = st.session_state.get(ek_joint, {})
+    edited_joint = st.session_state[sk_joint_init].copy()
+    if isinstance(_joint_state, dict):
+        for idx_str, changes in _joint_state.get("edited_rows", {}).items():
+            idx = int(idx_str)
+            if idx < len(edited_joint):
+                for col, val in changes.items():
+                    edited_joint.at[idx, col] = val
+        for new_row in _joint_state.get("added_rows", []):
+            edited_joint = pd.concat(
+                [edited_joint, pd.DataFrame([new_row])], ignore_index=True
+            )
+        del_idxs = _joint_state.get("deleted_rows", [])
+        if del_idxs:
+            edited_joint = edited_joint.drop(index=del_idxs).reset_index(drop=True)
 
     # แสดงราคา/ตร.ม. ใต้ตาราง
     joint_total_cost = 0.0
@@ -795,7 +839,6 @@ def render_joint_editor(
     if total_area > 0:
         st.caption(f"รวม Joints = **{joint_total_cost/total_area:,.2f}** บาท/ตร.ม. | **{joint_total_cost/1e6:,.3f}** ล้านบาท/โครงการ")
 
-    st.session_state[sk_joint] = edited_joint.copy()
     return updated_joints, include_joints
 
 
@@ -1109,7 +1152,7 @@ def main():
                             st.session_state['json_version'] = new_v
                             # ล้าง data_editor state ทั้งหมด
                             keys_to_clear = [k for k in st.session_state
-                                             if any(p in k for p in ['_surf_df_', '_base_df_', '_joint_df_',
+                                             if any(p in k for p in ['_surf_init_', '_base_init_', '_joint_init_',
                                                                        '_surf_editor_', '_base_editor_', '_joint_editor_'])]
                             for k in keys_to_clear:
                                 del st.session_state[k]
