@@ -475,7 +475,7 @@ def render_layer_editor(
     """
     แสดง editor โครงสร้างชั้นทางด้วย st.data_editor
     Pattern ที่ถูกต้อง:
-      - เก็บ DataFrame ใน session_state[sk_surf_data] / [sk_base_data]
+      - เก็บ DataFrame ใน session_state[sk_surf_data] (surf) / sk_base_rows (base)
       - ส่ง key เดิมเข้า data_editor ทุก run
       - อ่านผลจาก session_state[editor_key] หลัง render (Streamlit อัพเดทให้อัตโนมัติ)
       - ไม่ overwrite session_state[sk_*_data] ซ้ำหลัง init ครั้งแรก
@@ -486,20 +486,13 @@ def render_layer_editor(
     is_concrete = ptype in ('JPCP', 'JRCP', 'CRCP')
 
     sk_surf_data = f"{key_prefix}_surf_data_v{v}"
-    sk_base_data = f"{key_prefix}_base_data_v{v}"
     ek_surf      = f"{key_prefix}_surf_editor_v{v}"   # editor key
-    ek_base      = f"{key_prefix}_base_editor_v{v}"
 
-    # Init เพียงครั้งเดียว — ไม่ overwrite เมื่อ user แก้แล้ว
+    # Init surf เพียงครั้งเดียว — ไม่ overwrite เมื่อ user แก้แล้ว
     if sk_surf_data not in st.session_state:
         st.session_state[sk_surf_data] = pd.DataFrame(
             get_default_layers(ptype, area_per_km)
         )[['name', 'thickness', 'unit_cost']]
-
-    if sk_base_data not in st.session_state:
-        st.session_state[sk_base_data] = pd.DataFrame(
-            get_default_base_layers(ptype, area_per_km)
-        )[['name', 'thickness', 'cost_cum', 'unit_cost']]
 
     updated_layers: list = []
 
@@ -698,96 +691,138 @@ def render_layer_editor(
 
     # ══════════════════════════════════════════════════════════════
     # SECTION C: พื้นทาง / รองพื้นทาง
+    # ใช้ selectbox + number_input (ไม่มี reset ปัญหา)
     # ══════════════════════════════════════════════════════════════
     st.markdown("---")
 
-    # ── Header + ปุ่มคัดลอกจาก JPCP (เฉพาะ JRCP/CRCP) ──────────
+    # ── Header + ปุ่มคัดลอกจาก JPCP ──────────────────────────────
     hcol1, hcol2 = st.columns([3, 1])
     with hcol1:
-        st.markdown('<div class="section-card"><b>🪨 พื้นทาง / รองพื้นทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">บาท/ลบ.ม. × ความหนา = บาท/ตร.ม.</span></div>', unsafe_allow_html=True)
+        st.markdown(
+            '<div class="section-card"><b>🪨 พื้นทาง / รองพื้นทาง</b> ' +
+            '<span style="color:#6b7a8d;font-size:0.85rem">บาท/ลบ.ม. × ความหนา = บาท/ตร.ม.</span></div>',
+            unsafe_allow_html=True
+        )
     with hcol2:
         if is_concrete and ptype != 'JPCP':
-            if st.button(f"📋 คัดลอก Base จาก JPCP", key=f"{key_prefix}_copy_base_v{v}",
+            if st.button("📋 คัดลอก Base จาก JPCP",
+                         key=f"{key_prefix}_copy_base_v{v}",
                          use_container_width=True, type="secondary"):
-                # คัดลอก sk_base_data จาก JPCP มาใส่ใน ptype นี้
-                jpcp_base_key = f"jpcp_base_data_v{v}"
-                if jpcp_base_key in st.session_state:
-                    src_df = st.session_state[jpcp_base_key].copy()
-                else:
-                    src_df = pd.DataFrame(get_default_base_layers('JPCP', area_per_km))
-                    if 'cost_cum' not in src_df.columns:
-                        src_df['cost_cum'] = src_df['unit_cost'] / (src_df['thickness'] / 100).replace(0, 1)
-                    src_df = src_df[['name', 'thickness', 'cost_cum', 'unit_cost']]
-                st.session_state[sk_base_data] = src_df.copy()
-                # ล้าง editor state เดิมเพื่อให้ reload
-                if ek_base in st.session_state:
-                    del st.session_state[ek_base]
+                # ดึง base layers ของ JPCP จาก session_state
+                jpcp_sk = f"jpcp_base_rows_v{v}"
+                if jpcp_sk in st.session_state:
+                    st.session_state[f"{key_prefix}_base_rows_v{v}"] = [
+                        dict(r) for r in st.session_state[jpcp_sk]
+                    ]
                 st.rerun()
 
-    st.data_editor(
-        st.session_state[sk_base_data],
-        column_config={
-            'name':      st.column_config.SelectboxColumn('วัสดุ', options=BASE_MATERIAL_LIST, required=True, width='large'),
-            'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, step=5.0, format='%.0f'),
-            'cost_cum':  st.column_config.NumberColumn('ราคา (บาท/ลบ.ม.)', min_value=0.0, step=10.0, format='%.0f'),
-            'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.) — auto', min_value=0.0, step=1.0, format='%.2f', disabled=True),
-        },
-        num_rows='dynamic',
-        use_container_width=True,
-        key=ek_base,
-        hide_index=True,
-        on_change=None,
+    # ── default rows สำหรับ base (init เพียงครั้งเดียว) ───────────
+    sk_base_rows = f"{key_prefix}_base_rows_v{v}"
+    if sk_base_rows not in st.session_state:
+        _def_base = get_default_base_layers(ptype, area_per_km)
+        st.session_state[sk_base_rows] = [
+            {'name': r['name'], 'thickness': r['thickness'],
+             'cost_cum': r['cost_cum']}
+            for r in _def_base
+        ]
+
+    # บันทึก JPCP base rows ไว้ให้ JRCP/CRCP คัดลอก
+    if ptype == 'JPCP':
+        st.session_state[f"jpcp_base_rows_v{v}"] = [
+            dict(r) for r in st.session_state[sk_base_rows]
+        ]
+
+    # ── จำนวนชั้น ──────────────────────────────────────────────────
+    _cur_rows = st.session_state[sk_base_rows]
+    num_base = st.number_input(
+        "จำนวนชั้นพื้นทาง/รองพื้นทาง",
+        min_value=0, max_value=8,
+        value=len(_cur_rows),
+        step=1,
+        key=f"{key_prefix}_num_base_v{v}",
     )
-    st.caption("💡 แก้ **ราคา (บาท/ลบ.ม.)** → ระบบคำนวณ บาท/ตร.ม. อัตโนมัติ")
+    num_base = int(num_base)
 
-    # อ่านผล base editor
-    _base_state = st.session_state.get(ek_base, {})
-    edited_base = st.session_state[sk_base_data].copy()
-    if isinstance(_base_state, dict):
-        for idx_str, changes in _base_state.get("edited_rows", {}).items():
-            idx = int(idx_str)
-            if idx < len(edited_base):
-                for col, val in changes.items():
-                    edited_base.at[idx, col] = val
-        for new_row in _base_state.get("added_rows", []):
-            edited_base = pd.concat(
-                [edited_base, pd.DataFrame([new_row])], ignore_index=True
+    # ── Header columns ─────────────────────────────────────────────
+    _lib_cum = {m: lookup_price(m, 20) for m in BASE_MATERIAL_LIST}
+    hdr = st.columns([3, 1.2, 1.5, 1.5])
+    hdr[0].markdown("**วัสดุ**")
+    hdr[1].markdown("**หนา (cm)**")
+    hdr[2].markdown("**ราคา (บาท/ลบ.ม.)**")
+    hdr[3].markdown("**ราคา (บาท/ตร.ม.)**")
+
+    # ── rows ───────────────────────────────────────────────────────
+    new_rows = []
+    for i in range(num_base):
+        # ดึงค่าเดิมถ้ามี
+        prev = _cur_rows[i] if i < len(_cur_rows) else {
+            'name': BASE_MATERIAL_LIST[0], 'thickness': 20.0,
+            'cost_cum': _lib_cum.get(BASE_MATERIAL_LIST[0], 0)
+        }
+        prev_name = str(prev.get('name', BASE_MATERIAL_LIST[0]))
+        prev_thick = float(prev.get('thickness', 20.0) or 20.0)
+        prev_cum   = float(prev.get('cost_cum', 0) or 0)
+
+        # ถ้า cost_cum = 0 → ดึงจาก library
+        if prev_cum == 0:
+            prev_cum = _lib_cum.get(prev_name, 0)
+
+        cols = st.columns([3, 1.2, 1.5, 1.5])
+
+        with cols[0]:
+            try:
+                name_idx = BASE_MATERIAL_LIST.index(prev_name)
+            except ValueError:
+                name_idx = 0
+            sel_name = st.selectbox(
+                "วัสดุ", BASE_MATERIAL_LIST, index=name_idx,
+                key=f"{key_prefix}_bname_{i}_v{v}",
+                label_visibility="collapsed",
             )
-        del_idxs = _base_state.get("deleted_rows", [])
-        if del_idxs:
-            edited_base = edited_base.drop(index=del_idxs).reset_index(drop=True)
 
-    # ดึง default cost_cum ต่อชื่อวัสดุจาก library (ใช้เปรียบเทียบกับ init)
-    _lib_cum_defaults = {mat: lookup_price(mat, 20) for mat in BASE_MATERIAL_LIST}
-    _init_df = st.session_state[sk_base_data]
+        with cols[1]:
+            sel_thick = st.number_input(
+                "หนา", value=prev_thick,
+                min_value=0.0, step=5.0, format="%.0f",
+                key=f"{key_prefix}_bthick_{i}_v{v}",
+                label_visibility="collapsed",
+            )
 
-    for i, row in edited_base.iterrows():
-        name  = str(row.get('name', '') or '')
-        thick = float(row.get('thickness', 0) or 0)
-        if not name or thick == 0:
-            continue
+        # ถ้าเปลี่ยนวัสดุ → ดึง cost_cum ใหม่จาก library
+        if sel_name != prev_name:
+            prev_cum = _lib_cum.get(sel_name, 0)
 
-        cost_cum = float(row.get('cost_cum', 0) or 0)
+        with cols[2]:
+            sel_cum = st.number_input(
+                "บาท/ลบ.ม.", value=float(prev_cum),
+                min_value=0.0, step=10.0, format="%.0f",
+                key=f"{key_prefix}_bcum_{i}_v{v}",
+                label_visibility="collapsed",
+            )
 
-        # ตรวจว่า name เปลี่ยนจาก init หรือ cost_cum ยังเป็น 0 → ดึงจาก library
-        init_name = str(_init_df.at[i, 'name']) if i < len(_init_df) else ''
-        if cost_cum == 0 or name != init_name:
-            cost_cum = _lib_cum_defaults.get(name, 0)
-            if cost_cum == 0:
-                cost_cum = lookup_price(name, thick)
+        cost_sqm = sel_cum * sel_thick / 100 if sel_thick > 0 else 0.0
+        with cols[3]:
+            st.markdown(
+                f'<div style="padding:8px 4px;font-weight:600;color:#0f2942;">{cost_sqm:,.2f}</div>',
+                unsafe_allow_html=True
+            )
 
-        cost_sqm = cost_cum * thick / 100
+        new_rows.append({'name': sel_name, 'thickness': sel_thick, 'cost_cum': sel_cum})
 
-        updated_layers.append({
-            'name':       name,
-            'thickness':  thick,
-            'unit':       'cm',
-            'quantity':   proj_area,
-            'qty_unit':   'sq.m',
-            'unit_cost':  cost_sqm,
-            'cost_per_sqm': cost_sqm,
-            'cost_cum':   cost_cum,
-        })
+        if sel_thick > 0 and sel_name:
+            updated_layers.append({
+                'name':         sel_name,
+                'thickness':    sel_thick,
+                'unit':         'cm',
+                'quantity':     proj_area,
+                'qty_unit':     'sq.m',
+                'unit_cost':    cost_sqm,
+                'cost_per_sqm': cost_sqm,
+                'cost_cum':     sel_cum,
+            })
+
+    # บันทึก rows กลับ session_state (ไม่ให้ reset)
+    st.session_state[sk_base_rows] = new_rows
 
     return updated_layers
 
