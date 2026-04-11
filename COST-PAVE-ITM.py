@@ -173,6 +173,15 @@ button[data-baseweb="tab"] {
 # DEFAULT PRICE TABLES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ราคา AC ต่อตัน (บาท/ตัน) — ใช้ density 2.4 คำนวณ price table
+DEFAULT_AC_TON_PRICES: dict = {
+    'PMA Wearing Course': 3100,
+    'AC Wearing Course':  2973,
+    'AC Binder Course':   2929,
+    'AC Base Course':     1795,
+}
+DEFAULT_AC_DENSITY: float = 2.4  # ตัน/ลบ.ม.
+
 # ราคา AC คำนวณจากราคาต่อตัน × density 2.4 × ความหนา
 # PMA=3,100 | AC Wearing=2,973 | AC Binder=2,929 | AC Base=1,795 บาท/ตัน
 DEFAULT_AC_PRICES: dict = {
@@ -1270,14 +1279,21 @@ def generate_word_report(
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def generate_excel_template() -> bytes:
+    """สร้าง Excel template
+    AC_Prices: Material | Price (Baht/ton)  ← ใช้ราคาต่อตันเท่านั้น
+    Concrete_Prices: Type | 25cm ... 35cm   (บาท/ตร.ม.)
+    Base_Materials: Material | Price (Baht/cu.m)
+    """
     lib = get_price_library()
-    ac_rows = []
-    for mat, prices in lib['ac_prices'].items():
-        row = {'Material': mat}
-        for t, p in prices.items():
-            row[f"{t}cm"] = p
-        ac_rows.append(row)
 
+    # AC_Prices — เฉพาะ บาท/ตัน (กรอกง่าย โปรแกรมคำนวณเอง)
+    ac_ton = st.session_state.get('ac_ton_prices', DEFAULT_AC_TON_PRICES)
+    ac_rows = [
+        {'Material': mat, 'Price (Baht/ton)': float(ac_ton.get(mat, 0))}
+        for mat in DEFAULT_AC_TON_PRICES.keys()
+    ]
+
+    # Concrete_Prices — บาท/ตร.ม. ตามความหนา
     conc_rows = []
     for ct, prices in lib['concrete_prices'].items():
         row = {'Type': ct}
@@ -1285,8 +1301,12 @@ def generate_excel_template() -> bytes:
             row[f"{t}cm"] = p
         conc_rows.append(row)
 
-    base_rows = [{'Material': k, 'Price (Baht/cu.m)': v}
-                 for k, v in lib['base_prices'].items()]
+    # Base_Materials — แยก บาท/ลบ.ม. และ บาท/ตร.ม.
+    SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
+    base_rows = []
+    for k, v in lib['base_prices'].items():
+        unit = 'Baht/sq.m' if k in SQMKEYS else 'Baht/cu.m'
+        base_rows.append({'Material': k, 'Price': v, 'Unit': unit})
 
     output = io.BytesIO()
     with pd.ExcelWriter(output, engine='openpyxl') as writer:
@@ -1297,40 +1317,57 @@ def generate_excel_template() -> bytes:
     return output.getvalue()
 
 
+def _calc_ac_prices_from_ton(ton_prices: dict, density: float = DEFAULT_AC_DENSITY) -> dict:
+    """คำนวณ AC price table (บาท/ตร.ม.) จากราคา/ตัน × density × ความหนา"""
+    thicknesses = [2.5, 3, 4, 5, 6, 7, 8, 9, 10]
+    result = {}
+    for mat, ton_p in ton_prices.items():
+        if ton_p > 0:
+            result[mat] = {t: round(ton_p * density * t / 100, 2) for t in thicknesses}
+        else:
+            # ถ้าราคา = 0 → ใช้ default
+            result[mat] = dict(DEFAULT_AC_PRICES.get(mat, {}))
+    return result
+
+
 def load_excel_price_library(uploaded_file) -> dict:
-    """อ่าน Excel → dict price_library"""
+    """อ่าน Excel → dict price_library
+    AC_Prices: อ่าน Price (Baht/ton) → คำนวณ price table อัตโนมัติ
+    Concrete_Prices: อ่าน บาท/ตร.ม. ตามความหนา
+    Base_Materials: อ่านราคา/หน่วย
+    """
     ac_df   = pd.read_excel(uploaded_file, sheet_name='AC_Prices')
     conc_df = pd.read_excel(uploaded_file, sheet_name='Concrete_Prices')
     base_df = pd.read_excel(uploaded_file, sheet_name='Base_Materials')
 
-    ac_prices: dict = {}
-    for _, row in ac_df.iterrows():
-        mat = row['Material']
-        prices = {}
-        for col in ac_df.columns[1:]:
+    # ── AC: อ่าน บาท/ตัน → คำนวณ price table ──────────────────
+    ac_ton_prices: dict = dict(DEFAULT_AC_TON_PRICES)  # fallback
+    if 'Price (Baht/ton)' in ac_df.columns:
+        for _, row in ac_df.iterrows():
             try:
-                t = float(col.replace('cm', '').strip())
-                v = row[col]
-                if pd.notna(v):
-                    prices[t] = float(v)
+                mat = str(row['Material'])
+                val = row['Price (Baht/ton)']
+                if pd.notna(mat) and pd.notna(val) and float(val) > 0:
+                    ac_ton_prices[mat] = float(val)
             except (ValueError, TypeError):
                 pass
-        if prices:
-            ac_prices[mat] = prices
+        # บันทึก ton prices ไว้ใน session_state ด้วย (สำหรับ UI Tab 2)
+        st.session_state['ac_ton_prices'] = ac_ton_prices
+    density = st.session_state.get('tab2_density', DEFAULT_AC_DENSITY)
+    ac_prices = _calc_ac_prices_from_ton(ac_ton_prices, density)
+    # เติม key ที่ขาด
     for mat, dp in DEFAULT_AC_PRICES.items():
         if mat not in ac_prices:
             ac_prices[mat] = dict(dp)
-        else:
-            for t, p in dp.items():
-                ac_prices[mat].setdefault(t, p)
 
+    # ── Concrete: อ่าน บาท/ตร.ม. ──────────────────────────────
     conc_prices: dict = {}
     for _, row in conc_df.iterrows():
-        ct = row['Type']
+        ct = str(row['Type'])
         prices = {}
         for col in conc_df.columns[1:]:
             try:
-                t = int(float(col.replace('cm', '').strip()))
+                t = int(float(str(col).replace('cm', '').strip()))
                 v = row[col]
                 if pd.notna(v):
                     prices[t] = float(v)
@@ -1345,11 +1382,13 @@ def load_excel_price_library(uploaded_file) -> dict:
             for t, p in dp.items():
                 conc_prices[ct].setdefault(t, p)
 
+    # ── Base Materials: อ่านราคา/หน่วย ────────────────────────
     base_prices: dict = dict(DEFAULT_BASE_PRICES)
+    price_col = 'Price' if 'Price' in base_df.columns else 'Price (Baht/cu.m)'
     for _, row in base_df.iterrows():
         try:
             mat = str(row['Material'])
-            val = row['Price (Baht/cu.m)']
+            val = row[price_col]
             if pd.notna(mat) and pd.notna(val):
                 base_prices[mat] = float(val)
         except (ValueError, TypeError):
@@ -1602,84 +1641,99 @@ def main():
             )
 
         # ══════════════════════════════════════════════════════════
-        # คำนวณราคา AC จากราคาต่อตัน
+        # คำนวณราคา AC จากราคาต่อตัน (UI แนวตั้ง + preview)
         # ══════════════════════════════════════════════════════════
-        with st.expander("🧮 คำนวณราคา AC จากราคาต่อตัน", expanded=False):
+        with st.expander("🧮 คำนวณราคา AC จากราคาต่อตัน", expanded=True):
             st.caption("ราคา (บาท/ตร.ม.) = ราคา (บาท/ตัน) × density × ความหนา (m)")
             _thicknesses = [2.5, 3, 4, 5, 6, 7, 8, 9, 10]
 
-            tc1, tc2 = st.columns([1, 3])
-            with tc1:
-                _density = st.number_input(
+            _dc1, _dc2 = st.columns([1, 3])
+            with _dc1:
+                _density_key = "tab2_density"
+                if _density_key not in st.session_state:
+                    st.session_state[_density_key] = DEFAULT_AC_DENSITY
+                st.number_input(
                     "Density (ตัน/ลบ.ม.)",
-                    value=2.4, min_value=2.0, max_value=2.6, step=0.05,
-                    format="%.2f", key="tab2_density"
+                    min_value=2.0, max_value=2.6, step=0.05,
+                    format="%.2f", key=_density_key
                 )
+            _density = float(st.session_state[_density_key])
 
-            st.markdown("**ราคา AC แต่ละชนิด (บาท/ตัน):**")
-            _ac_types = {
-                'AC Wearing Course':  st.session_state.get('tab2_ton_wearing', 0.0),
-                'PMA Wearing Course': st.session_state.get('tab2_ton_pma', 0.0),
-                'AC Binder Course':   st.session_state.get('tab2_ton_binder', 0.0),
-                'AC Base Course':     st.session_state.get('tab2_ton_base', 0.0),
-            }
-            _ton_keys = {
-                'AC Wearing Course':  'tab2_ton_wearing',
-                'PMA Wearing Course': 'tab2_ton_pma',
-                'AC Binder Course':   'tab2_ton_binder',
-                'AC Base Course':     'tab2_ton_base',
-            }
+            # ── ตารางแนวตั้ง: วัสดุ | บาท/ตัน | preview บาท/ตร.ม. ──
+            _ac_order = ['PMA Wearing Course', 'AC Wearing Course',
+                         'AC Binder Course', 'AC Base Course']
+            _ton_defaults = dict(DEFAULT_AC_TON_PRICES)
+            _saved_ton = st.session_state.get('ac_ton_prices', _ton_defaults)
 
-            _tc_cols = st.columns(4)
+            # preview thickness
+            _pv1, _pv2 = st.columns([3, 1])
+            with _pv2:
+                _prev_thick_key = "tab2_preview_thick"
+                if _prev_thick_key not in st.session_state:
+                    st.session_state[_prev_thick_key] = 5.0
+                st.number_input("ดูตัวอย่างที่หนา (cm)",
+                    min_value=2.5, max_value=10.0, step=0.5, format="%.1f",
+                    key=_prev_thick_key)
+            _prev_thick = float(st.session_state[_prev_thick_key])
+            with _pv1:
+                st.markdown(f"<span style='color:#6b7a8d;font-size:0.85rem'>ตัวอย่างราคาที่ความหนา <b>{_prev_thick:.1f} cm</b></span>",
+                    unsafe_allow_html=True)
+
+            # header
+            _gh = st.columns([3, 1.5, 1.5])
+            _gh[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>วัสดุ</span>", unsafe_allow_html=True)
+            _gh[1].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>บาท/ตัน</span>", unsafe_allow_html=True)
+            _gh[2].markdown(f"<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>บาท/ตร.ม. ({_prev_thick:.1f}cm)</span>", unsafe_allow_html=True)
+
             _ton_prices = {}
-            for idx, (mat, key) in enumerate(_ton_keys.items()):
-                with _tc_cols[idx]:
-                    _ton_prices[mat] = st.number_input(
-                        mat.replace(' Course', ''),
-                        value=float(st.session_state.get(key, 0.0)),
-                        min_value=0.0, step=50.0, format="%.0f",
-                        key=key, label_visibility="visible"
+            for mat in _ac_order:
+                _tkey = f"tab2_ton_{mat.replace(' ','_')}"
+                if _tkey not in st.session_state:
+                    st.session_state[_tkey] = float(_saved_ton.get(mat, _ton_defaults.get(mat, 0)))
+                _gr = st.columns([3, 1.5, 1.5])
+                with _gr[0]:
+                    st.markdown(f"<div style='padding:8px 0;font-weight:500'>{mat}</div>", unsafe_allow_html=True)
+                with _gr[1]:
+                    st.number_input(f"ton_{mat}", min_value=0.0, step=50.0,
+                        format="%.0f", key=_tkey, label_visibility="collapsed")
+                ton_p = float(st.session_state[_tkey])
+                _ton_prices[mat] = ton_p
+                preview_price = round(ton_p * _density * _prev_thick / 100, 2) if ton_p > 0 else 0.0
+                with _gr[2]:
+                    color = '#0f2942' if preview_price > 0 else '#94a3b8'
+                    st.markdown(
+                        f"<div style='padding:8px 0;font-weight:600;color:{color}'>"
+                        f"{'—' if preview_price == 0 else f'{preview_price:,.2f}'}</div>",
+                        unsafe_allow_html=True
                     )
 
-            # preview ตาราง
-            if any(v > 0 for v in _ton_prices.values()):
-                st.markdown("**ตัวอย่างราคา (บาท/ตร.ม.):**")
-                _prev_rows = []
-                for mat, ton_p in _ton_prices.items():
-                    if ton_p <= 0:
-                        continue
-                    row = {'วัสดุ': mat}
-                    for t in _thicknesses:
-                        row[f"{t}cm"] = round(ton_p * _density * t / 100, 2)
-                    _prev_rows.append(row)
-                if _prev_rows:
-                    st.dataframe(pd.DataFrame(_prev_rows), hide_index=True, use_container_width=True)
-
-            if st.button("🔄 คำนวณและอัพเดท Price Table AC", type="secondary", key="tab2_calc_ton"):
+            if st.button("🔄 คำนวณและอัพเดท Price Table AC", type="primary", key="tab2_calc_ton"):
+                _new_ac_prices = _calc_ac_prices_from_ton(_ton_prices, _density)
                 _cur_lib = get_price_library()
-                _new_ac = dict(_cur_lib['ac_prices'])
-                for mat, ton_p in _ton_prices.items():
-                    if ton_p <= 0:
-                        continue
-                    _new_ac[mat] = {t: round(ton_p * _density * t / 100, 2) for t in _thicknesses}
-                _cur_lib['ac_prices'] = _new_ac
+                _cur_lib['ac_prices'] = _new_ac_prices
                 st.session_state['price_library'] = _cur_lib
-                # ล้าง sprice widget keys เพื่อให้ Tab 1 ดึงราคาใหม่
+                st.session_state['ac_ton_prices'] = dict(_ton_prices)
+                # reset sprice เพื่อให้ Tab 1 ดึงราคาใหม่
                 for k in list(st.session_state.keys()):
-                    if '_sprice_' in k:
+                    if '_sprice_' in k or '_p_AC' in k or '_p_PMA' in k:
                         del st.session_state[k]
-                st.success(f"✅ อัพเดทราคา AC จากราคาต่อตัน (density={_density}) สำเร็จ")
+                st.success(f"✅ อัพเดทราคา AC สำเร็จ (density={_density:.2f})")
                 st.rerun()
 
-        st.subheader("🛣️ ราคา AC (บาท/ตร.ม.)")
-        ac_rows = []
-        for mat, prices in lib['ac_prices'].items():
-            row = {'วัสดุ': mat}
-            for t in [2.5, 3, 4, 5, 6, 7, 8, 9, 10]:
-                row[f"{t}cm"] = prices.get(t, 0)
-            ac_rows.append(row)
+        st.subheader("🛣️ ราคา AC (บาท/ตัน) — โปรแกรมคำนวณ บาท/ตร.ม. อัตโนมัติ")
+        st.caption("แก้ราคาต่อตันได้โดยตรง แล้วกด 🔄 คำนวณและอัพเดท Price Table AC ด้านบน")
+        _saved_ton2 = st.session_state.get('ac_ton_prices', DEFAULT_AC_TON_PRICES)
+        _ac_order2  = ['PMA Wearing Course', 'AC Wearing Course', 'AC Binder Course', 'AC Base Course']
+        ac_ton_rows = [
+            {'วัสดุ': mat, 'ราคา (บาท/ตัน)': float(_saved_ton2.get(mat, DEFAULT_AC_TON_PRICES.get(mat, 0)))}
+            for mat in _ac_order2
+        ]
         ac_edited = st.data_editor(
-            pd.DataFrame(ac_rows),
+            pd.DataFrame(ac_ton_rows),
+            column_config={
+                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
+                'ราคา (บาท/ตัน)':    st.column_config.NumberColumn('ราคา (บาท/ตัน)', min_value=0.0, step=50.0, format='%.0f'),
+            },
             use_container_width=True,
             hide_index=True,
             key="tab2_ac_editor",
@@ -1732,16 +1786,25 @@ def main():
         )
 
         if st.button("💾 บันทึกราคาที่แก้ไขลง Library", type="primary"):
-            new_ac: dict = {}
+            # AC: อ่าน บาท/ตัน → คำนวณ price table
+            _new_ton: dict = {}
             for _, row in ac_edited.iterrows():
                 mat = str(row['วัสดุ'])
-                new_ac[mat] = {float(c.replace('cm', '')): float(row[c])
-                               for c in ac_edited.columns if c.endswith('cm')}
+                val = row.get('ราคา (บาท/ตัน)', 0)
+                if pd.notna(val):
+                    _new_ton[mat] = float(val)
+            _den = float(st.session_state.get('tab2_density', DEFAULT_AC_DENSITY))
+            new_ac = _calc_ac_prices_from_ton(_new_ton, _den)
+            st.session_state['ac_ton_prices'] = _new_ton
+
+            # Concrete
             new_cp: dict = {}
             for _, row in cp_edited.iterrows():
                 ct = str(row['ประเภท'])
                 new_cp[ct] = {int(float(c.replace('cm', ''))): float(row[c])
                               for c in cp_edited.columns if c.endswith('cm')}
+
+            # Base
             new_bp: dict = {}
             for _, row in bp_cum_edited.iterrows():
                 new_bp[str(row['วัสดุ'])] = float(row['ราคา (บาท/ลบ.ม.)'])
@@ -1753,6 +1816,10 @@ def main():
                 'concrete_prices': new_cp,
                 'base_prices': new_bp,
             }
+            # reset sprice เพื่อให้ Tab 1 ดึงราคาใหม่
+            for k in list(st.session_state.keys()):
+                if '_sprice_' in k or '_p_AC' in k or '_p_PMA' in k:
+                    del st.session_state[k]
             st.success("✅ อัพเดท Price Library สำเร็จ — กลับไป Tab 1 เพื่อดูผล")
 
     # ══════════════════════════════════════════════════════════════
