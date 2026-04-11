@@ -840,9 +840,18 @@ def render_layer_editor(
         if jpcp_sk in st.session_state:
             copied = [dict(r) for r in st.session_state[jpcp_sk]]
             st.session_state[sk_base_rows] = copied
-            # ล้าง widget keys เดิมทั้งหมดเพื่อให้ Streamlit render ค่าใหม่
+            # อัพเดทจำนวนชั้นให้ตรงกับข้อมูล JPCP
+            _nb_key_tmp = f"{key_prefix}_num_base_v{v}"
+            st.session_state[_nb_key_tmp] = len(copied)
+            # ล้าง widget keys เดิม (bname/bthick/bcum/prev_names)
+            # เพื่อให้ Streamlit render ค่าใหม่จาก copied
             for k in list(st.session_state.keys()):
-                if f"{key_prefix}_bname_" in k or f"{key_prefix}_bthick_" in k                         or f"{key_prefix}_bcum_" in k or f"{key_prefix}_num_base_" in k                         or f"{key_prefix}_prev_names_" in k:
+                if any(p in k for p in [
+                    f"{key_prefix}_bname_",
+                    f"{key_prefix}_bthick_",
+                    f"{key_prefix}_bcum_",
+                    f"{key_prefix}_prev_names_",
+                ]):
                     del st.session_state[k]
             st.session_state[sk_copy_flag] = False
             st.success("✅ คัดลอก Base จาก JPCP สำเร็จ")
@@ -867,11 +876,7 @@ def render_layer_editor(
         ]
         st.session_state[sk_price_ver] = cur_price_ver
 
-    # บันทึก JPCP base rows ไว้ให้ JRCP/CRCP คัดลอก (ทำทุก run)
-    if ptype == 'JPCP':
-        st.session_state[f"jpcp_base_rows_v{v}"] = [
-            dict(r) for r in st.session_state[sk_base_rows]
-        ]
+    # jpcp_base_rows จะถูกบันทึกหลัง render loop (จาก new_rows ที่ถูกต้อง)
 
     # ── จำนวนชั้น ──────────────────────────────────────────────────
     _cur_rows = st.session_state[sk_base_rows]
@@ -988,8 +993,11 @@ def render_layer_editor(
 
     # บันทึก rows กลับ session_state
     st.session_state[sk_base_rows] = new_rows
-    # บันทึก prev_names สำหรับ run ถัดไป (detect การเปลี่ยนวัสดุ)
+    # บันทึก prev_names สำหรับ run ถัดไป
     st.session_state[sk_prev_names] = {i: r['name'] for i, r in enumerate(new_rows)}
+    # บันทึก JPCP base rows จาก new_rows (ค่าที่ user แก้จริงใน run นี้)
+    if ptype == 'JPCP':
+        st.session_state[f"jpcp_base_rows_v{v}"] = [dict(r) for r in new_rows]
 
     return updated_layers
 
