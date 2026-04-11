@@ -557,7 +557,7 @@ def render_layer_editor(
         hc = st.columns([3.5, 1.2, 1.8])
         hc[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>รายการ</span>", unsafe_allow_html=True)
         hc[1].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>หนา (cm)</span>", unsafe_allow_html=True)
-        hc[2].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>ราคา (บาท/ตร.ม.)</span>", unsafe_allow_html=True)
+        hc[2].markdown("<div style='color:#6b7a8d;font-size:0.82rem;font-weight:600;text-align:right'>ราคา (บาท/ตร.ม.)</div>", unsafe_allow_html=True)
 
         # ── Row 1: Wearing Course (radio AC / PMA) ────────────────
         _wr_key = f"{key_prefix}_wearing_type_v{v}"
@@ -688,6 +688,11 @@ def render_layer_editor(
     else:
         # ── Concrete slab ─────────────────────────────────────────
         slab_name = f'Concrete Slab ({ptype})'
+        # Header
+        _sh = st.columns([2, 1, 1.5])
+        _sh[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>รายการ</span>", unsafe_allow_html=True)
+        _sh[1].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>หนา (cm)</span>", unsafe_allow_html=True)
+        _sh[2].markdown("<div style='color:#6b7a8d;font-size:0.82rem;font-weight:600;text-align:right'>ราคา (บาท/ตร.ม.)</div>", unsafe_allow_html=True)
         c1, c2, c3 = st.columns([2, 1, 1.5])
         with c1:
             st.markdown(f"**{slab_name}**")
