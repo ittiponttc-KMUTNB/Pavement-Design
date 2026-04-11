@@ -903,11 +903,13 @@ def render_layer_editor(
 
     # ── Header columns ─────────────────────────────────────────────
     _lib_cum = {m: lookup_price(m, 20) for m in BASE_MATERIAL_LIST}
-    hdr = st.columns([3, 1.2, 1.5, 1.5])
-    hdr[0].markdown("**วัสดุ**")
-    hdr[1].markdown("**หนา (cm)**")
-    hdr[2].markdown("<span style='font-weight:600'>ราคา (บาท/ลบ.ม.)</span>", unsafe_allow_html=True)
-    hdr[3].markdown("**ราคา (บาท/ตร.ม.)**")
+    _base_cols_ratio = [3, 1.2, 1.5, 1.5]
+    hdr = st.columns(_base_cols_ratio)
+    _hdr_style = "color:#6b7a8d;font-size:0.82rem;font-weight:600"
+    hdr[0].markdown(f"<span style='{_hdr_style}'>วัสดุ</span>", unsafe_allow_html=True)
+    hdr[1].markdown(f"<span style='{_hdr_style}'>หนา (cm)</span>", unsafe_allow_html=True)
+    hdr[2].markdown(f"<span style='{_hdr_style};display:block;text-align:right'>ราคา (บาท/ลบ.ม.)</span>", unsafe_allow_html=True)
+    hdr[3].markdown(f"<span style='{_hdr_style};display:block;text-align:right'>ราคา (บาท/ตร.ม.)</span>", unsafe_allow_html=True)
 
     # ── rows ───────────────────────────────────────────────────────
     # sk_prev_names เก็บชื่อวัสดุของ run ก่อนหน้า เพื่อ detect การเปลี่ยนวัสดุ
@@ -928,7 +930,7 @@ def render_layer_editor(
         if prev_cum == 0:
             prev_cum = _lib_cum.get(prev_name, 0)
 
-        cols = st.columns([3, 1.2, 1.5, 1.5])
+        cols = st.columns(_base_cols_ratio)
 
         with cols[0]:
             try:
