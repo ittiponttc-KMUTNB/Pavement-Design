@@ -519,29 +519,37 @@ def render_layer_editor(
     ac_layer_count = 0
 
     if not is_concrete:
-        # ── Wearing Course: radio AC / PMA ────────────────────────
+        _lib2 = get_price_library()
+
+        # ── Header row ────────────────────────────────────────────
+        hc = st.columns([3.5, 1.2, 1.8])
+        hc[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>รายการ</span>", unsafe_allow_html=True)
+        hc[1].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>หนา (cm)</span>", unsafe_allow_html=True)
+        hc[2].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>ราคา (บาท/ตร.ม.)</span>", unsafe_allow_html=True)
+
+        # ── Row 1: Wearing Course (radio AC / PMA) ────────────────
         _wr_key = f"{key_prefix}_wearing_type_v{v}"
         if _wr_key not in st.session_state:
             st.session_state[_wr_key] = 'AC Wearing Course'
-        c1, c2, c3 = st.columns([2, 1, 1.5])
-        with c1:
+        r1 = st.columns([3.5, 1.2, 1.8])
+        with r1[0]:
             wearing_type = st.radio(
-                "Wearing Course", ['AC Wearing Course', 'PMA Wearing Course'],
+                "Wearing", ['AC Wearing Course', 'PMA Wearing Course'],
                 index=0 if st.session_state[_wr_key] == 'AC Wearing Course' else 1,
                 horizontal=True, key=f"{key_prefix}_wearing_radio_v{v}",
                 label_visibility="collapsed",
             )
             st.session_state[_wr_key] = wearing_type
-        with c2:
+        with r1[1]:
             _wt_key = f"{key_prefix}_sthick_w_v{v}"
             if _wt_key not in st.session_state:
                 st.session_state[_wt_key] = 5.0
-            st.number_input("หนา Wearing (cm)", min_value=0.5, max_value=20.0,
+            st.number_input("หนา W", min_value=0.5, max_value=20.0,
                 step=0.5, format="%.1f", key=_wt_key, label_visibility="collapsed")
-        wearing_thick = float(st.session_state[f"{key_prefix}_sthick_w_v{v}"])
-        with c3:
+        wearing_thick = float(st.session_state[_wt_key])
+        with r1[2]:
             _wp = _get_price(wearing_type, wearing_thick)
-            st.number_input("ราคา Wearing (บาท/ตร.ม.)", min_value=0.0, step=5.0,
+            st.number_input("ราคา W", min_value=0.0, step=5.0,
                 format="%.2f", key=_wp, label_visibility="collapsed")
         wearing_price = float(st.session_state[_wp])
         ac_layer_count += 1
@@ -550,23 +558,21 @@ def render_layer_editor(
             'quantity': proj_area, 'qty_unit': 'sq.m',
             'unit_cost': wearing_price, 'cost_per_sqm': wearing_price,
         })
-        st.caption(f"{'🟡 PMA' if 'PMA' in wearing_type else '⚫ AC'} Wearing {wearing_thick:.1f} cm → **{wearing_price:,.2f}** บาท/ตร.ม.")
 
-        # ── Binder Course: fixed ───────────────────────────────────
-        st.markdown("---")
-        c1, c2, c3 = st.columns([2, 1, 1.5])
-        with c1:
-            st.markdown("**AC Binder Course**")
-        with c2:
+        # ── Row 2: Binder Course (fixed) ──────────────────────────
+        r2 = st.columns([3.5, 1.2, 1.8])
+        with r2[0]:
+            st.markdown("<div style='padding:8px 0;font-weight:600'>AC Binder Course</div>", unsafe_allow_html=True)
+        with r2[1]:
             _bt_key = f"{key_prefix}_sthick_b_v{v}"
             if _bt_key not in st.session_state:
                 st.session_state[_bt_key] = 5.0
-            st.number_input("หนา Binder (cm)", min_value=0.5, max_value=20.0,
+            st.number_input("หนา B", min_value=0.5, max_value=20.0,
                 step=0.5, format="%.1f", key=_bt_key, label_visibility="collapsed")
-        binder_thick = float(st.session_state[f"{key_prefix}_sthick_b_v{v}"])
-        with c3:
+        binder_thick = float(st.session_state[_bt_key])
+        with r2[2]:
             _bp2 = _get_price('AC Binder Course', binder_thick)
-            st.number_input("ราคา Binder (บาท/ตร.ม.)", min_value=0.0, step=5.0,
+            st.number_input("ราคา B", min_value=0.0, step=5.0,
                 format="%.2f", key=_bp2, label_visibility="collapsed")
         binder_price = float(st.session_state[_bp2])
         ac_layer_count += 1
@@ -575,26 +581,23 @@ def render_layer_editor(
             'quantity': proj_area, 'qty_unit': 'sq.m',
             'unit_cost': binder_price, 'cost_per_sqm': binder_price,
         })
-        st.caption(f"⚫ Binder {binder_thick:.1f} cm → **{binder_price:,.2f}** บาท/ตร.ม.")
 
-        # ── Base Course: checkbox ──────────────────────────────────
-        st.markdown("---")
-        use_base = st.checkbox("มี AC Base Course", value=True,
-            key=f"{key_prefix}_use_base_v{v}")
+        # ── Row 3: Base Course (checkbox) ─────────────────────────
+        r3 = st.columns([3.5, 1.2, 1.8])
+        with r3[0]:
+            use_base = st.checkbox("AC Base Course", value=True,
+                key=f"{key_prefix}_use_base_v{v}")
         if use_base:
-            c1, c2, c3 = st.columns([2, 1, 1.5])
-            with c1:
-                st.markdown("**AC Base Course**")
-            with c2:
+            with r3[1]:
                 _basethick_key = f"{key_prefix}_sthick_base_v{v}"
                 if _basethick_key not in st.session_state:
                     st.session_state[_basethick_key] = 8.0
-                st.number_input("หนา Base (cm)", min_value=0.5, max_value=30.0,
+                st.number_input("หนา Base", min_value=0.5, max_value=30.0,
                     step=0.5, format="%.1f", key=_basethick_key, label_visibility="collapsed")
-            base_thick = float(st.session_state[f"{key_prefix}_sthick_base_v{v}"])
-            with c3:
+            base_thick = float(st.session_state[_basethick_key])
+            with r3[2]:
                 _basep = _get_price('AC Base Course', base_thick)
-                st.number_input("ราคา Base (บาท/ตร.ม.)", min_value=0.0, step=5.0,
+                st.number_input("ราคา Base", min_value=0.0, step=5.0,
                     format="%.2f", key=_basep, label_visibility="collapsed")
             base_price = float(st.session_state[_basep])
             ac_layer_count += 1
@@ -603,24 +606,26 @@ def render_layer_editor(
                 'quantity': proj_area, 'qty_unit': 'sq.m',
                 'unit_cost': base_price, 'cost_per_sqm': base_price,
             })
-            st.caption(f"⚫ Base {base_thick:.1f} cm → **{base_price:,.2f}** บาท/ตร.ม.")
 
-        # ── Tack Coat: คำนวณอัตโนมัติ ─────────────────────────────
-        st.markdown("---")
+        # ── Row 4: Tack Coat (auto qty) ───────────────────────────
         tack_times = max(ac_layer_count - 1, 1)
         tack_qty   = proj_area * tack_times
-        _tack_lib  = float(get_price_library()['base_prices'].get('Tack Coat', 20))
         _tk_key    = f"{key_prefix}_p_tack_v{v}"
         if _tk_key not in st.session_state:
-            st.session_state[_tk_key] = _tack_lib
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.caption(
-                f"🔁 Tack Coat **{tack_times} ครั้ง** × {proj_area:,.0f} ตร.ม. = **{tack_qty:,.0f} ตร.ม.**"
-                f"  ({ac_layer_count} ชั้น AC)"
+            st.session_state[_tk_key] = float(_lib2['base_prices'].get('Tack Coat', 20))
+        r4 = st.columns([3.5, 1.2, 1.8])
+        with r4[0]:
+            st.markdown(
+                f"<div style='padding:8px 0;color:#0f2942'>"
+                f"Tack Coat "
+                f"<span style='color:#6b7a8d;font-size:0.82rem'>"
+                f"({tack_times} ครั้ง × {proj_area:,.0f} = {tack_qty:,.0f} ตร.ม.)</span></div>",
+                unsafe_allow_html=True
             )
-        with c2:
-            st.number_input("ราคา Tack Coat (บาท/ตร.ม.)", min_value=0.0, step=1.0,
+        with r4[1]:
+            st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
+        with r4[2]:
+            st.number_input("ราคา Tack", min_value=0.0, step=1.0,
                 format="%.2f", key=_tk_key, label_visibility="collapsed")
         tack_price = float(st.session_state[_tk_key])
         updated_layers.append({
@@ -629,16 +634,22 @@ def render_layer_editor(
             'unit_cost': tack_price, 'cost_per_sqm': tack_price,
         })
 
-        # ── Prime Coat ─────────────────────────────────────────────
-        _pc_lib = float(get_price_library()['base_prices'].get('Prime Coat', 37.47))
-        _pck    = f"{key_prefix}_p_primecoat_v{v}"
+        # ── Row 5: Prime Coat (auto qty) ──────────────────────────
+        _pck = f"{key_prefix}_p_primecoat_v{v}"
         if _pck not in st.session_state:
-            st.session_state[_pck] = _pc_lib
-        c1, c2 = st.columns([3, 1])
-        with c1:
-            st.caption(f"Prime Coat {proj_area:,.0f} ตร.ม.")
-        with c2:
-            st.number_input("ราคา Prime Coat (บาท/ตร.ม.)", min_value=0.0, step=1.0,
+            st.session_state[_pck] = float(_lib2['base_prices'].get('Prime Coat', 37.47))
+        r5 = st.columns([3.5, 1.2, 1.8])
+        with r5[0]:
+            st.markdown(
+                f"<div style='padding:8px 0;color:#0f2942'>"
+                f"Prime Coat "
+                f"<span style='color:#6b7a8d;font-size:0.82rem'>({proj_area:,.0f} ตร.ม.)</span></div>",
+                unsafe_allow_html=True
+            )
+        with r5[1]:
+            st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
+        with r5[2]:
+            st.number_input("ราคา Prime", min_value=0.0, step=1.0,
                 format="%.2f", key=_pck, label_visibility="collapsed")
         prime_price = float(st.session_state[_pck])
         updated_layers.append({
