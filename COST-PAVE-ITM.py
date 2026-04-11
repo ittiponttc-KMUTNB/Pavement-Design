@@ -639,9 +639,12 @@ def render_layer_editor(
         # ── Row 4: Tack Coat (auto qty) ───────────────────────────
         tack_times = max(ac_layer_count - 1, 1)
         tack_qty   = proj_area * tack_times
-        _tk_key    = f"{key_prefix}_p_tack_v{v}"
-        if _tk_key not in st.session_state:
-            st.session_state[_tk_key] = float(_lib2['base_prices'].get('Tack Coat', 20))
+        _tk_key     = f"{key_prefix}_p_tack_v{v}"
+        _tk_ver_key = f"{key_prefix}_p_tack_ver_v{v}"
+        _lib_ver    = id(st.session_state.get('price_library', {}))
+        if _tk_key not in st.session_state or st.session_state.get(_tk_ver_key) != _lib_ver:
+            st.session_state[_tk_key]     = float(_lib2['base_prices'].get('Tack Coat', 20))
+            st.session_state[_tk_ver_key] = _lib_ver
         r4 = st.columns([3.5, 1.2, 1.8])
         with r4[0]:
             st.markdown(
@@ -663,9 +666,11 @@ def render_layer_editor(
         })
 
         # ── Row 5: Prime Coat (auto qty) ──────────────────────────
-        _pck = f"{key_prefix}_p_primecoat_v{v}"
-        if _pck not in st.session_state:
-            st.session_state[_pck] = float(_lib2['base_prices'].get('Prime Coat', 37.47))
+        _pck     = f"{key_prefix}_p_primecoat_v{v}"
+        _pck_ver = f"{key_prefix}_p_primecoat_ver_v{v}"
+        if _pck not in st.session_state or st.session_state.get(_pck_ver) != _lib_ver:
+            st.session_state[_pck]     = float(_lib2['base_prices'].get('Prime Coat', 37.47))
+            st.session_state[_pck_ver] = _lib_ver
         r5 = st.columns([3.5, 1.2, 1.8])
         with r5[0]:
             st.markdown(
@@ -778,10 +783,13 @@ def render_layer_editor(
 
         # ── Prime Coat ──
         if use_pc:
-            _pc_key = f"{key_prefix}_pc_price_v{v}"
-            _pc_lib = float(lib['base_prices'].get('Prime Coat', 37.47))
-            if _pc_key not in st.session_state:
-                st.session_state[_pc_key] = _pc_lib
+            _pc_key     = f"{key_prefix}_pc_price_v{v}"
+            _pc_ver_key = f"{key_prefix}_pc_price_ver_v{v}"
+            _pc_lib     = float(lib['base_prices'].get('Prime Coat', 37.47))
+            _lib_ver2   = id(st.session_state.get('price_library', {}))
+            if _pc_key not in st.session_state or st.session_state.get(_pc_ver_key) != _lib_ver2:
+                st.session_state[_pc_key]     = _pc_lib
+                st.session_state[_pc_ver_key] = _lib_ver2
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
@@ -796,10 +804,13 @@ def render_layer_editor(
 
         # ── Non Woven Geotextile ──
         if use_geo:
-            _geo_key = f"{key_prefix}_geo_price_v{v}"
-            _geo_lib = float(lib['base_prices'].get('Non Woven Geotextile', 78))
-            if _geo_key not in st.session_state:
-                st.session_state[_geo_key] = _geo_lib
+            _geo_key     = f"{key_prefix}_geo_price_v{v}"
+            _geo_ver_key = f"{key_prefix}_geo_price_ver_v{v}"
+            _geo_lib     = float(lib['base_prices'].get('Non Woven Geotextile', 78))
+            _lib_ver2    = id(st.session_state.get('price_library', {}))
+            if _geo_key not in st.session_state or st.session_state.get(_geo_ver_key) != _lib_ver2:
+                st.session_state[_geo_key]     = _geo_lib
+                st.session_state[_geo_ver_key] = _lib_ver2
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
@@ -814,10 +825,13 @@ def render_layer_editor(
 
         # ── Wire Mesh (JRCP/CRCP เท่านั้น) ──
         if use_wire and ptype != 'JPCP':
-            _wire_key = f"{key_prefix}_wire_price_v{v}"
-            _wire_lib = float(lib['base_prices'].get('Wire Mesh', 100))
-            if _wire_key not in st.session_state:
-                st.session_state[_wire_key] = _wire_lib
+            _wire_key     = f"{key_prefix}_wire_price_v{v}"
+            _wire_ver_key = f"{key_prefix}_wire_price_ver_v{v}"
+            _wire_lib     = float(lib['base_prices'].get('Wire Mesh', 100))
+            _lib_ver2     = id(st.session_state.get('price_library', {}))
+            if _wire_key not in st.session_state or st.session_state.get(_wire_ver_key) != _lib_ver2:
+                st.session_state[_wire_key]     = _wire_lib
+                st.session_state[_wire_ver_key] = _lib_ver2
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
