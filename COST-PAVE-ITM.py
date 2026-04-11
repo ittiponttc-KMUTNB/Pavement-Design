@@ -1,6 +1,6 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.1 - Refactored
+Version 6.0 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
@@ -191,15 +191,30 @@ DEFAULT_AC_PRICES: dict = {
     'AC Base Course':     {2.5:108, 3:129, 4:172, 5:215, 6:258, 7:302, 8:345, 9:388, 10:431},
 }
 
-DEFAULT_CONCRETE_PRICES: dict = {
-    'JPCP': {25:928,  28:1000, 30:1050, 32:1095, 35:1167},
-    'JRCP': {25:924,  28:1002, 30:1050, 32:1106, 35:1184},
-    'CRCP': {25:1245, 28:1358, 30:1430, 32:1509, 35:1622},
+# ราคาคอนกรีต บาท/ลบ.ม. — calibrate จากข้อมูลจริง 28cm
+# JPCP=2,732 | JRCP=3,077 | CRCP=3,663 บาท/ลบ.ม.
+DEFAULT_CONCRETE_CUM_PRICES: dict = {
+    'JPCP': 2732,
+    'JRCP': 3077,
+    'CRCP': 3663,
 }
+
+def _calc_concrete_prices(cum_prices: dict) -> dict:
+    """คำนวณ concrete price table (บาท/ตร.ม.) จาก บาท/ลบ.ม. × ความหนา"""
+    thicknesses = [20, 25, 28, 30, 32, 35]
+    return {
+        pt: {t: round(cum * t / 100, 0) for t in thicknesses}
+        for pt, cum in cum_prices.items()
+    }
+
+DEFAULT_CONCRETE_PRICES: dict = _calc_concrete_prices(DEFAULT_CONCRETE_CUM_PRICES)
+# JPCP: {20:546, 25:683, 28:765, 30:820, 32:874, 35:956}
+# JRCP: {20:615, 25:769, 28:862, 30:923, 32:985, 35:1077}
+# CRCP: {20:733, 25:916, 28:1026, 30:1099, 32:1172, 35:1282}
 
 DEFAULT_BASE_PRICES: dict = {
     'Cement Treated Base (UCS 40 ksc)':                    1096,
-    'Cement Modified Crushed Rock Base (UCS 24.5 ksc)':    864,
+    'Cement Modified Crushed Rock Base (UCS 24.5 ksc)':    919,  # calibrated
     'Crushed Rock Base Course':                             583,
     'Soil Cement Subbase (UCS 7 ksc)':                     854,
     'Soil Aggregate Subbase':                              375,
@@ -264,13 +279,16 @@ def lookup_price(name: str, thickness: float, ptype: str = 'AC') -> float:
     if ('asphalt' in n and 'base' in n) or 'ac base' in n or 'interlayer' in n:
         return _nearest(lib['ac_prices'].get('AC Base Course', {}), thickness)
 
-    # Concrete
+    # Concrete — คำนวณจาก บาท/ลบ.ม. × ความหนา (แม่นยำกว่า nearest lookup)
+    _conc_cum_lib = st.session_state.get('concrete_cum_prices', DEFAULT_CONCRETE_CUM_PRICES)
     for ct in ('jpcp', 'jrcp', 'crcp'):
         if ct in n:
-            return _nearest(lib['concrete_prices'].get(ct.upper(), {}), thickness)
+            cum = float(_conc_cum_lib.get(ct.upper(), DEFAULT_CONCRETE_CUM_PRICES.get(ct.upper(), 0)))
+            return round(cum * thickness / 100, 2) if cum > 0 else _nearest(lib['concrete_prices'].get(ct.upper(), {}), thickness)
     # fallback by ptype
-    if ptype in ('JPCP', 'JRCP', 'CRCP') and ('concrete' in n or 'ksc' in n or '350' in n):
-        return _nearest(lib['concrete_prices'].get(ptype, {}), thickness)
+    if ptype in ('JPCP', 'JRCP', 'CRCP') and ('concrete' in n or 'ksc' in n or '350' in n or 'slab' in n):
+        cum = float(_conc_cum_lib.get(ptype, DEFAULT_CONCRETE_CUM_PRICES.get(ptype, 0)))
+        return round(cum * thickness / 100, 2) if cum > 0 else _nearest(lib['concrete_prices'].get(ptype, {}), thickness)
 
     # Base materials — คืนราคา/ลบ.ม.
     if 'tack' in n:
@@ -1293,13 +1311,12 @@ def generate_excel_template() -> bytes:
         for mat in DEFAULT_AC_TON_PRICES.keys()
     ]
 
-    # Concrete_Prices — บาท/ตร.ม. ตามความหนา
-    conc_rows = []
-    for ct, prices in lib['concrete_prices'].items():
-        row = {'Type': ct}
-        for t, p in prices.items():
-            row[f"{t}cm"] = p
-        conc_rows.append(row)
+    # Concrete_Prices — บาท/ลบ.ม. (กรอกง่าย โปรแกรมคำนวณเอง)
+    _conc_cum_tpl = st.session_state.get('concrete_cum_prices', DEFAULT_CONCRETE_CUM_PRICES)
+    conc_rows = [
+        {'ประเภท': ct, 'บาท/ลบ.ม.': float(_conc_cum_tpl.get(ct, DEFAULT_CONCRETE_CUM_PRICES.get(ct, 0)))}
+        for ct in ['JPCP', 'JRCP', 'CRCP']
+    ]
 
     # Base_Materials — แยก บาท/ลบ.ม. และ บาท/ตร.ม.
     SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
@@ -1360,27 +1377,24 @@ def load_excel_price_library(uploaded_file) -> dict:
         if mat not in ac_prices:
             ac_prices[mat] = dict(dp)
 
-    # ── Concrete: อ่าน บาท/ตร.ม. ──────────────────────────────
-    conc_prices: dict = {}
+    # ── Concrete: อ่าน บาท/ลบ.ม. → คำนวณ price table ──────────
+    conc_cum: dict = dict(DEFAULT_CONCRETE_CUM_PRICES)
+    cum_col = 'บาท/ลบ.ม.' if 'บาท/ลบ.ม.' in conc_df.columns else None
+    price_col_conc = 'Price (Baht/cu.m)' if 'Price (Baht/cu.m)' in conc_df.columns else None
+    type_col = 'Type' if 'Type' in conc_df.columns else 'ประเภท'
+
     for _, row in conc_df.iterrows():
-        ct = str(row['Type'])
-        prices = {}
-        for col in conc_df.columns[1:]:
-            try:
-                t = int(float(str(col).replace('cm', '').strip()))
-                v = row[col]
-                if pd.notna(v):
-                    prices[t] = float(v)
-            except (ValueError, TypeError):
-                pass
-        if prices:
-            conc_prices[ct] = prices
-    for ct, dp in DEFAULT_CONCRETE_PRICES.items():
-        if ct not in conc_prices:
-            conc_prices[ct] = dict(dp)
-        else:
-            for t, p in dp.items():
-                conc_prices[ct].setdefault(t, p)
+        try:
+            ct = str(row[type_col])
+            col_to_use = cum_col or price_col_conc
+            if col_to_use and pd.notna(row.get(col_to_use, None)):
+                val = float(row[col_to_use])
+                if val > 0:
+                    conc_cum[ct] = val
+        except (ValueError, TypeError, KeyError):
+            pass
+    st.session_state['concrete_cum_prices'] = conc_cum
+    conc_prices = _calc_concrete_prices(conc_cum)
 
     # ── Base Materials: อ่านราคา/หน่วย ────────────────────────
     base_prices: dict = dict(DEFAULT_BASE_PRICES)
@@ -1755,15 +1769,33 @@ def main():
             key="tab2_ac_editor",
         )
 
-        st.subheader("🏗️ ราคาคอนกรีต (บาท/ตร.ม.)")
+        st.subheader("🏗️ ราคาคอนกรีต — บาท/ลบ.ม. และ บาท/ตร.ม. ทุกความหนา")
+        st.caption("แก้ **บาท/ลบ.ม.** ได้โดยตรง — ราคา/ตร.ม. คำนวณอัตโนมัติ (read-only)")
+
+        _conc_thk = [20, 25, 28, 30, 32, 35]
+        _conc_cum  = st.session_state.get('concrete_cum_prices', DEFAULT_CONCRETE_CUM_PRICES)
+        _conc_order = ['JPCP', 'JRCP', 'CRCP']
+
         cp_rows = []
-        for ct, prices in lib['concrete_prices'].items():
-            row = {'ประเภท': ct}
-            for t in [25, 28, 30, 32, 35]:
-                row[f"{t}cm"] = prices.get(t, 0)
+        for ct in _conc_order:
+            cum_p = float(_conc_cum.get(ct, DEFAULT_CONCRETE_CUM_PRICES.get(ct, 0)))
+            row = {'ประเภท': ct, 'บาท/ลบ.ม.': cum_p}
+            for t in _conc_thk:
+                row[f"{t}cm"] = round(cum_p * t / 100, 0)
             cp_rows.append(row)
+
+        _cp_col_cfg = {
+            'ประเภท':    st.column_config.TextColumn('ประเภท', width='small', disabled=True),
+            'บาท/ลบ.ม.': st.column_config.NumberColumn('บาท/ลบ.ม.', min_value=0.0, step=50.0, format='%.0f', width='small'),
+        }
+        for t in _conc_thk:
+            _cp_col_cfg[f"{t}cm"] = st.column_config.NumberColumn(
+                f"{t}cm", format='%.0f', disabled=True, width='small'
+            )
+
         cp_edited = st.data_editor(
             pd.DataFrame(cp_rows),
+            column_config=_cp_col_cfg,
             use_container_width=True,
             hide_index=True,
             key="tab2_cp_editor",
@@ -1813,12 +1845,15 @@ def main():
             new_ac = _calc_ac_prices_from_ton(_new_ton, _den)
             st.session_state['ac_ton_prices'] = _new_ton
 
-            # Concrete
-            new_cp: dict = {}
+            # Concrete: อ่าน บาท/ลบ.ม. → คำนวณ price table
+            _new_conc_cum: dict = {}
             for _, row in cp_edited.iterrows():
                 ct = str(row['ประเภท'])
-                new_cp[ct] = {int(float(c.replace('cm', ''))): float(row[c])
-                              for c in cp_edited.columns if c.endswith('cm')}
+                val = row.get('บาท/ลบ.ม.', 0)
+                if pd.notna(val) and float(val) > 0:
+                    _new_conc_cum[ct] = float(val)
+            st.session_state['concrete_cum_prices'] = _new_conc_cum
+            new_cp = _calc_concrete_prices(_new_conc_cum)
 
             # Base
             new_bp: dict = {}
