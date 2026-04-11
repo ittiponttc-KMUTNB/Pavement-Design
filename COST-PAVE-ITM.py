@@ -906,7 +906,7 @@ def render_layer_editor(
     hdr = st.columns([3, 1.2, 1.5, 1.5])
     hdr[0].markdown("**วัสดุ**")
     hdr[1].markdown("**หนา (cm)**")
-    hdr[2].markdown("**ราคา (บาท/ลบ.ม.)**")
+    hdr[2].markdown("<span style='font-weight:600'>ราคา (บาท/ลบ.ม.)</span>", unsafe_allow_html=True)
     hdr[3].markdown("**ราคา (บาท/ตร.ม.)**")
 
     # ── rows ───────────────────────────────────────────────────────
@@ -966,16 +966,14 @@ def render_layer_editor(
         if bcum_key not in st.session_state:
             st.session_state[bcum_key] = float(prev_cum)
 
+        # ราคา บาท/ลบ.ม. — read-only ดึงจาก Library (แก้ได้ที่ Tab 💰 ราคาวัสดุ)
+        sel_cum = float(st.session_state.get(bcum_key, prev_cum))
         with cols[2]:
-            st.number_input(
-                "บาท/ลบ.ม.",
-                min_value=0.0, step=10.0, format="%.0f",
-                key=bcum_key,
-                label_visibility="collapsed",
+            st.markdown(
+                f'<div style="padding:8px 4px;font-weight:600;color:#0f2942;'
+                f'text-align:right">{sel_cum:,.0f}</div>',
+                unsafe_allow_html=True
             )
-
-        # อ่านค่าจริงจาก session_state หลัง render
-        sel_cum  = float(st.session_state.get(bcum_key, prev_cum))
         cost_sqm = sel_cum * sel_thick / 100 if sel_thick > 0 else 0.0
 
         with cols[3]:
