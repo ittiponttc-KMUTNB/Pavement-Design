@@ -271,9 +271,18 @@ def lookup_price(name: str, thickness: float, ptype: str = 'AC') -> float:
     if 'wire' in n:
         return float(lib['base_prices'].get('Wire Mesh', 100))
 
+    # exact match ก่อน แล้วค่อย partial (ป้องกัน 'embankment' match 'sand embankment' ผิด)
     for key in BASE_MATERIAL_LIST:
-        if key.lower() in n or n in key.lower():
+        if key.lower() == n:
             return float(lib['base_prices'].get(key, 0))
+    for key in BASE_MATERIAL_LIST:
+        if key.lower() in n and len(key) > 5:
+            return float(lib['base_prices'].get(key, 0))
+
+    # fallback: ค้นใน base_prices โดยตรง
+    for key, val in lib['base_prices'].items():
+        if key.lower() == n:
+            return float(val)
 
     return 0.0
 
@@ -716,15 +725,31 @@ def render_layer_editor(
                     ]
                 st.rerun()
 
-    # ── default rows สำหรับ base (init เพียงครั้งเดียว) ───────────
-    sk_base_rows = f"{key_prefix}_base_rows_v{v}"
+    # ── default rows สำหรับ base ─────────────────────────────────
+    # ใช้ price_version เพื่อ detect เมื่อ price_library เปลี่ยน → refresh cost_cum
+    sk_base_rows    = f"{key_prefix}_base_rows_v{v}"
+    sk_price_ver    = f"{key_prefix}_base_price_ver_v{v}"
+    cur_price_ver   = id(st.session_state.get('price_library', {}))
+
     if sk_base_rows not in st.session_state:
+        # init ครั้งแรก
         _def_base = get_default_base_layers(ptype, area_per_km)
         st.session_state[sk_base_rows] = [
             {'name': r['name'], 'thickness': r['thickness'],
              'cost_cum': r['cost_cum']}
             for r in _def_base
         ]
+        st.session_state[sk_price_ver] = cur_price_ver
+    elif st.session_state.get(sk_price_ver) != cur_price_ver:
+        # price_library เปลี่ยน → refresh cost_cum จาก library ใหม่ (คงชื่อ/ความหนาเดิม)
+        _lib_fresh = {m: lookup_price(m, 20) for m in BASE_MATERIAL_LIST}
+        refreshed = []
+        for r in st.session_state[sk_base_rows]:
+            fresh_cum = _lib_fresh.get(r['name'], lookup_price(r['name'], 20))
+            refreshed.append({'name': r['name'], 'thickness': r['thickness'],
+                               'cost_cum': fresh_cum})
+        st.session_state[sk_base_rows] = refreshed
+        st.session_state[sk_price_ver] = cur_price_ver
 
     # บันทึก JPCP base rows ไว้ให้ JRCP/CRCP คัดลอก
     if ptype == 'JPCP':
