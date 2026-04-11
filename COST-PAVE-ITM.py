@@ -777,6 +777,10 @@ def render_layer_editor(
     hdr[3].markdown("**ราคา (บาท/ตร.ม.)**")
 
     # ── rows ───────────────────────────────────────────────────────
+    # sk_prev_names เก็บชื่อวัสดุของ run ก่อนหน้า เพื่อ detect การเปลี่ยนวัสดุ
+    sk_prev_names = f"{key_prefix}_prev_names_v{v}"
+    prev_names = st.session_state.get(sk_prev_names, {})
+
     new_rows = []
     for i in range(num_base):
         # ดึงค่าเดิมถ้ามี
@@ -784,11 +788,10 @@ def render_layer_editor(
             'name': BASE_MATERIAL_LIST[0], 'thickness': 20.0,
             'cost_cum': _lib_cum.get(BASE_MATERIAL_LIST[0], 0)
         }
-        prev_name = str(prev.get('name', BASE_MATERIAL_LIST[0]))
+        prev_name  = str(prev.get('name', BASE_MATERIAL_LIST[0]))
         prev_thick = float(prev.get('thickness', 20.0) or 20.0)
         prev_cum   = float(prev.get('cost_cum', 0) or 0)
 
-        # ถ้า cost_cum = 0 → ดึงจาก library
         if prev_cum == 0:
             prev_cum = _lib_cum.get(prev_name, 0)
 
@@ -813,9 +816,19 @@ def render_layer_editor(
                 label_visibility="collapsed",
             )
 
-        # ถ้าเปลี่ยนวัสดุ → ดึง cost_cum ใหม่จาก library
-        if sel_name != prev_name:
-            prev_cum = _lib_cum.get(sel_name, 0)
+        # ตรวจว่า name เพิ่งเปลี่ยนใน run นี้ไหม
+        # เปรียบเทียบกับ prev_names (run ก่อนหน้า) ไม่ใช่ prev_name (จาก _cur_rows)
+        last_rendered_name = prev_names.get(i, prev_name)
+        name_just_changed  = (sel_name != last_rendered_name)
+
+        if name_just_changed:
+            # เปลี่ยนวัสดุ → ดึงราคาจาก library และ reset bcum widget key
+            lib_cum = _lib_cum.get(sel_name, 0)
+            # ล้าง widget key เดิมเพื่อให้ Streamlit render value ใหม่
+            wkey = f"{key_prefix}_bcum_{i}_v{v}"
+            if wkey in st.session_state:
+                del st.session_state[wkey]
+            prev_cum = lib_cum
 
         with cols[2]:
             sel_cum = st.number_input(
@@ -846,8 +859,10 @@ def render_layer_editor(
                 'cost_cum':     sel_cum,
             })
 
-    # บันทึก rows กลับ session_state (ไม่ให้ reset)
+    # บันทึก rows กลับ session_state
     st.session_state[sk_base_rows] = new_rows
+    # บันทึก prev_names สำหรับ run ถัดไป (detect การเปลี่ยนวัสดุ)
+    st.session_state[sk_prev_names] = {i: r['name'] for i, r in enumerate(new_rows)}
 
     return updated_layers
 
