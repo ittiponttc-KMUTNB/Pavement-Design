@@ -1,6 +1,6 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.2.2 - Refactored
+Version 6.0 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
@@ -1292,10 +1292,15 @@ def generate_word_report(
             _set_run_font(ph.add_run(h), size=15, bold=True)
         for i, item in enumerate(summary_data):
             tpk = item['total_value'] / length if length > 0 else 0
-            sum_table.rows[i+1].cells[0].text = item['name']
-            sum_table.rows[i+1].cells[1].text = f"{tpk:,.0f}"
-            sum_table.rows[i+1].cells[2].text = f"{item['cost_per_km']:.3f}"
-            sum_table.rows[i+1].cells[3].text = f"{item['cost_sqm']:,.2f}"
+            _sum_vals   = [item['name'], f"{tpk:,.0f}", f"{item['cost_per_km']:.3f}", f"{item['cost_sqm']:,.2f}"]
+            _sum_aligns = [WD_ALIGN_PARAGRAPH.LEFT, WD_ALIGN_PARAGRAPH.RIGHT,
+                           WD_ALIGN_PARAGRAPH.RIGHT, WD_ALIGN_PARAGRAPH.RIGHT]
+            for j, (val, align) in enumerate(zip(_sum_vals, _sum_aligns)):
+                _cell = sum_table.rows[i+1].cells[j]
+                _cell.text = ''
+                _p = _cell.paragraphs[0]
+                _p.alignment = align
+                _set_run_font(_p.add_run(val), size=15)
 
     doc.add_paragraph()
     p_date = doc.add_paragraph()
