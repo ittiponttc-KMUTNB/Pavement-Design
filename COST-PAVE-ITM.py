@@ -2058,7 +2058,7 @@ def main():
                         intro_txt = st.text_area(
                             "บทเกริ่นนำ (แก้ไขได้)",
                             value=_auto_intro,
-                            height=120, key="cons_intro"
+                            height=120, key="cons_intro_v2"
                         )
                     if st.button("📑 Word แบบที่ปรึกษา", use_container_width=True):
                         try:
