@@ -1720,20 +1720,36 @@ def main():
                 st.success(f"✅ อัพเดทราคา AC สำเร็จ (density={_density:.2f})")
                 st.rerun()
 
-        st.subheader("🛣️ ราคา AC (บาท/ตัน) — โปรแกรมคำนวณ บาท/ตร.ม. อัตโนมัติ")
-        st.caption("แก้ราคาต่อตันได้โดยตรง แล้วกด 🔄 คำนวณและอัพเดท Price Table AC ด้านบน")
+        st.subheader("🛣️ ราคา AC — บาท/ตัน และ บาท/ตร.ม. ทุกความหนา")
+        st.caption("แก้ **บาท/ตัน** ได้โดยตรง — ราคา/ตร.ม. คำนวณอัตโนมัติ (read-only)")
+
         _saved_ton2 = st.session_state.get('ac_ton_prices', DEFAULT_AC_TON_PRICES)
+        _den2       = float(st.session_state.get('tab2_density', DEFAULT_AC_DENSITY))
         _ac_order2  = ['PMA Wearing Course', 'AC Wearing Course', 'AC Binder Course', 'AC Base Course']
-        ac_ton_rows = [
-            {'วัสดุ': mat, 'ราคา (บาท/ตัน)': float(_saved_ton2.get(mat, DEFAULT_AC_TON_PRICES.get(mat, 0)))}
-            for mat in _ac_order2
-        ]
+        _thk_list   = [2.5, 3, 4, 5, 6, 7, 8, 9, 10]
+
+        # สร้าง DataFrame: วัสดุ | บาท/ตัน | 2.5cm ... 10cm
+        ac_ton_rows = []
+        for mat in _ac_order2:
+            ton_p = float(_saved_ton2.get(mat, DEFAULT_AC_TON_PRICES.get(mat, 0)))
+            row = {'วัสดุ': mat, 'บาท/ตัน': ton_p}
+            for t in _thk_list:
+                row[f"{t}cm"] = round(ton_p * _den2 * t / 100, 0) if ton_p > 0 else 0.0
+            ac_ton_rows.append(row)
+
+        # column_config: บาท/ตัน แก้ได้, ความหนาทั้งหมด read-only
+        _ac_col_cfg = {
+            'วัสดุ':    st.column_config.TextColumn('วัสดุ', width='medium', disabled=True),
+            'บาท/ตัน': st.column_config.NumberColumn('บาท/ตัน', min_value=0.0, step=50.0, format='%.0f', width='small'),
+        }
+        for t in _thk_list:
+            _ac_col_cfg[f"{t}cm"] = st.column_config.NumberColumn(
+                f"{t}cm", format='%.0f', disabled=True, width='small'
+            )
+
         ac_edited = st.data_editor(
             pd.DataFrame(ac_ton_rows),
-            column_config={
-                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
-                'ราคา (บาท/ตัน)':    st.column_config.NumberColumn('ราคา (บาท/ตัน)', min_value=0.0, step=50.0, format='%.0f'),
-            },
+            column_config=_ac_col_cfg,
             use_container_width=True,
             hide_index=True,
             key="tab2_ac_editor",
@@ -1790,7 +1806,7 @@ def main():
             _new_ton: dict = {}
             for _, row in ac_edited.iterrows():
                 mat = str(row['วัสดุ'])
-                val = row.get('ราคา (บาท/ตัน)', 0)
+                val = row.get('บาท/ตัน', row.get('ราคา (บาท/ตัน)', 0))
                 if pd.notna(val):
                     _new_ton[mat] = float(val)
             _den = float(st.session_state.get('tab2_density', DEFAULT_AC_DENSITY))
