@@ -830,15 +830,24 @@ def render_layer_editor(
                 del st.session_state[wkey]
             prev_cum = lib_cum
 
+        # อ่าน cum จาก session_state โดยตรง (Streamlit ใช้ค่านี้จริง ไม่ใช่ value=)
+        bcum_key = f"{key_prefix}_bcum_{i}_v{v}"
+        # ถ้า key ยังไม่มี (เพิ่งลบ หรือ init ครั้งแรก) → set ด้วย prev_cum
+        if bcum_key not in st.session_state:
+            st.session_state[bcum_key] = float(prev_cum)
+
         with cols[2]:
-            sel_cum = st.number_input(
-                "บาท/ลบ.ม.", value=float(prev_cum),
+            st.number_input(
+                "บาท/ลบ.ม.",
                 min_value=0.0, step=10.0, format="%.0f",
-                key=f"{key_prefix}_bcum_{i}_v{v}",
+                key=bcum_key,
                 label_visibility="collapsed",
             )
 
+        # อ่านค่าจริงจาก session_state หลัง render
+        sel_cum  = float(st.session_state.get(bcum_key, prev_cum))
         cost_sqm = sel_cum * sel_thick / 100 if sel_thick > 0 else 0.0
+
         with cols[3]:
             st.markdown(
                 f'<div style="padding:8px 4px;font-weight:600;color:#0f2942;">{cost_sqm:,.2f}</div>',
