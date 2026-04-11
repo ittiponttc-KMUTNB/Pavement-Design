@@ -484,7 +484,7 @@ def render_layer_editor(
     """
     แสดง editor โครงสร้างชั้นทางด้วย st.data_editor
     Pattern ที่ถูกต้อง:
-      - เก็บ DataFrame ใน session_state[sk_surf_data] (surf) / sk_base_rows (base)
+      - เก็บ list of dict ใน session_state[sk_surf_rows] (surf) / sk_base_rows (base)
       - ส่ง key เดิมเข้า data_editor ทุก run
       - อ่านผลจาก session_state[editor_key] หลัง render (Streamlit อัพเดทให้อัตโนมัติ)
       - ไม่ overwrite session_state[sk_*_data] ซ้ำหลัง init ครั้งแรก
@@ -494,107 +494,137 @@ def render_layer_editor(
     lib         = get_price_library()
     is_concrete = ptype in ('JPCP', 'JRCP', 'CRCP')
 
-    sk_surf_data = f"{key_prefix}_surf_data_v{v}"
-    ek_surf      = f"{key_prefix}_surf_editor_v{v}"   # editor key
+    # sk_surf_rows: เก็บ list of dict {'name','thickness'} เพียงครั้งเดียว
+    sk_surf_rows  = f"{key_prefix}_surf_rows_v{v}"
+    sk_surf_pname = f"{key_prefix}_surf_pnames_v{v}"   # prev names
 
-    # Init surf เพียงครั้งเดียว — ไม่ overwrite เมื่อ user แก้แล้ว
-    if sk_surf_data not in st.session_state:
-        st.session_state[sk_surf_data] = pd.DataFrame(
-            get_default_layers(ptype, area_per_km)
-        )[['name', 'thickness', 'unit_cost']]
+    if sk_surf_rows not in st.session_state:
+        _def = get_default_layers(ptype, area_per_km)
+        st.session_state[sk_surf_rows] = [
+            {'name': r['name'], 'thickness': r['thickness']}
+            for r in _def
+        ]
 
     updated_layers: list = []
 
+
     # ══════════════════════════════════════════════════════════════
-    # SECTION A: ผิวทาง
+    # SECTION A: ผิวทาง  (selectbox + number_input — ไม่ lock value)
     # ══════════════════════════════════════════════════════════════
     st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.)</span></div>', unsafe_allow_html=True)
 
     if is_concrete:
-        surf_options = ['Concrete Slab (JPCP)', 'Concrete Slab (JRCP)', 'Concrete Slab (CRCP)',
+        surf_options = [f'Concrete Slab ({ptype})',
                         'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat', 'Prime Coat']
-        editable_cols = {
-            'name':      st.column_config.SelectboxColumn('รายการ', options=surf_options, required=True, width='large'),
-            'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, max_value=50.0, step=1.0, format='%.0f'),
-            'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=10.0, format='%.2f'),
-        }
+        thick_step, thick_fmt, thick_max = 1.0, '%.0f', 50.0
     else:
-        surf_options = WEARING_OPTIONS + ['AC Binder Course', 'AC Base Course', 'Tack Coat', 'Prime Coat', 'Non Woven Geotextile']
-        editable_cols = {
-            'name':      st.column_config.SelectboxColumn('รายการ', options=surf_options, required=True, width='large'),
-            'thickness': st.column_config.NumberColumn('หนา (cm)', min_value=0.0, max_value=30.0, step=0.5, format='%.1f'),
-            'unit_cost': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=10.0, format='%.2f'),
+        surf_options = WEARING_OPTIONS + ['AC Binder Course', 'AC Base Course',
+                                          'Tack Coat', 'Prime Coat', 'Non Woven Geotextile']
+        thick_step, thick_fmt, thick_max = 0.5, '%.1f', 30.0
+
+    _cur_surf  = st.session_state[sk_surf_rows]
+    _prev_snames = st.session_state.get(sk_surf_pname, {})
+
+    _ns_key = f"{key_prefix}_num_surf_v{v}"
+    if _ns_key not in st.session_state:
+        st.session_state[_ns_key] = len(_cur_surf)
+    st.number_input(
+        "จำนวนชั้นผิวทาง", min_value=1, max_value=8,
+        step=1, key=_ns_key,
+    )
+    num_surf = int(st.session_state[_ns_key])
+
+    hdr2 = st.columns([3, 1.2, 1.8])
+    hdr2[0].markdown("**รายการ**")
+    hdr2[1].markdown("**หนา (cm)**")
+    hdr2[2].markdown("**ราคา (บาท/ตร.ม.)**")
+
+    new_surf_rows = []
+    ac_layer_count = 0
+
+    for i in range(num_surf):
+        prev_s = _cur_surf[i] if i < len(_cur_surf) else {
+            'name': surf_options[0], 'thickness': 7.0
         }
+        prev_sname = str(prev_s.get('name', surf_options[0]))
+        prev_sthick = float(prev_s.get('thickness', 7.0) or 7.0)
 
-    # ส่ง sk_surf_data เข้า editor — Streamlit จะอ่าน/เขียน state ผ่าน ek_surf
-    st.data_editor(
-        st.session_state[sk_surf_data],
-        column_config=editable_cols,
-        num_rows='dynamic',
-        use_container_width=True,
-        key=ek_surf,
-        hide_index=True,
-        on_change=None,
-    )
-    # อ่านผล: Streamlit เก็บ edited DataFrame ใน session_state[ek_surf]
-    _surf_state = st.session_state.get(ek_surf, {})
-    edited_surf = st.session_state[sk_surf_data].copy()
-    if isinstance(_surf_state, dict):
-        # apply edited_rows
-        for idx_str, changes in _surf_state.get("edited_rows", {}).items():
-            idx = int(idx_str)
-            if idx < len(edited_surf):
-                for col, val in changes.items():
-                    edited_surf.at[idx, col] = val
-        # apply added_rows
-        for new_row in _surf_state.get("added_rows", []):
-            edited_surf = pd.concat(
-                [edited_surf, pd.DataFrame([new_row])], ignore_index=True
+        # ถ้า prev_sname ไม่อยู่ใน options → fallback
+        if prev_sname not in surf_options:
+            prev_sname = surf_options[0]
+
+        cols = st.columns([3, 1.2, 1.8])
+
+        with cols[0]:
+            try:
+                sidx = surf_options.index(prev_sname)
+            except ValueError:
+                sidx = 0
+            sel_sname = st.selectbox(
+                "รายการ", surf_options, index=sidx,
+                key=f"{key_prefix}_sname_{i}_v{v}",
+                label_visibility="collapsed",
             )
-        # apply deleted_rows
-        del_idxs = _surf_state.get("deleted_rows", [])
-        if del_idxs:
-            edited_surf = edited_surf.drop(index=del_idxs).reset_index(drop=True)
 
-    # นับจำนวนชั้น AC จริง เพื่อคำนวณ Tack Coat quantity
-    ac_layer_count = sum(
-        1 for _, row in edited_surf.iterrows()
-        if any(kw in str(row.get('name', '')).lower()
-               for kw in ['wearing', 'binder', 'ac base', 'pma', 'asphalt base'])
-        and float(row.get('thickness', 0) or 0) > 0
-    )
-    # Tack Coat = (จำนวนชั้น AC - 1) รอยต่อ  เช่น 3 ชั้น → 2 ครั้ง
-    tack_multiplier = max(ac_layer_count - 1, 1)
+        with cols[1]:
+            sthick_key = f"{key_prefix}_sthick_{i}_v{v}"
+            if sthick_key not in st.session_state:
+                st.session_state[sthick_key] = float(prev_sthick)
+            st.number_input(
+                "หนา", min_value=0.0, max_value=thick_max,
+                step=thick_step, format=thick_fmt,
+                key=sthick_key, label_visibility="collapsed",
+            )
+            sel_sthick = float(st.session_state.get(sthick_key, prev_sthick))
 
-    # Auto-update ราคาจาก library เมื่อชื่อ/ความหนาเปลี่ยน
-    for _, row in edited_surf.iterrows():
-        name  = str(row.get('name', '') or '')
-        thick = float(row.get('thickness', 0) or 0)
-        if not name or thick == 0:
-            continue
-        lib_price = lookup_price(name, thick, ptype)
-        unit_cost = float(row.get('unit_cost', 0) or 0)
-        if unit_cost == 0 and lib_price > 0:
-            unit_cost = lib_price
+        # detect name หรือ thickness เปลี่ยน → reset ราคา
+        last_sname  = _prev_snames.get(i, {}).get('name', prev_sname)
+        last_sthick = _prev_snames.get(i, {}).get('thickness', prev_sthick)
+        sprice_key  = f"{key_prefix}_sprice_{i}_v{v}"
+        changed = (sel_sname != last_sname) or (sel_sthick != last_sthick)
 
-        is_tack = 'tack' in name.lower()
-        unit = 'cm' if thick > 1 else 'ชั้น'
-        qty  = proj_area * tack_multiplier if is_tack else proj_area
+        if changed or sprice_key not in st.session_state:
+            lib_p = lookup_price(sel_sname, sel_sthick, ptype)
+            st.session_state[sprice_key] = float(lib_p) if lib_p > 0 else 0.0
 
-        updated_layers.append({
-            'name':         name,
-            'thickness':    thick,
-            'unit':         unit,
-            'quantity':     qty,
-            'qty_unit':     'sq.m',
-            'unit_cost':    unit_cost,
-            'cost_per_sqm': unit_cost,
-        })
+        with cols[2]:
+            st.number_input(
+                "ราคา (บาท/ตร.ม.)",
+                min_value=0.0, step=5.0, format="%.2f",
+                key=sprice_key, label_visibility="collapsed",
+            )
+        sel_sprice = float(st.session_state.get(sprice_key, 0.0))
 
+        new_surf_rows.append({'name': sel_sname, 'thickness': sel_sthick})
+
+        # นับชั้น AC สำหรับ Tack Coat
+        if any(kw in sel_sname.lower() for kw in ['wearing', 'binder', 'ac base', 'pma']):
+            ac_layer_count += 1
+
+        if sel_sthick > 0 and sel_sname:
+            is_tack = 'tack' in sel_sname.lower()
+            tack_multiplier = max(ac_layer_count - 1, 1)
+            unit = 'cm' if sel_sthick > 1 else 'ชั้น'
+            qty  = proj_area * tack_multiplier if is_tack else proj_area
+            updated_layers.append({
+                'name': sel_sname, 'thickness': sel_sthick, 'unit': unit,
+                'quantity': qty, 'qty_unit': 'sq.m',
+                'unit_cost': sel_sprice, 'cost_per_sqm': sel_sprice,
+            })
+
+    # บันทึก state
+    st.session_state[sk_surf_rows]  = new_surf_rows
+    st.session_state[sk_surf_pname] = {
+        i: {'name': r['name'], 'thickness': r['thickness']}
+        for i, r in enumerate(new_surf_rows)
+    }
+
+    # Tack Coat caption
     if ptype == 'AC' and ac_layer_count > 1:
+        tack_mult = max(ac_layer_count - 1, 1)
         st.caption(
-            f"Tack Coat: {tack_multiplier} ครั้ง x {proj_area:,.0f} ตร.ม."
-            f" = {proj_area * tack_multiplier:,.0f} ตร.ม. (AC {ac_layer_count} ชั้น)"
+            f"Tack Coat: {tack_mult} ครั้ง × {proj_area:,.0f} ตร.ม."
+            f" = {proj_area * tack_mult:,.0f} ตร.ม. (AC {ac_layer_count} ชั้น)"
         )
 
     # ══════════════════════════════════════════════════════════════
@@ -630,19 +660,30 @@ def render_layer_editor(
 
         # ── AC Interlayer ──
         if use_acil:
-            c1, c2, c3 = st.columns([2, 1, 2])
+            c1, c2 = st.columns([2, 2])
+            _acil_thick_key = f"{key_prefix}_acil_thick_v{v}"
+            _acil_price_key = f"{key_prefix}_acil_price_v{v}"
+            if _acil_thick_key not in st.session_state:
+                st.session_state[_acil_thick_key] = 5.0
             with c1:
-                acil_thick = st.number_input("ความหนา AC Interlayer (cm)",
-                    value=5.0, min_value=1.0, max_value=15.0, step=1.0,
-                    key=f"{key_prefix}_acil_thick_v{v}")
+                st.number_input("ความหนา AC Interlayer (cm)",
+                    min_value=1.0, max_value=15.0, step=1.0,
+                    key=_acil_thick_key)
+            acil_thick = float(st.session_state[_acil_thick_key])
+            # ดึงราคาจาก library ตามความหนาปัจจุบัน
+            _acil_lib = lookup_price('AC Binder Course', acil_thick, ptype)
+            if _acil_lib == 0:
+                _acil_lib = 251.0
+            # reset ราคาเมื่อความหนาเปลี่ยน
+            _prev_acil_thick = st.session_state.get(f"{key_prefix}_acil_thick_prev_v{v}", acil_thick)
+            if acil_thick != _prev_acil_thick or _acil_price_key not in st.session_state:
+                st.session_state[_acil_price_key] = float(_acil_lib)
+            st.session_state[f"{key_prefix}_acil_thick_prev_v{v}"] = acil_thick
             with c2:
-                acil_price = lookup_price('AC Binder Course', acil_thick, ptype)
-                if acil_price == 0:
-                    acil_price = 251.0
-            with c3:
-                acil_price = st.number_input("ราคา (บาท/ตร.ม.)",
-                    value=acil_price, min_value=0.0, step=5.0,
-                    key=f"{key_prefix}_acil_price_v{v}")
+                st.number_input("ราคา AC Interlayer (บาท/ตร.ม.)",
+                    min_value=0.0, step=5.0, format="%.2f",
+                    key=_acil_price_key)
+            acil_price = float(st.session_state[_acil_price_key])
             updated_layers.append({
                 'name': f'AC Interlayer ({acil_thick:.0f} cm)',
                 'thickness': acil_thick, 'unit': 'cm',
@@ -652,14 +693,18 @@ def render_layer_editor(
 
         # ── Prime Coat ──
         if use_pc:
-            pc_default = float(lib['base_prices'].get('Prime Coat', 37.47))
+            _pc_key = f"{key_prefix}_pc_price_v{v}"
+            _pc_lib = float(lib['base_prices'].get('Prime Coat', 37.47))
+            if _pc_key not in st.session_state:
+                st.session_state[_pc_key] = _pc_lib
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
             with c2:
-                pc_price = st.number_input("ราคา Prime Coat (บาท/ตร.ม.)",
-                    value=pc_default, min_value=0.0, step=1.0,
-                    key=f"{key_prefix}_pc_price_v{v}", label_visibility="collapsed")
+                st.number_input("ราคา Prime Coat (บาท/ตร.ม.)",
+                    min_value=0.0, step=1.0, format="%.2f",
+                    key=_pc_key, label_visibility="collapsed")
+            pc_price = float(st.session_state[_pc_key])
             updated_layers.append({
                 'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -668,14 +713,18 @@ def render_layer_editor(
 
         # ── Non Woven Geotextile ──
         if use_geo:
-            geo_price = float(lib['base_prices'].get('Non Woven Geotextile', 78))
+            _geo_key = f"{key_prefix}_geo_price_v{v}"
+            _geo_lib = float(lib['base_prices'].get('Non Woven Geotextile', 78))
+            if _geo_key not in st.session_state:
+                st.session_state[_geo_key] = _geo_lib
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
             with c2:
-                geo_price = st.number_input("ราคา Geotextile (บาท/ตร.ม.)",
-                    value=geo_price, min_value=0.0, step=1.0,
-                    key=f"{key_prefix}_geo_price_v{v}", label_visibility="collapsed")
+                st.number_input("ราคา Geotextile (บาท/ตร.ม.)",
+                    min_value=0.0, step=1.0, format="%.2f",
+                    key=_geo_key, label_visibility="collapsed")
+            geo_price = float(st.session_state[_geo_key])
             updated_layers.append({
                 'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -684,14 +733,18 @@ def render_layer_editor(
 
         # ── Wire Mesh (JRCP/CRCP เท่านั้น) ──
         if use_wire and ptype != 'JPCP':
-            wire_price = float(lib['base_prices'].get('Wire Mesh', 100))
+            _wire_key = f"{key_prefix}_wire_price_v{v}"
+            _wire_lib = float(lib['base_prices'].get('Wire Mesh', 100))
+            if _wire_key not in st.session_state:
+                st.session_state[_wire_key] = _wire_lib
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
             with c2:
-                wire_price = st.number_input("ราคา Wire Mesh (บาท/ตร.ม.)",
-                    value=wire_price, min_value=0.0, step=5.0,
-                    key=f"{key_prefix}_wire_price_v{v}", label_visibility="collapsed")
+                st.number_input("ราคา Wire Mesh (บาท/ตร.ม.)",
+                    min_value=0.0, step=5.0, format="%.2f",
+                    key=_wire_key, label_visibility="collapsed")
+            wire_price = float(st.session_state[_wire_key])
             updated_layers.append({
                 'name': 'Wire Mesh', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -759,14 +812,16 @@ def render_layer_editor(
 
     # ── จำนวนชั้น ──────────────────────────────────────────────────
     _cur_rows = st.session_state[sk_base_rows]
-    num_base = st.number_input(
+    _nb_key = f"{key_prefix}_num_base_v{v}"
+    if _nb_key not in st.session_state:
+        st.session_state[_nb_key] = len(_cur_rows)
+    st.number_input(
         "จำนวนชั้นพื้นทาง/รองพื้นทาง",
         min_value=0, max_value=8,
-        value=len(_cur_rows),
         step=1,
-        key=f"{key_prefix}_num_base_v{v}",
+        key=_nb_key,
     )
-    num_base = int(num_base)
+    num_base = int(st.session_state[_nb_key])
 
     # ── Header columns ─────────────────────────────────────────────
     _lib_cum = {m: lookup_price(m, 20) for m in BASE_MATERIAL_LIST}
@@ -809,12 +864,14 @@ def render_layer_editor(
             )
 
         with cols[1]:
-            sel_thick = st.number_input(
-                "หนา", value=prev_thick,
-                min_value=0.0, step=5.0, format="%.0f",
-                key=f"{key_prefix}_bthick_{i}_v{v}",
-                label_visibility="collapsed",
+            bthick_key = f"{key_prefix}_bthick_{i}_v{v}"
+            if bthick_key not in st.session_state:
+                st.session_state[bthick_key] = float(prev_thick)
+            st.number_input(
+                "หนา", min_value=0.0, step=5.0, format="%.0f",
+                key=bthick_key, label_visibility="collapsed",
             )
+            sel_thick = float(st.session_state.get(bthick_key, prev_thick))
 
         # ตรวจว่า name เพิ่งเปลี่ยนใน run นี้ไหม
         # เปรียบเทียบกับ prev_names (run ก่อนหน้า) ไม่ใช่ prev_name (จาก _cur_rows)
@@ -1472,7 +1529,7 @@ def main():
     # ══════════════════════════════════════════════════════════════
     with tab2:
         st.header("💰 ตารางราคาวัสดุ")
-        st.info("💡 แก้ราคาได้โดยตรงในตาราง หรือ Upload Excel ใน Sidebar — การแก้ในตารางนี้จะมีผลทันที")
+        st.info("💡 แก้ราคาได้โดยตรงในตาราง หรือคำนวณจากราคาต่อตัน หรือ Upload Excel ใน Sidebar")
 
         lib = get_price_library()
 
@@ -1485,6 +1542,76 @@ def main():
                 file_name="price_library_template.xlsx",
                 mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             )
+
+        # ══════════════════════════════════════════════════════════
+        # คำนวณราคา AC จากราคาต่อตัน
+        # ══════════════════════════════════════════════════════════
+        with st.expander("🧮 คำนวณราคา AC จากราคาต่อตัน", expanded=False):
+            st.caption("ราคา (บาท/ตร.ม.) = ราคา (บาท/ตัน) × density × ความหนา (m)")
+            _thicknesses = [2.5, 3, 4, 5, 6, 7, 8, 9, 10]
+
+            tc1, tc2 = st.columns([1, 3])
+            with tc1:
+                _density = st.number_input(
+                    "Density (ตัน/ลบ.ม.)",
+                    value=2.4, min_value=2.0, max_value=2.6, step=0.05,
+                    format="%.2f", key="tab2_density"
+                )
+
+            st.markdown("**ราคา AC แต่ละชนิด (บาท/ตัน):**")
+            _ac_types = {
+                'AC Wearing Course':  st.session_state.get('tab2_ton_wearing', 0.0),
+                'PMA Wearing Course': st.session_state.get('tab2_ton_pma', 0.0),
+                'AC Binder Course':   st.session_state.get('tab2_ton_binder', 0.0),
+                'AC Base Course':     st.session_state.get('tab2_ton_base', 0.0),
+            }
+            _ton_keys = {
+                'AC Wearing Course':  'tab2_ton_wearing',
+                'PMA Wearing Course': 'tab2_ton_pma',
+                'AC Binder Course':   'tab2_ton_binder',
+                'AC Base Course':     'tab2_ton_base',
+            }
+
+            _tc_cols = st.columns(4)
+            _ton_prices = {}
+            for idx, (mat, key) in enumerate(_ton_keys.items()):
+                with _tc_cols[idx]:
+                    _ton_prices[mat] = st.number_input(
+                        mat.replace(' Course', ''),
+                        value=float(st.session_state.get(key, 0.0)),
+                        min_value=0.0, step=50.0, format="%.0f",
+                        key=key, label_visibility="visible"
+                    )
+
+            # preview ตาราง
+            if any(v > 0 for v in _ton_prices.values()):
+                st.markdown("**ตัวอย่างราคา (บาท/ตร.ม.):**")
+                _prev_rows = []
+                for mat, ton_p in _ton_prices.items():
+                    if ton_p <= 0:
+                        continue
+                    row = {'วัสดุ': mat}
+                    for t in _thicknesses:
+                        row[f"{t}cm"] = round(ton_p * _density * t / 100, 2)
+                    _prev_rows.append(row)
+                if _prev_rows:
+                    st.dataframe(pd.DataFrame(_prev_rows), hide_index=True, use_container_width=True)
+
+            if st.button("🔄 คำนวณและอัพเดท Price Table AC", type="secondary", key="tab2_calc_ton"):
+                _cur_lib = get_price_library()
+                _new_ac = dict(_cur_lib['ac_prices'])
+                for mat, ton_p in _ton_prices.items():
+                    if ton_p <= 0:
+                        continue
+                    _new_ac[mat] = {t: round(ton_p * _density * t / 100, 2) for t in _thicknesses}
+                _cur_lib['ac_prices'] = _new_ac
+                st.session_state['price_library'] = _cur_lib
+                # ล้าง sprice widget keys เพื่อให้ Tab 1 ดึงราคาใหม่
+                for k in list(st.session_state.keys()):
+                    if '_sprice_' in k:
+                        del st.session_state[k]
+                st.success(f"✅ อัพเดทราคา AC จากราคาต่อตัน (density={_density}) สำเร็จ")
+                st.rerun()
 
         st.subheader("🛣️ ราคา AC (บาท/ตร.ม.)")
         ac_rows = []
