@@ -533,14 +533,19 @@ def render_layer_editor(
     st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.)</span></div>', unsafe_allow_html=True)
 
     def _get_price(name, thick):
-        """ดึงราคาจาก library และ reset session_state key เมื่อ input เปลี่ยน"""
-        pk = f"{key_prefix}_p_{name.replace(' ','_')}_v{v}"
+        """ดึงราคาจาก library และ reset เมื่อ thickness หรือ price library เปลี่ยน"""
+        pk           = f"{key_prefix}_p_{name.replace(' ','_')}_v{v}"
         prev_thick_k = f"{key_prefix}_pt_{name.replace(' ','_')}_v{v}"
-        prev_t = st.session_state.get(prev_thick_k, thick)
-        if pk not in st.session_state or prev_t != thick:
+        prev_ver_k   = f"{key_prefix}_pver_{name.replace(' ','_')}_v{v}"
+        prev_t   = st.session_state.get(prev_thick_k, thick)
+        # version = id ของ concrete_cum_prices + ac_ton_prices รวมกัน
+        cur_ver  = id(st.session_state.get('concrete_cum_prices', {})) +                    id(st.session_state.get('ac_ton_prices', {})) +                    id(st.session_state.get('price_library', {}))
+        prev_ver = st.session_state.get(prev_ver_k, None)
+        if pk not in st.session_state or prev_t != thick or prev_ver != cur_ver:
             lib_p = lookup_price(name, thick, ptype)
-            st.session_state[pk] = float(lib_p) if lib_p > 0 else 0.0
+            st.session_state[pk]           = float(lib_p) if lib_p > 0 else 0.0
             st.session_state[prev_thick_k] = thick
+            st.session_state[prev_ver_k]   = cur_ver
         return pk
 
     ac_layer_count = 0
