@@ -2037,7 +2037,29 @@ def main():
                 if DOCX_AVAILABLE:
                     with st.expander("⚙️ ตั้งค่ารายงานที่ปรึกษา"):
                         sec_start = st.text_input("หมายเลขหัวข้อ", value="4.7", key="cons_sec")
-                        intro_txt = st.text_area("บทเกริ่นนำ (ย่อหน้า)", value="", height=80, key="cons_intro")
+
+                        # สร้างบทเกริ่นนำอัตโนมัติจากข้อมูลโครงการ
+                        _pi = project_info
+                        _nl = _pi.get('num_lanes', 4)
+                        _tw = _pi.get('total_width', 0)
+                        _ln = _pi.get('length', 1.0)
+                        _auto_intro = (
+                            f"รายงานวิเคราะห์ต้นทุนค่าก่อสร้างโครงสร้างชั้นทางฉบับนี้ "
+                            f"จัดทำขึ้นเพื่อเปรียบเทียบทางเลือกโครงสร้างชั้นทางประเภทต่าง ๆ "
+                            f"สำหรับถนน {_nl} ช่องจราจร "
+                            f"ความกว้างรวม {_tw:.2f} เมตร "
+                            f"ระยะทาง {_ln:.2f} กิโลเมตร "
+                            f"โดยครอบคลุมทั้งผิวทางแอสฟัลต์คอนกรีต (AC) "
+                            f"และผิวทางคอนกรีตซีเมนต์ (JPCP, JRCP, CRCP) "
+                            f"การวิเคราะห์อ้างอิงราคาวัสดุและค่าก่อสร้างตามมาตรฐานกรมบัญชีกลาง "
+                            f"เพื่อใช้เป็นข้อมูลประกอบการตัดสินใจเลือกโครงสร้างชั้นทาง"
+                            f"ที่เหมาะสมกับสภาพโครงการ"
+                        )
+                        intro_txt = st.text_area(
+                            "บทเกริ่นนำ (แก้ไขได้)",
+                            value=_auto_intro,
+                            height=120, key="cons_intro"
+                        )
                     if st.button("📑 Word แบบที่ปรึกษา", use_container_width=True):
                         try:
                             doc = generate_word_report(
