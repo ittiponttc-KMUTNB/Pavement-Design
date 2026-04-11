@@ -1,6 +1,6 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.2 - Refactored
+Version 6.0 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
@@ -530,7 +530,7 @@ def render_layer_editor(
     # AC: Wearing (radio) + Binder (fixed) + Base (checkbox) + Tack/Prime auto
     # Concrete: Slab (thickness input) เท่านั้น
     # ══════════════════════════════════════════════════════════════
-    st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.)</span></div>', unsafe_allow_html=True)
+    st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.) — ราคาดึงจาก Library อัตโนมัติ แก้ราคาได้ที่ Tab 💰 ราคาวัสดุ</span></div>', unsafe_allow_html=True)
 
     def _get_price(name, thick):
         """ดึงราคาจาก library และ reset เมื่อ thickness หรือ price library เปลี่ยน"""
@@ -581,9 +581,8 @@ def render_layer_editor(
         wearing_thick = float(st.session_state[_wt_key])
         with r1[2]:
             _wp = _get_price(wearing_type, wearing_thick)
-            st.number_input("ราคา W", min_value=0.0, step=5.0,
-                format="%.2f", key=_wp, label_visibility="collapsed")
-        wearing_price = float(st.session_state[_wp])
+            wearing_price = float(st.session_state[_wp])
+            st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{wearing_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
             'name': wearing_type, 'thickness': wearing_thick, 'unit': 'cm',
@@ -604,9 +603,8 @@ def render_layer_editor(
         binder_thick = float(st.session_state[_bt_key])
         with r2[2]:
             _bp2 = _get_price('AC Binder Course', binder_thick)
-            st.number_input("ราคา B", min_value=0.0, step=5.0,
-                format="%.2f", key=_bp2, label_visibility="collapsed")
-        binder_price = float(st.session_state[_bp2])
+            binder_price = float(st.session_state[_bp2])
+            st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{binder_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
             'name': 'AC Binder Course', 'thickness': binder_thick, 'unit': 'cm',
@@ -629,9 +627,8 @@ def render_layer_editor(
             base_thick = float(st.session_state[_basethick_key])
             with r3[2]:
                 _basep = _get_price('AC Base Course', base_thick)
-                st.number_input("ราคา Base", min_value=0.0, step=5.0,
-                    format="%.2f", key=_basep, label_visibility="collapsed")
-            base_price = float(st.session_state[_basep])
+                base_price = float(st.session_state[_basep])
+                st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{base_price:,.2f}</div>", unsafe_allow_html=True)
             ac_layer_count += 1
             updated_layers.append({
                 'name': 'AC Base Course', 'thickness': base_thick, 'unit': 'cm',
@@ -657,9 +654,8 @@ def render_layer_editor(
         with r4[1]:
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r4[2]:
-            st.number_input("ราคา Tack", min_value=0.0, step=1.0,
-                format="%.2f", key=_tk_key, label_visibility="collapsed")
-        tack_price = float(st.session_state[_tk_key])
+            tack_price = float(st.session_state[_tk_key])
+            st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{tack_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Tack Coat', 'thickness': 1, 'unit': 'Layer',
             'quantity': tack_qty, 'qty_unit': 'sq.m',
@@ -681,9 +677,8 @@ def render_layer_editor(
         with r5[1]:
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r5[2]:
-            st.number_input("ราคา Prime", min_value=0.0, step=1.0,
-                format="%.2f", key=_pck, label_visibility="collapsed")
-        prime_price = float(st.session_state[_pck])
+            prime_price = float(st.session_state[_pck])
+            st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{prime_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
             'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -706,10 +701,8 @@ def render_layer_editor(
         slab_thick = float(st.session_state[_slab_thick_key])
         with c3:
             _slabp = _get_price(slab_name, slab_thick)
-            st.number_input("ราคา (บาท/ตร.ม.)", min_value=0.0, step=10.0,
-                format="%.2f", key=_slabp, label_visibility="collapsed")
-        slab_price = float(st.session_state[_slabp])
-        st.caption(f"🏗️ {slab_name} {slab_thick:.0f} cm → **{slab_price:,.2f}** บาท/ตร.ม.")
+            slab_price = float(st.session_state[_slabp])
+            st.markdown(f"<div style='padding:8px 4px;font-weight:600;color:#0f2942;text-align:right'>{slab_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': slab_name, 'thickness': slab_thick, 'unit': 'cm',
             'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -769,10 +762,8 @@ def render_layer_editor(
                 st.session_state[_acil_price_key] = float(_acil_lib)
             st.session_state[f"{key_prefix}_acil_thick_prev_v{v}"] = acil_thick
             with c2:
-                st.number_input("ราคา AC Interlayer (บาท/ตร.ม.)",
-                    min_value=0.0, step=5.0, format="%.2f",
-                    key=_acil_price_key)
-            acil_price = float(st.session_state[_acil_price_key])
+                acil_price = float(st.session_state[_acil_price_key])
+                st.markdown(f"AC Interlayer {acil_thick:.0f} cm → **{acil_price:,.2f}** บาท/ตร.ม.")
             updated_layers.append({
                 'name': f'AC Interlayer ({acil_thick:.0f} cm)',
                 'thickness': acil_thick, 'unit': 'cm',
@@ -790,10 +781,8 @@ def render_layer_editor(
             with c1:
                 st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
             with c2:
-                st.number_input("ราคา Prime Coat (บาท/ตร.ม.)",
-                    min_value=0.0, step=1.0, format="%.2f",
-                    key=_pc_key, label_visibility="collapsed")
-            pc_price = float(st.session_state[_pc_key])
+                pc_price = float(st.session_state[_pc_key])
+                st.markdown(f"<div style='padding:6px 4px;font-weight:600;color:#0f2942;text-align:right'>{pc_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -810,10 +799,8 @@ def render_layer_editor(
             with c1:
                 st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
             with c2:
-                st.number_input("ราคา Geotextile (บาท/ตร.ม.)",
-                    min_value=0.0, step=1.0, format="%.2f",
-                    key=_geo_key, label_visibility="collapsed")
-            geo_price = float(st.session_state[_geo_key])
+                geo_price = float(st.session_state[_geo_key])
+                st.markdown(f"<div style='padding:6px 4px;font-weight:600;color:#0f2942;text-align:right'>{geo_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -830,10 +817,8 @@ def render_layer_editor(
             with c1:
                 st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
             with c2:
-                st.number_input("ราคา Wire Mesh (บาท/ตร.ม.)",
-                    min_value=0.0, step=5.0, format="%.2f",
-                    key=_wire_key, label_visibility="collapsed")
-            wire_price = float(st.session_state[_wire_key])
+                wire_price = float(st.session_state[_wire_key])
+                st.markdown(f"<div style='padding:6px 4px;font-weight:600;color:#0f2942;text-align:right'>{wire_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Wire Mesh', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -845,6 +830,7 @@ def render_layer_editor(
     # ใช้ selectbox + number_input (ไม่มี reset ปัญหา)
     # ══════════════════════════════════════════════════════════════
     st.markdown("---")
+    st.caption("💡 ราคาดึงจาก Library อัตโนมัติ — แก้ราคาได้ที่ Tab **💰 ราคาวัสดุ**")
 
     # ── Header + ปุ่มคัดลอกจาก JPCP ──────────────────────────────
     sk_base_rows  = f"{key_prefix}_base_rows_v{v}"
@@ -994,7 +980,7 @@ def render_layer_editor(
 
         with cols[3]:
             st.markdown(
-                f'<div style="padding:8px 4px;font-weight:600;color:#0f2942;">{cost_sqm:,.2f}</div>',
+                f'<div style="padding:8px 4px;font-weight:600;color:#0f2942;text-align:right">{cost_sqm:,.2f}</div>',
                 unsafe_allow_html=True
             )
 
@@ -1225,6 +1211,9 @@ def generate_word_report(
             p_sub = doc.add_paragraph()
             r_sub = p_sub.add_run(data['name_detail'])
             _set_run_font(r_sub, size=14, italic=True)
+
+        # กรอง detail ที่มูลค่า = 0 ออก (เช่น Joint ที่ปิด)
+        details = [d for d in details if float(d.get('มูลค่า (บาท)', 0)) != 0]
 
         if details:
             table = doc.add_table(rows=len(details) + 2, cols=5)
@@ -1803,6 +1792,16 @@ def main():
         for j, t in enumerate(_conc_thk):
             _cph[2+j].markdown(f"<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>{t}cm</span>", unsafe_allow_html=True)
 
+        # detect การเปลี่ยน concrete_cum → reset slab price keys
+        _prev_conc_ver_k = "tab2_conc_ver"
+        _cur_conc_ver    = str({ct: st.session_state.get(f'tab2_conc_cum_{ct}', 
+                           DEFAULT_CONCRETE_CUM_PRICES.get(ct,0)) for ct in _conc_order})
+        if st.session_state.get(_prev_conc_ver_k) != _cur_conc_ver:
+            for k in list(st.session_state.keys()):
+                if '_p_Concrete' in k or '_pver_Concrete' in k                         or '_p_350' in k or '_pver_350' in k:
+                    del st.session_state[k]
+            st.session_state[_prev_conc_ver_k] = _cur_conc_ver
+
         cp_edited_rows = []
         for ct in _conc_order:
             _cum_key = f"tab2_conc_cum_{ct}"
@@ -1878,6 +1877,10 @@ def main():
                     _new_conc_cum[ct] = float(val)
             st.session_state['concrete_cum_prices'] = _new_conc_cum
             new_cp = _calc_concrete_prices(_new_conc_cum)
+            # ล้าง sprice/pver keys เพื่อให้ Tab 1 ดึงราคาใหม่
+            for k in list(st.session_state.keys()):
+                if '_sprice_' in k or '_p_Concrete' in k or '_pver_Concrete' in k                         or '_p_350' in k or '_pver_350' in k                         or '_slabp_' in k or 'sthick_slab' in k:
+                    del st.session_state[k]
 
             # Base
             new_bp: dict = {}
