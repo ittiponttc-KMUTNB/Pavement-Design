@@ -1,6 +1,6 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.0 - Refactored
+Version 6.2 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
