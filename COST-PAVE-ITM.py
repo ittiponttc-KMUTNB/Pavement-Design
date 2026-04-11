@@ -840,19 +840,9 @@ def render_layer_editor(
         if jpcp_sk in st.session_state:
             copied = [dict(r) for r in st.session_state[jpcp_sk]]
             st.session_state[sk_base_rows] = copied
-            # อัพเดทจำนวนชั้นให้ตรงกับข้อมูล JPCP
-            _nb_key_tmp = f"{key_prefix}_num_base_v{v}"
-            st.session_state[_nb_key_tmp] = len(copied)
-            # ล้าง widget keys เดิม (bname/bthick/bcum/prev_names)
-            # เพื่อให้ Streamlit render ค่าใหม่จาก copied
-            for k in list(st.session_state.keys()):
-                if any(p in k for p in [
-                    f"{key_prefix}_bname_",
-                    f"{key_prefix}_bthick_",
-                    f"{key_prefix}_bcum_",
-                    f"{key_prefix}_prev_names_",
-                ]):
-                    del st.session_state[k]
+            # เพิ่ม copy_version เพื่อเปลี่ยน widget keys ทั้งหมด
+            _cv_key = f"{key_prefix}_base_cv"
+            st.session_state[_cv_key] = st.session_state.get(_cv_key, 0) + 1
             st.session_state[sk_copy_flag] = False
             st.success("✅ คัดลอก Base จาก JPCP สำเร็จ")
         else:
@@ -878,9 +868,13 @@ def render_layer_editor(
 
     # jpcp_base_rows จะถูกบันทึกหลัง render loop (จาก new_rows ที่ถูกต้อง)
 
+    # cv = copy version — เปลี่ยนทุกครั้งที่ copy เพื่อ force widget key ใหม่
+    _cv    = st.session_state.get(f"{key_prefix}_base_cv", 0)
+    _cv_sf = f"cv{_cv}"   # suffix สำหรับ widget keys
+
     # ── จำนวนชั้น ──────────────────────────────────────────────────
     _cur_rows = st.session_state[sk_base_rows]
-    _nb_key   = f"{key_prefix}_num_base_v{v}"
+    _nb_key   = f"{key_prefix}_num_base_{_cv_sf}_v{v}"
     if _nb_key not in st.session_state:
         st.session_state[_nb_key] = len(_cur_rows)
     st.number_input(
@@ -925,12 +919,12 @@ def render_layer_editor(
                 name_idx = 0
             sel_name = st.selectbox(
                 "วัสดุ", BASE_MATERIAL_LIST, index=name_idx,
-                key=f"{key_prefix}_bname_{i}_v{v}",
+                key=f"{key_prefix}_bname_{i}_{_cv_sf}_v{v}",
                 label_visibility="collapsed",
             )
 
         with cols[1]:
-            bthick_key = f"{key_prefix}_bthick_{i}_v{v}"
+            bthick_key = f"{key_prefix}_bthick_{i}_{_cv_sf}_v{v}"
             if bthick_key not in st.session_state:
                 st.session_state[bthick_key] = float(prev_thick)
             st.number_input(
@@ -940,22 +934,17 @@ def render_layer_editor(
             sel_thick = float(st.session_state.get(bthick_key, prev_thick))
 
         # ตรวจว่า name เพิ่งเปลี่ยนใน run นี้ไหม
-        # เปรียบเทียบกับ prev_names (run ก่อนหน้า) ไม่ใช่ prev_name (จาก _cur_rows)
         last_rendered_name = prev_names.get(i, prev_name)
         name_just_changed  = (sel_name != last_rendered_name)
 
         if name_just_changed:
-            # เปลี่ยนวัสดุ → ดึงราคาจาก library และ reset bcum widget key
             lib_cum = _lib_cum.get(sel_name, 0)
-            # ล้าง widget key เดิมเพื่อให้ Streamlit render value ใหม่
-            wkey = f"{key_prefix}_bcum_{i}_v{v}"
+            wkey = f"{key_prefix}_bcum_{i}_{_cv_sf}_v{v}"
             if wkey in st.session_state:
                 del st.session_state[wkey]
             prev_cum = lib_cum
 
-        # อ่าน cum จาก session_state โดยตรง (Streamlit ใช้ค่านี้จริง ไม่ใช่ value=)
-        bcum_key = f"{key_prefix}_bcum_{i}_v{v}"
-        # ถ้า key ยังไม่มี (เพิ่งลบ หรือ init ครั้งแรก) → set ด้วย prev_cum
+        bcum_key = f"{key_prefix}_bcum_{i}_{_cv_sf}_v{v}"
         if bcum_key not in st.session_state:
             st.session_state[bcum_key] = float(prev_cum)
 
