@@ -2055,10 +2055,13 @@ def main():
                             f"เพื่อใช้เป็นข้อมูลประกอบการตัดสินใจเลือกโครงสร้างชั้นทาง"
                             f"ที่เหมาะสมกับสภาพโครงการ"
                         )
+                        # key ผูกกับข้อมูลโครงการ → เปลี่ยนอัตโนมัติเมื่อ project_info เปลี่ยน
+                        _intro_key = f"cons_intro_{_nl}_{_tw:.1f}_{_ln:.2f}"
+                        if _intro_key not in st.session_state:
+                            st.session_state[_intro_key] = _auto_intro
                         intro_txt = st.text_area(
                             "บทเกริ่นนำ (แก้ไขได้)",
-                            value=_auto_intro,
-                            height=120, key="cons_intro_v2"
+                            height=120, key=_intro_key
                         )
                     if st.button("📑 Word แบบที่ปรึกษา", use_container_width=True):
                         try:
