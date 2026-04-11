@@ -173,11 +173,13 @@ button[data-baseweb="tab"] {
 # DEFAULT PRICE TABLES
 # ═══════════════════════════════════════════════════════════════════════════════
 
+# ราคา AC คำนวณจากราคาต่อตัน × density 2.4 × ความหนา
+# PMA=3,100 | AC Wearing=2,973 | AC Binder=2,929 | AC Base=1,795 บาท/ตัน
 DEFAULT_AC_PRICES: dict = {
-    'PMA Wearing Course':  {2.5:170, 3:203, 4:268, 5:333, 6:406, 7:471, 8:536, 9:601, 10:667},
-    'AC Wearing Course':   {2.5:128, 3:152, 4:202, 5:250, 6:306, 7:355, 8:403, 9:452, 10:502},
-    'AC Binder Course':    {2.5:129, 3:154, 4:202, 5:251, 6:308, 7:356, 8:405, 9:454, 10:503},
-    'AC Base Course':      {2.5:129, 3:154, 4:202, 5:251, 6:308, 7:356, 8:405, 9:454, 10:503},
+    'PMA Wearing Course': {2.5:186, 3:223, 4:298, 5:372, 6:446, 7:521, 8:595, 9:670, 10:744},
+    'AC Wearing Course':  {2.5:178, 3:214, 4:285, 5:357, 6:428, 7:499, 8:571, 9:642, 10:714},
+    'AC Binder Course':   {2.5:176, 3:211, 4:281, 5:351, 6:422, 7:492, 8:562, 9:633, 10:703},
+    'AC Base Course':     {2.5:108, 3:129, 4:172, 5:215, 6:258, 7:302, 8:345, 9:388, 10:431},
 }
 
 DEFAULT_CONCRETE_PRICES: dict = {
@@ -193,7 +195,7 @@ DEFAULT_BASE_PRICES: dict = {
     'Soil Cement Subbase (UCS 7 ksc)':                     854,
     'Soil Aggregate Subbase':                              375,
     'Selected Material A':                                 375,
-    'Embankment':                                          200,
+    'Embankment':                                          352,
     'Sand Embankment':                                     220,
     'Prime Coat':                                          37.47,
     'Non Woven Geotextile':                                78,
