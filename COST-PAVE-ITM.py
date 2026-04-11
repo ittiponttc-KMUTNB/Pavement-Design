@@ -815,6 +815,11 @@ def render_layer_editor(
     st.markdown("---")
 
     # ── Header + ปุ่มคัดลอกจาก JPCP ──────────────────────────────
+    sk_base_rows  = f"{key_prefix}_base_rows_v{v}"
+    sk_price_ver  = f"{key_prefix}_base_price_ver_v{v}"
+    sk_copy_flag  = f"{key_prefix}_do_copy_base_v{v}"
+    cur_price_ver = id(st.session_state.get('price_library', {}))
+
     hcol1, hcol2 = st.columns([3, 1])
     with hcol1:
         st.markdown(
@@ -827,41 +832,42 @@ def render_layer_editor(
             if st.button("📋 คัดลอก Base จาก JPCP",
                          key=f"{key_prefix}_copy_base_v{v}",
                          use_container_width=True, type="secondary"):
-                # ดึง base layers ของ JPCP จาก session_state
-                jpcp_sk = f"jpcp_base_rows_v{v}"
-                if jpcp_sk in st.session_state:
-                    st.session_state[f"{key_prefix}_base_rows_v{v}"] = [
-                        dict(r) for r in st.session_state[jpcp_sk]
-                    ]
-                st.rerun()
+                st.session_state[sk_copy_flag] = True
 
-    # ── default rows สำหรับ base ─────────────────────────────────
-    # ใช้ price_version เพื่อ detect เมื่อ price_library เปลี่ยน → refresh cost_cum
-    sk_base_rows    = f"{key_prefix}_base_rows_v{v}"
-    sk_price_ver    = f"{key_prefix}_base_price_ver_v{v}"
-    cur_price_ver   = id(st.session_state.get('price_library', {}))
+    # ── ตรวจ copy flag — ทำก่อน init เพื่อ override _cur_rows ในรัน เดียวกัน ──
+    if st.session_state.get(sk_copy_flag):
+        jpcp_sk = f"jpcp_base_rows_v{v}"
+        if jpcp_sk in st.session_state:
+            copied = [dict(r) for r in st.session_state[jpcp_sk]]
+            st.session_state[sk_base_rows] = copied
+            # ล้าง widget keys เดิมทั้งหมดเพื่อให้ Streamlit render ค่าใหม่
+            for k in list(st.session_state.keys()):
+                if f"{key_prefix}_bname_" in k or f"{key_prefix}_bthick_" in k                         or f"{key_prefix}_bcum_" in k or f"{key_prefix}_num_base_" in k                         or f"{key_prefix}_prev_names_" in k:
+                    del st.session_state[k]
+            st.session_state[sk_copy_flag] = False
+            st.success("✅ คัดลอก Base จาก JPCP สำเร็จ")
+        else:
+            st.warning("⚠️ ยังไม่มีข้อมูล Base ของ JPCP — กรุณาตั้งค่า JPCP ก่อน")
+            st.session_state[sk_copy_flag] = False
 
+    # ── init base rows ─────────────────────────────────────────────
     if sk_base_rows not in st.session_state:
-        # init ครั้งแรก
         _def_base = get_default_base_layers(ptype, area_per_km)
         st.session_state[sk_base_rows] = [
-            {'name': r['name'], 'thickness': r['thickness'],
-             'cost_cum': r['cost_cum']}
+            {'name': r['name'], 'thickness': r['thickness'], 'cost_cum': r['cost_cum']}
             for r in _def_base
         ]
         st.session_state[sk_price_ver] = cur_price_ver
     elif st.session_state.get(sk_price_ver) != cur_price_ver:
-        # price_library เปลี่ยน → refresh cost_cum จาก library ใหม่ (คงชื่อ/ความหนาเดิม)
         _lib_fresh = {m: lookup_price(m, 20) for m in BASE_MATERIAL_LIST}
-        refreshed = []
-        for r in st.session_state[sk_base_rows]:
-            fresh_cum = _lib_fresh.get(r['name'], lookup_price(r['name'], 20))
-            refreshed.append({'name': r['name'], 'thickness': r['thickness'],
-                               'cost_cum': fresh_cum})
-        st.session_state[sk_base_rows] = refreshed
+        st.session_state[sk_base_rows] = [
+            {'name': r['name'], 'thickness': r['thickness'],
+             'cost_cum': _lib_fresh.get(r['name'], lookup_price(r['name'], 20))}
+            for r in st.session_state[sk_base_rows]
+        ]
         st.session_state[sk_price_ver] = cur_price_ver
 
-    # บันทึก JPCP base rows ไว้ให้ JRCP/CRCP คัดลอก
+    # บันทึก JPCP base rows ไว้ให้ JRCP/CRCP คัดลอก (ทำทุก run)
     if ptype == 'JPCP':
         st.session_state[f"jpcp_base_rows_v{v}"] = [
             dict(r) for r in st.session_state[sk_base_rows]
@@ -869,14 +875,12 @@ def render_layer_editor(
 
     # ── จำนวนชั้น ──────────────────────────────────────────────────
     _cur_rows = st.session_state[sk_base_rows]
-    _nb_key = f"{key_prefix}_num_base_v{v}"
+    _nb_key   = f"{key_prefix}_num_base_v{v}"
     if _nb_key not in st.session_state:
         st.session_state[_nb_key] = len(_cur_rows)
     st.number_input(
         "จำนวนชั้นพื้นทาง/รองพื้นทาง",
-        min_value=0, max_value=8,
-        step=1,
-        key=_nb_key,
+        min_value=0, max_value=8, step=1, key=_nb_key,
     )
     num_base = int(st.session_state[_nb_key])
 
