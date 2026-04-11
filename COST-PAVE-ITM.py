@@ -1772,18 +1772,16 @@ def main():
         st.subheader("🏗️ ราคาคอนกรีต — บาท/ลบ.ม. และ บาท/ตร.ม. ทุกความหนา")
         st.caption("แก้ **บาท/ลบ.ม.** ได้โดยตรง — ราคา/ตร.ม. คำนวณอัตโนมัติ (read-only)")
 
-        _conc_thk = [20, 25, 28, 30, 32, 35]
-        _conc_cum  = st.session_state.get('concrete_cum_prices', DEFAULT_CONCRETE_CUM_PRICES)
+        _conc_thk   = [20, 25, 28, 30, 32, 35]
         _conc_order = ['JPCP', 'JRCP', 'CRCP']
 
-        cp_rows = []
-        for ct in _conc_order:
-            cum_p = float(_conc_cum.get(ct, DEFAULT_CONCRETE_CUM_PRICES.get(ct, 0)))
-            row = {'ประเภท': ct, 'บาท/ลบ.ม.': cum_p}
-            for t in _conc_thk:
-                row[f"{t}cm"] = round(cum_p * t / 100, 0)
-            cp_rows.append(row)
+        # init concrete_cum_prices ด้วย default ถ้ายังไม่มี
+        if 'concrete_cum_prices' not in st.session_state:
+            st.session_state['concrete_cum_prices'] = dict(DEFAULT_CONCRETE_CUM_PRICES)
+        _conc_cum = st.session_state['concrete_cum_prices']
 
+        # สร้าง DataFrame แบบ dynamic จาก session_state (ไม่ lock)
+        # ใช้ number_input แยกต่อ row แทน data_editor เพื่อหลีกเลี่ยง lock
         _cp_col_cfg = {
             'ประเภท':    st.column_config.TextColumn('ประเภท', width='small', disabled=True),
             'บาท/ลบ.ม.': st.column_config.NumberColumn('บาท/ลบ.ม.', min_value=0.0, step=50.0, format='%.0f', width='small'),
@@ -1793,13 +1791,34 @@ def main():
                 f"{t}cm", format='%.0f', disabled=True, width='small'
             )
 
-        cp_edited = st.data_editor(
-            pd.DataFrame(cp_rows),
-            column_config=_cp_col_cfg,
-            use_container_width=True,
-            hide_index=True,
-            key="tab2_cp_editor",
-        )
+        # Header
+        _cph = st.columns([1.2, 1.2] + [1]*len(_conc_thk))
+        _cph[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>ประเภท</span>", unsafe_allow_html=True)
+        _cph[1].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>บาท/ลบ.ม.</span>", unsafe_allow_html=True)
+        for j, t in enumerate(_conc_thk):
+            _cph[2+j].markdown(f"<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>{t}cm</span>", unsafe_allow_html=True)
+
+        cp_edited_rows = []
+        for ct in _conc_order:
+            _cum_key = f"tab2_conc_cum_{ct}"
+            if _cum_key not in st.session_state:
+                st.session_state[_cum_key] = float(_conc_cum.get(ct, DEFAULT_CONCRETE_CUM_PRICES.get(ct, 0)))
+            _cpr = st.columns([1.2, 1.2] + [1]*len(_conc_thk))
+            with _cpr[0]:
+                st.markdown(f"<div style='padding:8px 0;font-weight:600'>{ct}</div>", unsafe_allow_html=True)
+            with _cpr[1]:
+                st.number_input(f"cum_{ct}", min_value=0.0, step=50.0, format="%.0f",
+                    key=_cum_key, label_visibility="collapsed")
+            cum_val = float(st.session_state[_cum_key])
+            for j, t in enumerate(_conc_thk):
+                sqm_val = round(cum_val * t / 100, 0)
+                _cpr[2+j].markdown(
+                    f"<div style='padding:8px 4px;font-size:0.9rem;color:#0f2942'>{sqm_val:,.0f}</div>",
+                    unsafe_allow_html=True
+                )
+            cp_edited_rows.append({'ประเภท': ct, 'บาท/ลบ.ม.': cum_val})
+
+        cp_edited = pd.DataFrame(cp_edited_rows)
 
         # แยก base_prices เป็น 2 กลุ่ม
         SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
