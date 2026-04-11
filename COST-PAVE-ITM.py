@@ -582,7 +582,7 @@ def render_layer_editor(
         with r1[2]:
             _wp = _get_price(wearing_type, wearing_thick)
             wearing_price = float(st.session_state[_wp])
-            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{wearing_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{wearing_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
             'name': wearing_type, 'thickness': wearing_thick, 'unit': 'cm',
@@ -604,7 +604,7 @@ def render_layer_editor(
         with r2[2]:
             _bp2 = _get_price('AC Binder Course', binder_thick)
             binder_price = float(st.session_state[_bp2])
-            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{binder_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{binder_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
             'name': 'AC Binder Course', 'thickness': binder_thick, 'unit': 'cm',
@@ -628,7 +628,7 @@ def render_layer_editor(
             with r3[2]:
                 _basep = _get_price('AC Base Course', base_thick)
                 base_price = float(st.session_state[_basep])
-                st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{base_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{base_price:,.2f}</div>", unsafe_allow_html=True)
             ac_layer_count += 1
             updated_layers.append({
                 'name': 'AC Base Course', 'thickness': base_thick, 'unit': 'cm',
@@ -655,7 +655,7 @@ def render_layer_editor(
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r4[2]:
             tack_price = float(st.session_state[_tk_key])
-            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{tack_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{tack_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Tack Coat', 'thickness': 1, 'unit': 'Layer',
             'quantity': tack_qty, 'qty_unit': 'sq.m',
@@ -678,7 +678,7 @@ def render_layer_editor(
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r5[2]:
             prime_price = float(st.session_state[_pck])
-            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{prime_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{prime_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
             'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -702,7 +702,7 @@ def render_layer_editor(
         with c3:
             _slabp = _get_price(slab_name, slab_thick)
             slab_price = float(st.session_state[_slabp])
-            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{slab_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+            st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{slab_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': slab_name, 'thickness': slab_thick, 'unit': 'cm',
             'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -782,7 +782,7 @@ def render_layer_editor(
                 st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
             with c2:
                 pc_price = float(st.session_state[_pc_key])
-                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{pc_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{pc_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -800,7 +800,7 @@ def render_layer_editor(
                 st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
             with c2:
                 geo_price = float(st.session_state[_geo_key])
-                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{geo_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{geo_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -818,7 +818,7 @@ def render_layer_editor(
                 st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
             with c2:
                 wire_price = float(st.session_state[_wire_key])
-                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{wire_price:,.2f} <span style='font-size:0.78rem;color:#6b7a8d'>บาท/ตร.ม.</span></div>", unsafe_allow_html=True)
+                st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{wire_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Wire Mesh', 'thickness': 1, 'unit': 'ชั้น',
                 'quantity': proj_area, 'qty_unit': 'sq.m',
@@ -973,14 +973,14 @@ def render_layer_editor(
         with cols[2]:
             st.markdown(
                 f'<div style="padding:8px 0;font-weight:700;color:#0f2942;'
-                f'text-align:right">{sel_cum:,.0f} <span style="font-size:0.78rem;color:#6b7a8d">บาท/ลบ.ม.</span></div>',
+                f'text-align:right">{sel_cum:,.0f}</div>',
                 unsafe_allow_html=True
             )
         cost_sqm = sel_cum * sel_thick / 100 if sel_thick > 0 else 0.0
 
         with cols[3]:
             st.markdown(
-                f'<div style="padding:8px 0;font-weight:700;color:#0f2942;text-align:right">{cost_sqm:,.2f} <span style="font-size:0.78rem;color:#6b7a8d">บาท/ตร.ม.</span></div>',
+                f'<div style="padding:8px 0;font-weight:700;color:#0f2942;text-align:right">{cost_sqm:,.2f}</div>',
                 unsafe_allow_html=True
             )
 
