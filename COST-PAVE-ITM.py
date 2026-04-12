@@ -1,12 +1,12 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.2.4 - Refactored
+Version 6.0 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
 - รวม get_default_*_layers() เป็น get_default_layers(ptype)
 - รวม get_price_from_library() เป็นจุดเดียว
-- ตรวจ syntax ด้วย ast.parse() ก่อน deploy - แก้ไขบทเกริ่นนำ
+- ตรวจ syntax ด้วย ast.parse() ก่อน deploy
 """
 
 import ast
@@ -532,21 +532,10 @@ def render_layer_editor(
     # ══════════════════════════════════════════════════════════════
     st.markdown('<div class="section-card"><b>🏗️ ผิวทาง</b> &nbsp;<span style="color:#6b7a8d;font-size:0.85rem">(บาท/ตร.ม.) — ราคาดึงจาก Library อัตโนมัติ แก้ราคาได้ที่ Tab 💰 ราคาวัสดุ</span></div>', unsafe_allow_html=True)
 
-    def _get_price(name, thick):
-        """ดึงราคาจาก library และ reset เมื่อ thickness หรือ price library เปลี่ยน"""
-        pk           = f"{key_prefix}_p_{name.replace(' ','_')}_v{v}"
-        prev_thick_k = f"{key_prefix}_pt_{name.replace(' ','_')}_v{v}"
-        prev_ver_k   = f"{key_prefix}_pver_{name.replace(' ','_')}_v{v}"
-        prev_t   = st.session_state.get(prev_thick_k, thick)
-        # version = id ของ concrete_cum_prices + ac_ton_prices รวมกัน
-        cur_ver  = id(st.session_state.get('concrete_cum_prices', {})) +                    id(st.session_state.get('ac_ton_prices', {})) +                    id(st.session_state.get('price_library', {}))
-        prev_ver = st.session_state.get(prev_ver_k, None)
-        if pk not in st.session_state or prev_t != thick or prev_ver != cur_ver:
-            lib_p = lookup_price(name, thick, ptype)
-            st.session_state[pk]           = float(lib_p) if lib_p > 0 else 0.0
-            st.session_state[prev_thick_k] = thick
-            st.session_state[prev_ver_k]   = cur_ver
-        return pk
+    def _price(name, thick):
+        """อ่านราคาจาก library ตรงๆ ทุก render cycle — real-time"""
+        p = lookup_price(name, thick, ptype)
+        return float(p) if p > 0 else 0.0
 
     ac_layer_count = 0
 
@@ -580,8 +569,7 @@ def render_layer_editor(
                 step=0.5, format="%.1f", key=_wt_key, label_visibility="collapsed")
         wearing_thick = float(st.session_state[_wt_key])
         with r1[2]:
-            _wp = _get_price(wearing_type, wearing_thick)
-            wearing_price = float(st.session_state[_wp])
+            wearing_price = _price(wearing_type, wearing_thick)
             st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{wearing_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
@@ -602,8 +590,7 @@ def render_layer_editor(
                 step=0.5, format="%.1f", key=_bt_key, label_visibility="collapsed")
         binder_thick = float(st.session_state[_bt_key])
         with r2[2]:
-            _bp2 = _get_price('AC Binder Course', binder_thick)
-            binder_price = float(st.session_state[_bp2])
+            binder_price = _price('AC Binder Course', binder_thick)
             st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{binder_price:,.2f}</div>", unsafe_allow_html=True)
         ac_layer_count += 1
         updated_layers.append({
@@ -626,8 +613,7 @@ def render_layer_editor(
                     step=0.5, format="%.1f", key=_basethick_key, label_visibility="collapsed")
             base_thick = float(st.session_state[_basethick_key])
             with r3[2]:
-                _basep = _get_price('AC Base Course', base_thick)
-                base_price = float(st.session_state[_basep])
+                base_price = _price('AC Base Course', base_thick)
                 st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{base_price:,.2f}</div>", unsafe_allow_html=True)
             ac_layer_count += 1
             updated_layers.append({
@@ -639,12 +625,7 @@ def render_layer_editor(
         # ── Row 4: Tack Coat (auto qty) ───────────────────────────
         tack_times = max(ac_layer_count - 1, 1)
         tack_qty   = proj_area * tack_times
-        _tk_key     = f"{key_prefix}_p_tack_v{v}"
-        _tk_ver_key = f"{key_prefix}_p_tack_ver_v{v}"
-        _lib_ver    = id(st.session_state.get('price_library', {}))
-        if _tk_key not in st.session_state or st.session_state.get(_tk_ver_key) != _lib_ver:
-            st.session_state[_tk_key]     = float(_lib2['base_prices'].get('Tack Coat', 20))
-            st.session_state[_tk_ver_key] = _lib_ver
+        tack_price = float(get_price_library()['base_prices'].get('Tack Coat', 20))
         r4 = st.columns([3.5, 1.2, 1.8])
         with r4[0]:
             st.markdown(
@@ -657,7 +638,6 @@ def render_layer_editor(
         with r4[1]:
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r4[2]:
-            tack_price = float(st.session_state[_tk_key])
             st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{tack_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Tack Coat', 'thickness': 1, 'unit': 'Layer',
@@ -666,11 +646,7 @@ def render_layer_editor(
         })
 
         # ── Row 5: Prime Coat (auto qty) ──────────────────────────
-        _pck     = f"{key_prefix}_p_primecoat_v{v}"
-        _pck_ver = f"{key_prefix}_p_primecoat_ver_v{v}"
-        if _pck not in st.session_state or st.session_state.get(_pck_ver) != _lib_ver:
-            st.session_state[_pck]     = float(_lib2['base_prices'].get('Prime Coat', 37.47))
-            st.session_state[_pck_ver] = _lib_ver
+        prime_price = float(get_price_library()['base_prices'].get('Prime Coat', 37.47))
         r5 = st.columns([3.5, 1.2, 1.8])
         with r5[0]:
             st.markdown(
@@ -682,7 +658,6 @@ def render_layer_editor(
         with r5[1]:
             st.markdown(f"<div style='padding:8px 0;color:#94a3b8;font-size:0.85rem'>auto</div>", unsafe_allow_html=True)
         with r5[2]:
-            prime_price = float(st.session_state[_pck])
             st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{prime_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
@@ -710,8 +685,7 @@ def render_layer_editor(
                 step=1.0, format="%.0f", key=_slab_thick_key, label_visibility="collapsed")
         slab_thick = float(st.session_state[_slab_thick_key])
         with c3:
-            _slabp = _get_price(slab_name, slab_thick)
-            slab_price = float(st.session_state[_slabp])
+            slab_price = _price(slab_name, slab_thick)
             st.markdown(f"<div style='padding:8px 0;font-weight:700;color:#0f2942;text-align:right'>{slab_price:,.2f}</div>", unsafe_allow_html=True)
         updated_layers.append({
             'name': slab_name, 'thickness': slab_thick, 'unit': 'cm',
@@ -762,17 +736,9 @@ def render_layer_editor(
                     min_value=1.0, max_value=15.0, step=1.0,
                     key=_acil_thick_key)
             acil_thick = float(st.session_state[_acil_thick_key])
-            # ดึงราคาจาก library ตามความหนาปัจจุบัน
-            _acil_lib = lookup_price('AC Binder Course', acil_thick, ptype)
-            if _acil_lib == 0:
-                _acil_lib = 251.0
-            # reset ราคาเมื่อความหนาเปลี่ยน
-            _prev_acil_thick = st.session_state.get(f"{key_prefix}_acil_thick_prev_v{v}", acil_thick)
-            if acil_thick != _prev_acil_thick or _acil_price_key not in st.session_state:
-                st.session_state[_acil_price_key] = float(_acil_lib)
-            st.session_state[f"{key_prefix}_acil_thick_prev_v{v}"] = acil_thick
             with c2:
-                acil_price = float(st.session_state[_acil_price_key])
+                acil_price = _price('AC Binder Course', acil_thick)
+                if acil_price == 0: acil_price = 251.0
                 st.markdown(f"AC Interlayer {acil_thick:.0f} cm → **{acil_price:,.2f}** บาท/ตร.ม.")
             updated_layers.append({
                 'name': f'AC Interlayer ({acil_thick:.0f} cm)',
@@ -783,18 +749,11 @@ def render_layer_editor(
 
         # ── Prime Coat ──
         if use_pc:
-            _pc_key     = f"{key_prefix}_pc_price_v{v}"
-            _pc_ver_key = f"{key_prefix}_pc_price_ver_v{v}"
-            _pc_lib     = float(lib['base_prices'].get('Prime Coat', 37.47))
-            _lib_ver2   = id(st.session_state.get('price_library', {}))
-            if _pc_key not in st.session_state or st.session_state.get(_pc_ver_key) != _lib_ver2:
-                st.session_state[_pc_key]     = _pc_lib
-                st.session_state[_pc_ver_key] = _lib_ver2
+            pc_price = float(lib['base_prices'].get('Prime Coat', 37.47))
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Prime Coat — ราดบน Base Course ก่อนปู AC Interlayer")
             with c2:
-                pc_price = float(st.session_state[_pc_key])
                 st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{pc_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Prime Coat', 'thickness': 1, 'unit': 'Layer',
@@ -804,18 +763,11 @@ def render_layer_editor(
 
         # ── Non Woven Geotextile ──
         if use_geo:
-            _geo_key     = f"{key_prefix}_geo_price_v{v}"
-            _geo_ver_key = f"{key_prefix}_geo_price_ver_v{v}"
-            _geo_lib     = float(lib['base_prices'].get('Non Woven Geotextile', 78))
-            _lib_ver2    = id(st.session_state.get('price_library', {}))
-            if _geo_key not in st.session_state or st.session_state.get(_geo_ver_key) != _lib_ver2:
-                st.session_state[_geo_key]     = _geo_lib
-                st.session_state[_geo_ver_key] = _lib_ver2
+            geo_price = float(lib['base_prices'].get('Non Woven Geotextile', 78))
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Non Woven Geotextile — รองใต้แผ่นคอนกรีต")
             with c2:
-                geo_price = float(st.session_state[_geo_key])
                 st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{geo_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Non Woven Geotextile', 'thickness': 1, 'unit': 'ชั้น',
@@ -825,18 +777,11 @@ def render_layer_editor(
 
         # ── Wire Mesh (JRCP/CRCP เท่านั้น) ──
         if use_wire and ptype != 'JPCP':
-            _wire_key     = f"{key_prefix}_wire_price_v{v}"
-            _wire_ver_key = f"{key_prefix}_wire_price_ver_v{v}"
-            _wire_lib     = float(lib['base_prices'].get('Wire Mesh', 100))
-            _lib_ver2     = id(st.session_state.get('price_library', {}))
-            if _wire_key not in st.session_state or st.session_state.get(_wire_ver_key) != _lib_ver2:
-                st.session_state[_wire_key]     = _wire_lib
-                st.session_state[_wire_ver_key] = _lib_ver2
+            wire_price = float(lib['base_prices'].get('Wire Mesh', 100))
             c1, c2 = st.columns([3, 1])
             with c1:
                 st.caption("Wire Mesh — ตะแกรงเหล็กในแผ่นคอนกรีต")
             with c2:
-                wire_price = float(st.session_state[_wire_key])
                 st.markdown(f"<div style='padding:6px 0;font-weight:700;color:#0f2942;text-align:right'>{wire_price:,.2f}</div>", unsafe_allow_html=True)
             updated_layers.append({
                 'name': 'Wire Mesh', 'thickness': 1, 'unit': 'ชั้น',
@@ -987,8 +932,8 @@ def render_layer_editor(
         if bcum_key not in st.session_state:
             st.session_state[bcum_key] = float(prev_cum)
 
-        # ราคา บาท/ลบ.ม. — read-only ดึงจาก Library (แก้ได้ที่ Tab 💰 ราคาวัสดุ)
-        sel_cum = float(st.session_state.get(bcum_key, prev_cum))
+        # อ่านราคาตรงจาก library ทุก render cycle — real-time
+        sel_cum = float(_lib_cum.get(sel_name, 0))
         with cols[2]:
             st.markdown(
                 f'<div style="padding:8px 0;font-weight:700;color:#0f2942;'
