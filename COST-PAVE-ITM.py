@@ -1892,7 +1892,12 @@ def main():
             for k in list(st.session_state.keys()):
                 if '_sprice_' in k or '_p_AC' in k or '_p_PMA' in k:
                     del st.session_state[k]
-            st.success("✅ อัพเดท Price Library สำเร็จ — กลับไป Tab 1 เพื่อดูผล")
+            # ล้าง widget keys ของ Tab 2 เพื่อให้อ่านค่าใหม่จาก library
+            for k in list(st.session_state.keys()):
+                if k.startswith('tab2_bp_cum_') or k.startswith('tab2_bp_sqm_')                         or k.startswith('tab2_conc_cum_') or k.startswith('tab2_ton_'):
+                    del st.session_state[k]
+            st.success("✅ อัพเดท Price Library สำเร็จ")
+            st.rerun()
 
     # ══════════════════════════════════════════════════════════════
     # TAB 3 — Cost Summary + Report
