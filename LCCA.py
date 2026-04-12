@@ -961,13 +961,25 @@ with tab2:
                 ss["y_row"], ss["y_shoulder"], terrain_code, ss["y_bridge"])
 
             # บาท/ตร.ม./ปี และ บาท/กม./ปี
-            road_w_ac = ss["ac_x5_width"]
-            road_w_cc = ss["cc_z4_width"]
-            r_ac_km   = ss["ac_Na"] * ka_avg * ss["ac_Km"]
-            r_cc_km   = ss["cc_Nc"] * Kc     * ss["cc_Km"]
-            r_ac_sqm  = r_ac_km / (road_w_ac * 1000)
-            r_cc_sqm  = r_cc_km / (road_w_cc * 1000)
+            # Na × Ka × Km = บาท/กม./ปี
+            r_ac_km = ss["ac_Na"] * ka_avg * ss["ac_Km"]
+            r_cc_km = ss["cc_Nc"] * Kc     * ss["cc_Km"]
+            # หารด้วยพื้นที่จริงต่อ กม. = ความกว้างถนนรวม (TAB1) × 1,000
+            # ไม่ใช่ X5/Z4 ซึ่งเป็นเฉพาะผิวจราจร ไม่รวมไหล่ทาง
+            total_w  = ss.get("road_total_width", 22.0)
+            r_ac_sqm = r_ac_km / (total_w * 1000)
+            r_cc_sqm = r_cc_km / (total_w * 1000)
 
+            # แสดงที่มาของสูตรใน info band
+            st.markdown(f'''<div class="info-band">
+            📐 <b>สูตร Routine Cost:</b><br>
+            AC: Na({ss["ac_Na"]:,.0f}) × Ka({ka_avg:.4f}) × Km({ss["ac_Km"]:.3f}) 
+            = <b>{r_ac_km:,.2f} บาท/กม./ปี</b> ÷ {total_w:.1f}ม.×1,000 
+            = <b>{r_ac_sqm:.4f} บาท/ตร.ม./ปี</b><br>
+            Concrete: Nc({ss["cc_Nc"]:,.0f}) × Kc({Kc:.4f}) × Km({ss["cc_Km"]:.3f}) 
+            = <b>{r_cc_km:,.2f} บาท/กม./ปี</b> ÷ {total_w:.1f}ม.×1,000 
+            = <b>{r_cc_sqm:.4f} บาท/ตร.ม./ปี</b>
+            </div>''', unsafe_allow_html=True)
             ss["ka_avg"]=ka_avg; ss["kc_val"]=Kc
             ss["routine_ac_sqm"]=round(r_ac_sqm,4); ss["routine_cc_sqm"]=round(r_cc_sqm,4)
             ss["routine_ac_km"]=round(r_ac_km,2);   ss["routine_cc_km"]=round(r_cc_km,2)
