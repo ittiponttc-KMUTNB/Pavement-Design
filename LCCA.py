@@ -341,24 +341,25 @@ def analyze_lcca(alts, n, dr, inc_salvage):
         pw   = cf["มูลค่าปัจจุบัน"].sum()
         eac  = calc_eac(pw, dr, n)
         area = alt.area
-        road_km = st.session_state.get("road_total_length", 1.0)
         rows.append({
             "ทางเลือก": alt.name,
             "ประเภทผิวทาง": alt.pave_type,
-            "พื้นที่ (ตร.ม.)": area,
+            "พื้นที่ (ตร.ม./กม.)": area,
             "ต้นทุนก่อสร้าง (บาท/ตร.ม.)": alt.construction_cost,
+            "ต้นทุนก่อสร้าง (ล้านบาท/กม.)": round(alt.construction_cost * area / 1e6, 4),
             "PW_ก่อสร้าง": cf[cf["ประเภท"]=="ก่อสร้าง"]["มูลค่าปัจจุบัน"].sum(),
             "PW_บำรุงรักษา": cf[cf["ประเภท"]=="บำรุงรักษา"]["มูลค่าปัจจุบัน"].sum(),
             "PW_ฟื้นฟูสภาพ": cf[cf["ประเภท"]=="ฟื้นฟูสภาพ"]["มูลค่าปัจจุบัน"].sum(),
             "PW_มูลค่าซาก": cf[cf["ประเภท"]=="มูลค่าซาก"]["มูลค่าปัจจุบัน"].sum(),
-            "มูลค่าปัจจุบันรวม (บาท)": pw,
-            "EAC (บาท/ปี)": eac,
-            "EAC (บาท/ตร.ม./ปี)": eac/area if area>0 else 0,
-            "EAC (บาท/กม./ปี)": eac/road_km if road_km>0 else 0,
+            "NPV (บาท/กม.)": pw,
+            "NPV (ล้านบาท/กม.)": round(pw / 1e6, 4),
+            "EAC (บาท/กม./ปี)": eac,
+            "EAC (ล้านบาท/กม./ปี)": round(eac / 1e6, 4),
+            "EAC (บาท/ตร.ม./ปี)": eac / area if area > 0 else 0,
         })
     df = pd.DataFrame(rows)
     if len(df) > 0:
-        df = df.sort_values("มูลค่าปัจจุบันรวม (บาท)").reset_index(drop=True)
+        df = df.sort_values("NPV (บาท/กม.)").reset_index(drop=True)
         df.insert(0,"อันดับ", range(1, len(df)+1))
     return df, cf_dict
 
@@ -589,20 +590,21 @@ def generate_word(summary_df, cf_dict, n, dr, alts, base_sec="4.1"):
         trows=[]
         for _,r in summary_df.iterrows():
             trows.append([str(int(r["อันดับ"])),r["ทางเลือก"],r["ประเภทผิวทาง"],
-                          f"{r['ต้นทุนก่อสร้าง (บาท/ตร.ม.)']:,.0f}",
-                          f"{r['มูลค่าปัจจุบันรวม (บาท)']:,.0f}",
-                          f"{r['EAC (บาท/ปี)']:,.0f}",
-                          f"{r['EAC (บาท/ตร.ม./ปี)']:,.2f}",
-                          f"{r['EAC (บาท/กม./ปี)']:,.0f}"])
-        add_table_w(doc,["อันดับ","ทางเลือก","ประเภท","ก่อสร้าง\n(บ./ตร.ม.)",
-                          "NPV (บาท)","EAC\n(บาท/ปี)","EAC\n(บ./ตร.ม./ปี)","EAC\n(บ./กม./ปี)"],
-                    trows,col_widths=[1.2,3,2,2.5,4,3,3,3])
+                          f"{r['ต้นทุนก่อสร้าง (บาท/ตร.ม.)']:,.2f}",
+                          f"{r['ต้นทุนก่อสร้าง (ล้านบาท/กม.)']:,.4f}",
+                          f"{r['NPV (ล้านบาท/กม.)']:,.4f}",
+                          f"{r['EAC (ล้านบาท/กม./ปี)']:,.4f}",
+                          f"{r['EAC (บาท/ตร.ม./ปี)']:,.2f}"])
+        add_table_w(doc,["อันดับ","ทางเลือก","ประเภท",
+                          "ก่อสร้าง\n(บ./ตร.ม.)","ก่อสร้าง\n(ล้านบ./กม.)",
+                          "NPV\n(ล้านบ./กม.)","EAC\n(ล้านบ./กม./ปี)","EAC\n(บ./ตร.ม./ปี)"],
+                    trows,col_widths=[1.2,3,2,2.5,2.5,3.5,3.5,3])
         doc.add_paragraph()
         best=summary_df.iloc[0]
         add_thai_para(doc,f"จากการวิเคราะห์ {best['ทางเลือก']} ({best['ประเภทผิวทาง']}) "
-                      f"มีมูลค่าปัจจุบันต้นทุนต่ำสุด = {best['มูลค่าปัจจุบันรวม (บาท)']:,.0f} บาท "
-                      f"EAC = {best['EAC (บาท/ปี)']:,.0f} บาท/ปี "
-                      f"({best['EAC (บาท/กม./ปี)']:,.0f} บาท/กม./ปี) "
+                      f"มีมูลค่าปัจจุบันต้นทุนต่ำสุด = {best['NPV (ล้านบาท/กม.)']:,.4f} ล้านบาท/กม. "
+                      f"EAC = {best['EAC (ล้านบาท/กม./ปี)']:,.4f} ล้านบาท/กม./ปี "
+                      f"({best['EAC (บาท/ตร.ม./ปี)']:,.2f} บาท/ตร.ม./ปี) "
                       f"จึงเป็นทางเลือกที่ประหยัดที่สุดในเชิงต้นทุนตลอดอายุการใช้งาน")
 
     # 5. กระแสเงินสด
@@ -1053,7 +1055,12 @@ with tab3:
     costs = {"AC":ss["cost_ac"],"JPCP":ss["cost_jpcp"],"JRCP":ss["cost_jrcp"],"CRCP":ss["cost_crcp"]}
     r_ac  = ss.get("routine_ac_sqm") or 0.0
     r_cc  = ss.get("routine_cc_sqm") or 0.0
-    area  = ss["road_area_sqm"]
+    # ใช้พื้นที่ต่อ กม. = ความกว้างถนนรวม × 1,000 ม.
+    # ผลลัพธ์ NPV/EAC จะเป็น บาท/กม.
+    area = ss.get("road_total_width", 22.0) * 1000.0
+
+    area_per_km = ss.get("road_total_width", 22.0) * 1000.0
+    st.markdown(f'<div class="info-band">📐 พื้นที่คำนวณ = <b>{area_per_km:,.0f} ตร.ม./กม.</b> (กว้าง {ss.get("road_total_width",22.0):.2f} ม. × 1,000 ม.) — ผลลัพธ์ NPV/EAC เป็น <b>บาท/กม.</b> และ <b>ล้านบาท/กม.</b></div>', unsafe_allow_html=True)
 
     if st.button("🔄 สร้าง/รีเซ็ต Alternatives จาก TAB 1 & 2", key="gen_t3"):
         if not ss["tab1_done"] or not ss["tab2_done"]:
@@ -1130,10 +1137,9 @@ with tab3:
         st.markdown(f"""
         <div class="best-row">
           🥇 <b>ทางเลือกที่ดีที่สุด: {best['ทางเลือก']}</b> ({best['ประเภทผิวทาง']})<br>
-          NPV รวม = <b>{best['มูลค่าปัจจุบันรวม (บาท)']:,.0f} บาท</b> &nbsp;|&nbsp;
-          EAC = <b>{best['EAC (บาท/ปี)']:,.0f} บาท/ปี</b> &nbsp;|&nbsp;
-          EAC = <b>{best['EAC (บาท/ตร.ม./ปี)']:,.2f} บาท/ตร.ม./ปี</b> &nbsp;|&nbsp;
-          EAC = <b>{best['EAC (บาท/กม./ปี)']:,.0f} บาท/กม./ปี</b>
+          NPV = <b>{best['NPV (ล้านบาท/กม.)']:,.4f} ล้านบาท/กม.</b> &nbsp;|&nbsp;
+          EAC = <b>{best['EAC (ล้านบาท/กม./ปี)']:,.4f} ล้านบาท/กม./ปี</b> &nbsp;|&nbsp;
+          EAC = <b>{best['EAC (บาท/ตร.ม./ปี)']:,.2f} บาท/ตร.ม./ปี</b>
         </div>""", unsafe_allow_html=True)
 
         # ตาราง metric cards ทุกทางเลือก
@@ -1145,21 +1151,26 @@ with tab3:
                 st.markdown(f"""
                 <div class="metric-card {card_c[i%4]}">
                   <div class="label">{badge} อันดับ {int(row['อันดับ'])} — {row['ทางเลือก']}</div>
-                  <div class="value">{row['มูลค่าปัจจุบันรวม (บาท)']:,.0f}</div>
-                  <div class="sub">บาท (NPV) | EAC {row['EAC (บาท/กม./ปี)']:,.0f} บ./กม./ปี</div>
+                  <div class="value">{row['NPV (ล้านบาท/กม.)']:,.4f}</div>
+                  <div class="sub">ล้านบาท/กม. (NPV) | EAC {row['EAC (ล้านบาท/กม./ปี)']:,.4f} ล้านบ./กม./ปี</div>
                 </div>""", unsafe_allow_html=True)
 
         # ตารางสรุปเต็ม
         st.markdown("**ตารางสรุปเปรียบเทียบ:**")
-        fmt_cols={"ต้นทุนก่อสร้าง (บาท/ตร.ม.)":"{:,.0f}",
-                  "มูลค่าปัจจุบันรวม (บาท)":"{:,.0f}",
-                  "EAC (บาท/ปี)":"{:,.0f}",
-                  "EAC (บาท/ตร.ม./ปี)":"{:,.2f}",
-                  "EAC (บาท/กม./ปี)":"{:,.0f}"}
+        fmt_cols={
+                  "ต้นทุนก่อสร้าง (บาท/ตร.ม.)":"{:,.2f}",
+                  "ต้นทุนก่อสร้าง (ล้านบาท/กม.)":"{:,.4f}",
+                  "NPV (บาท/กม.)":"{:,.0f}",
+                  "NPV (ล้านบาท/กม.)":"{:,.4f}",
+                  "EAC (บาท/กม./ปี)":"{:,.0f}",  # legacy
+                  "EAC (ล้านบาท/กม./ปี)":"{:,.4f}",
+                  "EAC (บาท/ตร.ม./ปี)":"{:,.2f}"}
         show_cols=["อันดับ","ทางเลือก","ประเภทผิวทาง",
                    "ต้นทุนก่อสร้าง (บาท/ตร.ม.)",
-                   "มูลค่าปัจจุบันรวม (บาท)",
-                   "EAC (บาท/ปี)","EAC (บาท/ตร.ม./ปี)","EAC (บาท/กม./ปี)"]
+                   "ต้นทุนก่อสร้าง (ล้านบาท/กม.)",
+                   "NPV (ล้านบาท/กม.)",
+                   "EAC (บาท/กม./ปี)","EAC (ล้านบาท/กม./ปี)",
+                   "EAC (บาท/ตร.ม./ปี)"]
         st.dataframe(sdf[show_cols].style.format(fmt_cols), hide_index=True, use_container_width=True)
 
         # กราฟ Stacked Bar NPV
@@ -1244,8 +1255,8 @@ with tab4:
             with cols_r[0]: base_sec=st.text_input("Base Section",value="4.1",key="bs_t4")
             with cols_r[1]: st.write("")
 
-            st.dataframe(sdf[["อันดับ","ทางเลือก","มูลค่าปัจจุบันรวม (บาท)","EAC (บาท/ปี)","EAC (บาท/กม./ปี)"]]\
-                .style.format({"มูลค่าปัจจุบันรวม (บาท)":"{:,.0f}","EAC (บาท/ปี)":"{:,.0f}","EAC (บาท/กม./ปี)":"{:,.0f}"}),
+            st.dataframe(sdf[["อันดับ","ทางเลือก","NPV (ล้านบาท/กม.)","EAC (ล้านบาท/กม./ปี)","EAC (บาท/ตร.ม./ปี)"]]\
+                .style.format({"NPV (ล้านบาท/กม.)":"{:,.4f}","EAC (ล้านบาท/กม./ปี)":"{:,.4f}","EAC (บาท/ตร.ม./ปี)":"{:,.2f}"}),
                 hide_index=True,use_container_width=True)
 
             if st.button("📋 สร้างรายงาน Word", type="primary", key="gen_w_t4"):
