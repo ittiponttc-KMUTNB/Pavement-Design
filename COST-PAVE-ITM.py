@@ -1,12 +1,12 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.0 - Refactored
+Version 6.3.1 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
 - รวม get_default_*_layers() เป็น get_default_layers(ptype)
 - รวม get_price_from_library() เป็นจุดเดียว
-- ตรวจ syntax ด้วย ast.parse() ก่อน deploy
+- ตรวจ syntax ด้วย ast.parse() ก่อน deploy ปรับปรุงบทเกริ่นนำ ปรับปรุงการ upload price list library
 """
 
 import ast
