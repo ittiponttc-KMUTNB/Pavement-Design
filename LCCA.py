@@ -1097,16 +1097,16 @@ with tab3:
                     for mi,m in enumerate(alt.maintenance):
                         mc1,mc2=st.columns([2,1])
                         with mc1: alts[ai].maintenance[mi].unit_cost=st.number_input(
-                            f"{m.name}",min_value=0.0,value=float(m.unit_cost),step=1.0,key=f"mc_{ai}_{mi}")
+                            f"{m.name} (บาท/ตร.ม./ปี)",min_value=0.0,value=float(m.unit_cost),step=1.0,key=f"mc_{ai}_{mi}")
                         with mc2: alts[ai].maintenance[mi].frequency=st.number_input(
-                            "ทุก (ปี)",min_value=0,value=int(m.frequency),step=1,key=f"mf_{ai}_{mi}")
+                            "ความถี่ (ปี/ครั้ง)",min_value=0,value=int(m.frequency),step=1,key=f"mf_{ai}_{mi}")
                     st.markdown("**ฟื้นฟูสภาพ:**")
                     for ri2,r in enumerate(alt.rehab):
                         rc1,rc2=st.columns([2,1])
                         with rc1: alts[ai].rehab[ri2].unit_cost=st.number_input(
-                            f"{r.name}",min_value=0.0,value=float(r.unit_cost),step=10.0,key=f"rc_{ai}_{ri2}")
+                            f"{r.name} (บาท/ตร.ม.)",min_value=0.0,value=float(r.unit_cost),step=10.0,key=f"rc_{ai}_{ri2}")
                         with rc2: alts[ai].rehab[ri2].year=st.number_input(
-                            "ปีที่",min_value=1,max_value=n,value=int(r.year),step=1,key=f"ry_{ai}_{ri2}")
+                            "ดำเนินการปีที่",min_value=1,max_value=n,value=int(r.year),step=1,key=f"ry_{ai}_{ri2}")
         ss["lcca_alternatives"]=alts
 
         st.divider()
