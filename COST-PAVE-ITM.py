@@ -1,12 +1,12 @@
 """
 ระบบวิเคราะห์ค่าก่อสร้างโครงสร้างชั้นทาง
-Version 6.3 - Refactored
+Version 6.0 - Refactored
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล — KMUTNB
 - render_layer_editor() และ render_joint_editor() ใช้ st.data_editor แทน number_input loop
 - ตัด Tab รูปภาพออก
 - รวม get_default_*_layers() เป็น get_default_layers(ptype)
 - รวม get_price_from_library() เป็นจุดเดียว
-- ตรวจ syntax ด้วย ast.parse() ก่อน deploy แก้ไข บทเกริ่นนำ Update ราคาวัสดุ ทันที
+- ตรวจ syntax ด้วย ast.parse() ก่อน deploy
 """
 
 import ast
@@ -1342,34 +1342,43 @@ def load_excel_price_library(uploaded_file) -> dict:
 
     # ── Concrete: อ่าน บาท/ลบ.ม. → คำนวณ price table ──────────
     conc_cum: dict = dict(DEFAULT_CONCRETE_CUM_PRICES)
-    cum_col = 'บาท/ลบ.ม.' if 'บาท/ลบ.ม.' in conc_df.columns else None
-    price_col_conc = 'Price (Baht/cu.m)' if 'Price (Baht/cu.m)' in conc_df.columns else None
-    type_col = 'Type' if 'Type' in conc_df.columns else 'ประเภท'
+    # รองรับทั้ง template ใหม่ (ประเภท/บาท/ลบ.ม.) และเก่า (Type/Price)
+    _conc_type_col  = 'ประเภท' if 'ประเภท' in conc_df.columns else 'Type'
+    _conc_price_col = None
+    for _cand in ['บาท/ลบ.ม.', 'Price (Baht/cu.m)', 'Price']:
+        if _cand in conc_df.columns:
+            _conc_price_col = _cand
+            break
 
-    for _, row in conc_df.iterrows():
-        try:
-            ct = str(row[type_col])
-            col_to_use = cum_col or price_col_conc
-            if col_to_use and pd.notna(row.get(col_to_use, None)):
-                val = float(row[col_to_use])
-                if val > 0:
-                    conc_cum[ct] = val
-        except (ValueError, TypeError, KeyError):
-            pass
+    if _conc_type_col in conc_df.columns and _conc_price_col:
+        for _, row in conc_df.iterrows():
+            try:
+                ct  = str(row[_conc_type_col]).strip()
+                val = row[_conc_price_col]
+                if pd.notna(ct) and pd.notna(val) and float(val) > 0:
+                    conc_cum[ct] = float(val)
+            except (ValueError, TypeError, KeyError):
+                pass
     st.session_state['concrete_cum_prices'] = conc_cum
     conc_prices = _calc_concrete_prices(conc_cum)
 
     # ── Base Materials: อ่านราคา/หน่วย ────────────────────────
     base_prices: dict = dict(DEFAULT_BASE_PRICES)
-    price_col = 'Price' if 'Price' in base_df.columns else 'Price (Baht/cu.m)'
-    for _, row in base_df.iterrows():
-        try:
-            mat = str(row['Material'])
-            val = row[price_col]
-            if pd.notna(mat) and pd.notna(val):
-                base_prices[mat] = float(val)
-        except (ValueError, TypeError):
-            pass
+    _base_mat_col   = 'Material' if 'Material' in base_df.columns else 'วัสดุ'
+    _base_price_col = None
+    for _cand in ['Price', 'Price (Baht/cu.m)', 'ราคา (บาท/ลบ.ม.)', 'ราคา (บาท/ตร.ม.)']:
+        if _cand in base_df.columns:
+            _base_price_col = _cand
+            break
+    if _base_mat_col in base_df.columns and _base_price_col:
+        for _, row in base_df.iterrows():
+            try:
+                mat = str(row[_base_mat_col]).strip()
+                val = row[_base_price_col]
+                if pd.notna(mat) and pd.notna(val) and mat != 'nan':
+                    base_prices[mat] = float(val)
+            except (ValueError, TypeError):
+                pass
 
     return {'ac_prices': ac_prices, 'concrete_prices': conc_prices, 'base_prices': base_prices}
 
@@ -1401,13 +1410,28 @@ def main():
                 help="ดาวน์โหลด Template จาก Tab 2 ก่อน แล้วแก้ราคา แล้ว Upload กลับ"
             )
             if uploaded_excel is not None:
-                try:
-                    lib = load_excel_price_library(uploaded_excel)
-                    st.session_state['price_library'] = lib
-                    st.success("✅ โหลด Price Library สำเร็จ")
-                    st.caption(f"AC: {len(lib['ac_prices'])} ประเภท | Concrete: {len(lib['concrete_prices'])} ประเภท")
-                except Exception as e:
-                    st.error(f"❌ อ่านไฟล์ไม่สำเร็จ: {e}")
+                import hashlib as _hl
+                _xls_bytes = uploaded_excel.read()
+                _xls_hash  = _hl.md5(_xls_bytes).hexdigest()
+                if st.session_state.get('uploaded_excel_hash') != _xls_hash:
+                    try:
+                        import io as _io
+                        lib = load_excel_price_library(_io.BytesIO(_xls_bytes))
+                        st.session_state['price_library']      = lib
+                        st.session_state['uploaded_excel_hash'] = _xls_hash
+                        # ล้าง widget keys Tab 2 เพื่อให้แสดงค่าใหม่
+                        for _k in list(st.session_state.keys()):
+                            if any(_k.startswith(p) for p in [
+                                'tab2_bp_cum_', 'tab2_bp_sqm_',
+                                'tab2_conc_cum_', 'tab2_ton_',
+                            ]):
+                                del st.session_state[_k]
+                        st.success("✅ โหลด Price Library สำเร็จ")
+                        st.caption(f"AC: {len(lib['ac_prices'])} ประเภท | Concrete: {len(lib['concrete_prices'])} ประเภท")
+                    except Exception as e:
+                        st.error(f"❌ อ่านไฟล์ไม่สำเร็จ: {e}")
+                else:
+                    st.success("✅ Price Library โหลดแล้ว")
 
         st.divider()
 
