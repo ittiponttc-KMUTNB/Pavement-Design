@@ -57,6 +57,16 @@ st.set_page_config(page_title="LCCA Pavement v2.0", page_icon="🛣️", layout=
 # =============================================================================
 st.markdown("""
 <style>
+@import url('https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600;700&display=swap');
+
+/* ── Global font override ── */
+html, body, [class*="css"], .stApp, .stMarkdown,
+button, input, select, textarea, label,
+.stDataFrame, .stSelectbox, .stNumberInput,
+.stTextInput, .stButton, .stTabs {
+    font-family: 'Sarabun', sans-serif !important;
+}
+
 /* ── Card Metric ── */
 .metric-card {
     border-radius: 12px;
@@ -66,16 +76,17 @@ st.markdown("""
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
 }
 .metric-card .label {
-    font-size: 13px; font-weight: 600;
+    font-size: 14px; font-weight: 600;
     opacity: 0.88; margin-bottom: 4px;
-    font-family: 'TH SarabunPSK', sans-serif;
+    font-family: 'Sarabun', sans-serif;
 }
 .metric-card .value {
-    font-size: 26px; font-weight: 700;
-    font-family: 'TH SarabunPSK', sans-serif;
+    font-size: 28px; font-weight: 700;
+    font-family: 'Sarabun', sans-serif;
 }
 .metric-card .sub {
-    font-size: 12px; opacity: 0.80; margin-top: 2px;
+    font-size: 13px; opacity: 0.80; margin-top: 2px;
+    font-family: 'Sarabun', sans-serif;
 }
 .card-blue   { background: linear-gradient(135deg,#1565C0,#42A5F5); }
 .card-orange { background: linear-gradient(135deg,#E65100,#FFA726); }
@@ -88,20 +99,20 @@ st.markdown("""
 .sec-header {
     background: linear-gradient(90deg,#1565C0 0%,#42A5F5 100%);
     color: #fff; padding: 8px 16px; border-radius: 8px;
-    font-size: 16px; font-weight: 700; margin: 12px 0 8px 0;
-    font-family: 'TH SarabunPSK', sans-serif;
+    font-size: 17px; font-weight: 700; margin: 12px 0 8px 0;
+    font-family: 'Sarabun', sans-serif;
 }
 .sec-header-orange {
     background: linear-gradient(90deg,#E65100 0%,#FFA726 100%);
     color:#fff; padding:8px 16px; border-radius:8px;
-    font-size:16px; font-weight:700; margin:12px 0 8px 0;
-    font-family:'TH SarabunPSK',sans-serif;
+    font-size:17px; font-weight:700; margin:12px 0 8px 0;
+    font-family:'Sarabun',sans-serif;
 }
 .sec-header-green {
     background: linear-gradient(90deg,#1B5E20 0%,#66BB6A 100%);
     color:#fff; padding:8px 16px; border-radius:8px;
-    font-size:16px; font-weight:700; margin:12px 0 8px 0;
-    font-family:'TH SarabunPSK',sans-serif;
+    font-size:17px; font-weight:700; margin:12px 0 8px 0;
+    font-family:'Sarabun',sans-serif;
 }
 
 /* ── Progress bar ── */
@@ -110,8 +121,8 @@ st.markdown("""
 }
 .prog-step {
     flex:1; padding:8px 4px; border-radius:8px; text-align:center;
-    font-size:13px; font-weight:600; border:2px solid #ccc;
-    font-family:'TH SarabunPSK',sans-serif;
+    font-size:14px; font-weight:600; border:2px solid #ccc;
+    font-family:'Sarabun',sans-serif;
 }
 .prog-done  { background:#E8F5E9; border-color:#43A047; color:#1B5E20; }
 .prog-warn  { background:#FFF8E1; border-color:#FFA000; color:#E65100; }
@@ -120,37 +131,39 @@ st.markdown("""
 
 /* ── Badge ── */
 .badge-ok   { background:#E8F5E9; color:#1B5E20; border:1px solid #43A047;
-              border-radius:20px; padding:3px 12px; font-size:13px; font-weight:600; }
+              border-radius:20px; padding:3px 12px; font-size:14px;
+              font-weight:600; font-family:'Sarabun',sans-serif; }
 .badge-warn { background:#FFF3E0; color:#E65100; border:1px solid #FFA000;
-              border-radius:20px; padding:3px 12px; font-size:13px; font-weight:600; }
+              border-radius:20px; padding:3px 12px; font-size:14px;
+              font-weight:600; font-family:'Sarabun',sans-serif; }
 
 /* ── Best result highlight ── */
 .best-row {
     background: linear-gradient(90deg,#E8F5E9,#F1F8E9);
     border-left: 5px solid #43A047;
     border-radius: 6px; padding: 10px 14px; margin: 4px 0;
-    font-family:'TH SarabunPSK',sans-serif;
+    font-family:'Sarabun',sans-serif; font-size:15px;
 }
 
 /* ── Road preview box ── */
 .road-box {
     background: linear-gradient(135deg,#263238,#455A64);
     color:#fff; border-radius:10px; padding:14px 18px;
-    font-family:'TH SarabunPSK',sans-serif; font-size:15px;
+    font-family:'Sarabun',sans-serif; font-size:16px;
     margin-top:8px;
 }
-.road-box .road-val { font-size:22px; font-weight:700; color:#FFD54F; }
+.road-box .road-val { font-size:24px; font-weight:700; color:#FFD54F; }
 
 /* ── Info band ── */
 .info-band {
     background:#E3F2FD; border-left:4px solid #1565C0;
     border-radius:6px; padding:10px 14px; margin:8px 0;
-    font-family:'TH SarabunPSK',sans-serif; font-size:14px; color:#0D47A1;
+    font-family:'Sarabun',sans-serif; font-size:15px; color:#0D47A1;
 }
 .warn-band {
     background:#FFF8E1; border-left:4px solid #FFA000;
     border-radius:6px; padding:10px 14px; margin:8px 0;
-    font-family:'TH SarabunPSK',sans-serif; font-size:14px; color:#E65100;
+    font-family:'Sarabun',sans-serif; font-size:15px; color:#E65100;
 }
 </style>
 """, unsafe_allow_html=True)
@@ -761,15 +774,28 @@ with tab1:
     # Upload Excel
     ef = st.file_uploader("📤 Upload Excel ราคาก่อสร้าง", type=["xlsx","xls"], key="exc_t1")
     if ef and OPENPYXL_AVAILABLE:
-        try:
-            df_c = pd.read_excel(ef, header=2)
-            cm   = {"AC":"cost_ac","JPCP":"cost_jpcp","JRCP":"cost_jrcp","CRCP":"cost_crcp"}
-            for _,row in df_c.iterrows():
-                k=str(row.iloc[0]).strip().upper()
-                if k in cm and pd.notna(row.iloc[2]):
-                    ss[cm[k]]=float(row.iloc[2])
-            st.success("✅ โหลดราคาจาก Excel สำเร็จ")
-        except Exception as e: st.error(f"อ่าน Excel ไม่ได้: {e}")
+        # ใช้ hash ของไฟล์เพื่อตรวจว่าโหลดแล้วหรือยัง (ป้องกัน rerun ซ้ำ)
+        import hashlib
+        file_hash = hashlib.md5(ef.read()).hexdigest(); ef.seek(0)
+        if ss.get("_excel_hash") != file_hash:
+            try:
+                df_c = pd.read_excel(ef, header=2)
+                cm   = {"AC":"cost_ac","JPCP":"cost_jpcp","JRCP":"cost_jrcp","CRCP":"cost_crcp"}
+                loaded = []
+                for _,row in df_c.iterrows():
+                    k=str(row.iloc[0]).strip().upper()
+                    if k in cm and pd.notna(row.iloc[2]) and float(row.iloc[2])>0:
+                        ss[cm[k]]=float(row.iloc[2]); loaded.append(k)
+                if loaded:
+                    ss["_excel_hash"] = file_hash
+                    ss["_cost_ver"]   = ss.get("_cost_ver",0) + 1  # บังคับ widget reset
+                    st.success(f"✅ โหลดราคาจาก Excel สำเร็จ: {', '.join(loaded)}")
+                    st.rerun()
+                else:
+                    st.warning("⚠️ ไม่พบราคาในไฟล์ — ตรวจสอบ format ว่าตรงกับ Template")
+            except Exception as e: st.error(f"อ่าน Excel ไม่ได้: {e}")
+        else:
+            st.success(f"✅ โหลดราคาจาก Excel แล้ว (AC={ss['cost_ac']:,.2f}, JPCP={ss['cost_jpcp']:,.2f}, JRCP={ss['cost_jrcp']:,.2f}, CRCP={ss['cost_crcp']:,.2f})")
 
     # Template download
     if OPENPYXL_AVAILABLE:
@@ -799,17 +825,18 @@ with tab1:
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
             key="tmpl_t1")
 
-    # Manual input + color cards preview
+    # Manual input — ใช้ _cost_ver เป็น key suffix เพื่อบังคับ Streamlit reset value เมื่อโหลด Excel ใหม่
+    _cv = ss.get("_cost_ver", 0)
     st.markdown("**กรอกราคาด้วยตนเอง:**")
     ca, cj, cjr, cc = st.columns(4)
     with ca:
-        ss["cost_ac"]   = st.number_input("AC (ลาดยาง)",   min_value=0.0, value=float(ss["cost_ac"]),   step=10.0, format="%.2f", key="cac")
+        ss["cost_ac"]   = st.number_input("AC (ลาดยาง)",   min_value=0.0, value=float(ss["cost_ac"]),   step=10.0, format="%.2f", key=f"cac_{_cv}")
     with cj:
-        ss["cost_jpcp"] = st.number_input("JPCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_jpcp"]), step=10.0, format="%.2f", key="cjp")
+        ss["cost_jpcp"] = st.number_input("JPCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_jpcp"]), step=10.0, format="%.2f", key=f"cjp_{_cv}")
     with cjr:
-        ss["cost_jrcp"] = st.number_input("JRCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_jrcp"]), step=10.0, format="%.2f", key="cjr")
+        ss["cost_jrcp"] = st.number_input("JRCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_jrcp"]), step=10.0, format="%.2f", key=f"cjr_{_cv}")
     with cc:
-        ss["cost_crcp"] = st.number_input("CRCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_crcp"]), step=10.0, format="%.2f", key="ccr")
+        ss["cost_crcp"] = st.number_input("CRCP (คอนกรีต)",min_value=0.0, value=float(ss["cost_crcp"]), step=10.0, format="%.2f", key=f"ccr_{_cv}")
 
     # แสดง metric cards
     costs = {"AC":ss["cost_ac"],"JPCP":ss["cost_jpcp"],"JRCP":ss["cost_jrcp"],"CRCP":ss["cost_crcp"]}
