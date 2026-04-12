@@ -1793,38 +1793,59 @@ def main():
 
         cp_edited = pd.DataFrame(cp_edited_rows)
 
-        # แยก base_prices เป็น 2 กลุ่ม
+        # ── ราคาวัสดุพื้นทาง / รองพื้นทาง ───────────────────────────
         SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
-        bp_cum_rows = [{'วัสดุ': k, 'ราคา (บาท/ลบ.ม.)': v}
-                       for k, v in lib['base_prices'].items() if k not in SQMKEYS]
-        bp_sqm_rows = [{'วัสดุ': k, 'ราคา (บาท/ตร.ม.)': v}
-                       for k, v in lib['base_prices'].items() if k in SQMKEYS]
+        _bp = lib['base_prices']
 
         st.subheader("🪨 ราคาวัสดุพื้นทาง / รองพื้นทาง (บาท/ลบ.ม.)")
-        bp_cum_edited = st.data_editor(
-            pd.DataFrame(bp_cum_rows),
-            column_config={
-                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
-                'ราคา (บาท/ลบ.ม.)': st.column_config.NumberColumn('ราคา (บาท/ลบ.ม.)', min_value=0.0, step=10.0, format='%.2f'),
-            },
-            use_container_width=True,
-            hide_index=True,
-            key="tab2_bp_cum_editor",
-        )
+        _hcum = st.columns([3, 1.5])
+        _hcum[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>วัสดุ</span>", unsafe_allow_html=True)
+        _hcum[1].markdown("<div style='color:#6b7a8d;font-size:0.82rem;font-weight:600;text-align:right'>ราคา (บาท/ลบ.ม.)</div>", unsafe_allow_html=True)
 
+        _cum_keys_order = [k for k in _bp if k not in SQMKEYS]
+        for _mat in _cum_keys_order:
+            _cum_wkey = f"tab2_bp_cum_{_mat.replace(' ','_').replace('(','').replace(')','')}"
+            if _cum_wkey not in st.session_state:
+                st.session_state[_cum_wkey] = float(_bp.get(_mat, 0))
+            _rc = st.columns([3, 1.5])
+            with _rc[0]:
+                st.markdown(f"<div style='padding:6px 0'>{_mat}</div>", unsafe_allow_html=True)
+            with _rc[1]:
+                st.number_input(f"ราคา {_mat}", min_value=0.0, step=10.0,
+                    format="%.2f", key=_cum_wkey, label_visibility="collapsed")
+
+        # ── ราคาวัสดุผิว / อุปกรณ์ ────────────────────────────────
         st.subheader("🧴 ราคาวัสดุผิว / อุปกรณ์ (บาท/ตร.ม.)")
         st.caption("Prime Coat, Tack Coat, Non Woven Geotextile, Wire Mesh — คิดตามพื้นที่ ไม่ใช่ปริมาตร")
-        bp_sqm_edited = st.data_editor(
-            pd.DataFrame(bp_sqm_rows),
-            column_config={
-                'วัสดุ':              st.column_config.TextColumn('วัสดุ', width='large', disabled=True),
-                'ราคา (บาท/ตร.ม.)': st.column_config.NumberColumn('ราคา (บาท/ตร.ม.)', min_value=0.0, step=1.0, format='%.2f'),
-            },
-            use_container_width=True,
-            hide_index=True,
-            key="tab2_bp_sqm_editor",
-        )
+        _hsqm = st.columns([3, 1.5])
+        _hsqm[0].markdown("<span style='color:#6b7a8d;font-size:0.82rem;font-weight:600'>วัสดุ</span>", unsafe_allow_html=True)
+        _hsqm[1].markdown("<div style='color:#6b7a8d;font-size:0.82rem;font-weight:600;text-align:right'>ราคา (บาท/ตร.ม.)</div>", unsafe_allow_html=True)
 
+        _sqm_keys_order = [k for k in _bp if k in SQMKEYS]
+        for _mat in _sqm_keys_order:
+            _sqm_wkey = f"tab2_bp_sqm_{_mat.replace(' ','_')}"
+            if _sqm_wkey not in st.session_state:
+                st.session_state[_sqm_wkey] = float(_bp.get(_mat, 0))
+            _rs = st.columns([3, 1.5])
+            with _rs[0]:
+                st.markdown(f"<div style='padding:6px 0'>{_mat}</div>", unsafe_allow_html=True)
+            with _rs[1]:
+                st.number_input(f"ราคา {_mat}", min_value=0.0, step=1.0,
+                    format="%.2f", key=_sqm_wkey, label_visibility="collapsed")
+
+        # สร้าง DataFrame สำหรับ save button
+        bp_cum_edited = pd.DataFrame([
+            {'วัสดุ': m, 'ราคา (บาท/ลบ.ม.)': float(st.session_state.get(
+                f"tab2_bp_cum_{m.replace(' ','_').replace('(','').replace(')','')}", _bp.get(m, 0)))}
+            for m in _cum_keys_order
+        ])
+        bp_sqm_edited = pd.DataFrame([
+            {'วัสดุ': m, 'ราคา (บาท/ตร.ม.)': float(st.session_state.get(
+                f"tab2_bp_sqm_{m.replace(' ','_')}", _bp.get(m, 0)))}
+            for m in _sqm_keys_order
+        ])
+
+        SQMKEYS = {'Prime Coat', 'Non Woven Geotextile', 'Wire Mesh', 'Tack Coat'}
         if st.button("💾 บันทึกราคาที่แก้ไขลง Library", type="primary"):
             # AC: อ่าน บาท/ตัน → คำนวณ price table
             _new_ton: dict = {}
@@ -1851,12 +1872,16 @@ def main():
                 if '_sprice_' in k or '_p_Concrete' in k or '_pver_Concrete' in k                         or '_p_350' in k or '_pver_350' in k                         or '_slabp_' in k or 'sthick_slab' in k:
                     del st.session_state[k]
 
-            # Base
+            # Base — อ่านตรงจาก session_state ของ number_input
             new_bp: dict = {}
-            for _, row in bp_cum_edited.iterrows():
-                new_bp[str(row['วัสดุ'])] = float(row['ราคา (บาท/ลบ.ม.)'])
-            for _, row in bp_sqm_edited.iterrows():
-                new_bp[str(row['วัสดุ'])] = float(row['ราคา (บาท/ตร.ม.)'])
+            _bp_cur = get_price_library()['base_prices']
+            for _mat in _bp_cur:
+                if _mat not in SQMKEYS:
+                    _wk = f"tab2_bp_cum_{_mat.replace(' ','_').replace('(','').replace(')','')}"
+                    new_bp[_mat] = float(st.session_state.get(_wk, _bp_cur.get(_mat, 0)))
+                else:
+                    _wk = f"tab2_bp_sqm_{_mat.replace(' ','_')}"
+                    new_bp[_mat] = float(st.session_state.get(_wk, _bp_cur.get(_mat, 0)))
 
             st.session_state['price_library'] = {
                 'ac_prices': new_ac,
