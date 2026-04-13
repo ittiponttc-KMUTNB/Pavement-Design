@@ -8,7 +8,7 @@ Life-Cycle Cost Analysis for Pavement Alternatives
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล
 ภาควิชาครุศาสตร์โยธา มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (KMUTNB)
 
-การปรับปรุง v2.0:
+การปรับปรุง v2.1.1:
   - ยกเลิก field สายทาง/ตอนควบคุม + ปีงบประมาณ
   - เปลี่ยน กม.ที่ → ระยะทางรวม + Section ขนาดถนน (คำนวณพื้นที่อัตโนมัติ)
   - CBR ย้ายไปตัวแปรร่วม TAB 2
@@ -16,7 +16,7 @@ Life-Cycle Cost Analysis for Pavement Alternatives
   - แสดงผลทั้ง บาท/ตร.ม./ปี และ บาท/กม./ปี
   - Breakeven Year Analysis
   - Cumulative Cost Timeline Graph
-  - CSS/UI — Metric cards + color band + result highlight
+  - CSS/UI — Metric cards + color band + result highlight ... แก้ไขรายงาน word
 ================================================================================
 """
 
