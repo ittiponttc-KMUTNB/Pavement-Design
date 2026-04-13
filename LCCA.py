@@ -845,7 +845,7 @@ def generate_word(summary_df, cf_dict, n, dr, alts,
                 f"{r['มูลค่าปัจจุบัน']:,.0f}",
             ])
         add_table_w(doc,
-            ["ปี","กิจกรรม","ประเภท","บ./หน่วย",
+            ["ปี","กิจกรรม","ประเภท","บาท/หน่วย",
              "ต้นทุนตามปี (บาท)","PW Factor","มูลค่าปัจจุบัน (บาท)"],
             cf_rows, col_widths=[1,4.5,2.5,2.5,3,2,3.5])
         doc.add_paragraph()
@@ -1358,12 +1358,12 @@ with tab3:
                 if cost<=0: continue
                 rehab_yr=max(10,n//2) if "AC" in pt or "Flex" in pt else max(15,int(n*0.75))
                 if "AC" in pt or "Flex" in pt:
-                    mlist=[MaintAct("บำรุงรักษาประจำปี (Routine)",mc,1,1),
+                    mlist=[MaintAct("บำรุงรักษาประจำปี ",mc,1,1),
                            MaintAct("Seal Coating",mc*0.8,3,3)]
-                    rlist=[RehabAct("Overlay AC 50 มม.",cost*0.25,rehab_yr)]
+                    rlist=[RehabAct("Overlay AC 50 มม.",390,rehab_yr)]
                     sv=20.0
                 else:
-                    mlist=[MaintAct("บำรุงรักษาประจำปี (Routine)",mc,1,1),
+                    mlist=[MaintAct("บำรุงรักษาประจำปี ",mc,1,1),
                            MaintAct("Joint Maintenance",mc*0.5,5,5)]
                     rlist=[]; sv=30.0
                 alts.append(PavAlt(nm,pt,cost,area,mlist,rlist,sv))
