@@ -8,7 +8,7 @@ Life-Cycle Cost Analysis for Pavement Alternatives
 พัฒนาโดย: รศ.ดร.อิทธิพล มีผล
 ภาควิชาครุศาสตร์โยธา มหาวิทยาลัยเทคโนโลยีพระจอมเกล้าพระนครเหนือ (KMUTNB)
 
-การปรับปรุง v2.1:
+การปรับปรุง v2.0:
   - ยกเลิก field สายทาง/ตอนควบคุม + ปีงบประมาณ
   - เปลี่ยน กม.ที่ → ระยะทางรวม + Section ขนาดถนน (คำนวณพื้นที่อัตโนมัติ)
   - CBR ย้ายไปตัวแปรร่วม TAB 2
@@ -16,7 +16,7 @@ Life-Cycle Cost Analysis for Pavement Alternatives
   - แสดงผลทั้ง บาท/ตร.ม./ปี และ บาท/กม./ปี
   - Breakeven Year Analysis
   - Cumulative Cost Timeline Graph
-  - CSS/UI — Metric cards + color band + result highlight ปรับปรุงรายงาน word
+  - CSS/UI — Metric cards + color band + result highlight
 ================================================================================
 """
 
@@ -850,36 +850,34 @@ def generate_word(summary_df, cf_dict, n, dr, alts,
             cf_rows, col_widths=[1,4.5,2.5,2.5,3,2,3.5])
         doc.add_paragraph()
 
-    # X.X.8 สรุปผลการวิเคราะห์ (auto-generate)
+    # X.X.8 สรุปผลการวิเคราะห์ (auto-generate — ย่อหน้าเดียว หน่วย บาท/บาทต่อปี)
     next_h1(SCl, "สรุปผลการวิเคราะห์")
     if len(summary_df) > 0:
-        best  = summary_df.iloc[0]
-        worst = summary_df.iloc[-1]
-        # คำนวณ % ที่ประหยัดกว่าแต่ละทางเลือก
-        add_thai_para(doc,
-            f"จากการวิเคราะห์ต้นทุนตลอดวงจรชีวิตของทางเลือกผิวทาง "
-            f"{len(summary_df)} ประเภท พบว่า {best['ทางเลือก']} ({best['ประเภทผิวทาง']}) "
-            f"เป็นทางเลือกที่มีความคุ้มค่าทางเศรษฐศาสตร์สูงสุด "
-            f"โดยมีมูลค่าปัจจุบันรวมเท่ากับ {best['NPV (บาท/กม.)']:,.0f} บาท/กม. "
-            f"({best['NPV (ล้านบาท/กม.)']:,.4f} ล้านบาท/กม.) "
-            f"และต้นทุนเฉลี่ยรายปี (EAC) ที่ {best['EAC (บาท/กม./ปี)']:,.0f} บาท/กม./ปี "
-            f"({best['EAC (บาท/ตร.ม./ปี)']:,.2f} บาท/ตร.ม./ปี)")
+        best = summary_df.iloc[0]
+        npv_best = best["NPV (บาท/กม.)"]
+        eac_best = best["EAC (บาท/กม./ปี)"]
 
-        # เปรียบเทียบกับแต่ละทางเลือก
+        # สร้างข้อความเปรียบเทียบต่อเนื่องในประโยคเดียว
+        compare_parts = []
         for _, r in summary_df.iloc[1:].iterrows():
-            saving_pct = (r["NPV (บาท/กม.)"] - best["NPV (บาท/กม.)"]) / r["NPV (บาท/กม.)"] * 100
-            add_thai_para(doc,
-                f"เมื่อเปรียบเทียบกับ {r['ทางเลือก']} "
-                f"(NPV = {r['NPV (ล้านบาท/กม.)']:,.4f} ล้านบาท/กม.) "
-                f"{best['ทางเลือก']} ประหยัดกว่าคิดเป็นร้อยละ {saving_pct:.1f}")
+            pct = (r["NPV (บาท/กม.)"] - npv_best) / r["NPV (บาท/กม.)"] * 100
+            compare_parts.append(
+                f"ประหยัดกว่า{r['ทางเลือก']} คิดเป็นร้อยละ {pct:.1f}")
+        compare_str = " ".join(compare_parts)
 
-        doc.add_paragraph()
-        add_thai_para(doc,
+        summary_text = (
+            f"จากการวิเคราะห์ต้นทุนตลอดวงจรชีวิตของทางเลือกผิวทาง "
+            f"{len(summary_df)} ประเภท พบว่า {best['ทางเลือก']} "
+            f"เป็นทางเลือกที่มีความคุ้มค่าทางเศรษฐศาสตร์สูงสุด "
+            f"โดยมีมูลค่าปัจจุบันรวมเท่ากับ {npv_best:,.0f} บาท "
+            f"และต้นทุนเฉลี่ยรายปี (EAC) ที่ {eac_best:,.0f} บาท/ปี "
+            f"เมื่อเปรียบเทียบกับทางเลือกอื่น {compare_str} "
             f"ดังนั้น จึงมีข้อเสนอแนะให้เลือกใช้ {best['ทางเลือก']} "
             f"เป็นทางเลือกหลักในการออกแบบ "
             f"เนื่องจากให้ต้นทุนรวมต่ำที่สุดตลอดอายุการใช้งาน {n} ปี "
-            f"ของโครงการ {ss.get('project_name','')}",
-            bold=False)
+            f"ของโครงการ{ss.get('project_name','')}"
+        )
+        add_thai_para(doc, summary_text)
 
     # ── อ้างอิง ──────────────────────────────────────────────────────────────
     doc.add_paragraph()
