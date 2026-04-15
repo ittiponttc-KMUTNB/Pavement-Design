@@ -1359,8 +1359,8 @@ with tab3:
                 rehab_yr=max(10,n//2) if "AC" in pt or "Flex" in pt else max(15,int(n*0.75))
                 if "AC" in pt or "Flex" in pt:
                     mlist=[MaintAct("บำรุงรักษาประจำปี ",mc,1,1),
-                           MaintAct("ฉาบผิว(Seal Coating)",mc*0.8,3,3)]
-                    rlist=[RehabAct("Overlay AC 50 มม.",390,rehab_yr)]
+                           MaintAct("ฉาบผิว (Seal Coating)",mc*0.8,3,3)]
+                    rlist=[RehabAct("Overlay",390,rehab_yr)]
                     sv=20.0
                 else:
                     mlist=[MaintAct("บำรุงรักษาประจำปี ",mc,1,1),
