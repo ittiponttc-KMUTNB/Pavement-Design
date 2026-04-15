@@ -1351,9 +1351,9 @@ with tab3:
             alts=[]
             for nm,pt,cost,mc in [
                 ("ผิวทางยืดหยุ่น (AC)","Flexible",costs["AC"],r_ac),
-                ("ผิวทางคอนกรีตแบบ JPCP","JPCP",costs["JPCP"],r_cc),
-                ("ผิวทางคอนกรีตแบบ JRCP","JRCP",costs["JRCP"],r_cc),
-                ("ผิวทางคอนกรีตแบบ CRCP","CRCP",costs["CRCP"],r_cc),
+                ("ผิวทางคอนกรีต JPCP","JPCP",costs["JPCP"],r_cc),
+                ("ผิวทางคอนกรีต JRCP","JRCP",costs["JRCP"],r_cc),
+                ("ผิวทางคอนกรีต CRCP","CRCP",costs["CRCP"],r_cc),
             ]:
                 if cost<=0: continue
                 rehab_yr=max(10,n//2) if "AC" in pt or "Flex" in pt else max(15,int(n*0.75))
