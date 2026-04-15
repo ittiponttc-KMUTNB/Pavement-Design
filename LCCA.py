@@ -641,9 +641,9 @@ def generate_word(summary_df, cf_dict, n, dr, alts,
         doc.add_paragraph()
 
     # X.X.2.2 Kc
-    next_h2(SCr, "ผิวคอนกรีตซีเมนต์ (Kc)")
+    next_h2(SCr, "ผิวคอนกรีต (Kc)")
     add_thai_para(doc,
-        "ค่าสัมประสิทธิ์ปรับแก้สำหรับผิวคอนกรีตซีเมนต์ (Kc) คำนวณตามสมการ",
+        "ค่าสัมประสิทธิ์ปรับแก้สำหรับผิวคอนกรีต (Kc) คำนวณตามสมการ",
         first_indent=False)
     p_eq2 = doc.add_paragraph()
     set_run_font(p_eq2.add_run(
@@ -1359,7 +1359,7 @@ with tab3:
                 rehab_yr=max(10,n//2) if "AC" in pt or "Flex" in pt else max(15,int(n*0.75))
                 if "AC" in pt or "Flex" in pt:
                     mlist=[MaintAct("บำรุงรักษาประจำปี ",mc,1,1),
-                           MaintAct("Seal Coating",mc*0.8,3,3)]
+                           MaintAct("ฉาบผิว(Seal Coating)",mc*0.8,3,3)]
                     rlist=[RehabAct("Overlay AC 50 มม.",390,rehab_yr)]
                     sv=20.0
                 else:
