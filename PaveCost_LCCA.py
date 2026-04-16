@@ -2352,7 +2352,7 @@ with tab_lc:
                     with e1:
                         alts[ai].construction_cost=st.number_input("ต้นทุนก่อสร้าง (บาท/ตร.ม.)",min_value=0.0,value=float(alt.construction_cost),step=10.0,key=f"lc_ec_{ai}")
                         alts[ai].salvage_pct=st.number_input("มูลค่าซาก (%)",min_value=0.0,max_value=100.0,value=float(alt.salvage_pct),step=1.0,key=f"lc_es_{ai}")
-                        alts[ai].enabled=st.checkbox("เปิดใช้งาน",value=alt.enabled,key=f"lc_ee_{ai}")
+                        alts[ai].enabled=st.checkbox("แสดงผลในรายงาน",value=alt.enabled,key=f"lc_ee_{ai}")
                     with e2:
                         st.markdown("**บำรุงรักษา:**")
                         for mi,m in enumerate(alt.maintenance):
