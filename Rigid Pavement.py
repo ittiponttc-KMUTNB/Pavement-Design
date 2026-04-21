@@ -2160,13 +2160,24 @@ def main():
             ls_value = st.number_input("Loss of Support (LS)", 0.0, 3.0, st.session_state.get('calc_ls', 1.0), 0.5, "%.1f", key="calc_ls")
             st.markdown("---")
             
-            st.subheader("5️⃣ คุณสมบัติคอนกรีต")
-            fc_cube = st.number_input("กำลังอัด Cube (ksc)", 200, 600, st.session_state.get('calc_fc', 350), 10, key="calc_fc")
+            _fc_disp     = st.session_state.get('calc_fc', 350)
+            _fc_cyl_disp = convert_cube_to_cylinder(_fc_disp)
+            _sc_disp     = min(600, max(400, st.session_state.get('calc_sc', int(estimate_modulus_of_rupture(_fc_cyl_disp)))))
+            with st.expander(
+                f"5️⃣ คุณสมบัติคอนกรีต  (fc={_fc_disp} ksc | Sc={_sc_disp} psi)",
+                expanded=False
+            ):
+                fc_cube     = st.number_input("กำลังอัด Cube (ksc)", 200, 600, _fc_disp, 10, key="calc_fc")
+                fc_cylinder = convert_cube_to_cylinder(fc_cube)
+                ec          = calculate_concrete_modulus(fc_cylinder)
+                st.info(f"f'c (Cyl) = **{fc_cylinder:.0f} ksc** | Ec = **{ec:,.0f} psi**")
+                sc_auto = estimate_modulus_of_rupture(fc_cylinder)
+                sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 600, min(600, max(400, st.session_state.get('calc_sc', int(sc_auto)))), 10, key="calc_sc")
+            # re-assign กรณี expander ปิด
+            fc_cube     = st.session_state.get('calc_fc', 350)
             fc_cylinder = convert_cube_to_cylinder(fc_cube)
-            ec = calculate_concrete_modulus(fc_cylinder)
-            st.info(f"f'c (Cyl) = **{fc_cylinder:.0f} ksc** | Ec = **{ec:,.0f} psi**")
-            sc_auto = estimate_modulus_of_rupture(fc_cylinder)
-            sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 600, min(600, max(400, st.session_state.get('calc_sc', int(sc_auto)))), 10, key="calc_sc")
+            ec          = calculate_concrete_modulus(fc_cylinder)
+            sc          = min(600, max(400, st.session_state.get('calc_sc', int(estimate_modulus_of_rupture(fc_cylinder)))))
             st.markdown("---")
             
             st.subheader("6️⃣ Load Transfer🔗 และ Drainage💧")
