@@ -2263,7 +2263,7 @@ def main():
             if optimum_k is not None:
                 diff = k_eff - optimum_k
                 if diff > 0:
-                    st.success(f"✅ Optimum k_eff = **{optimum_k:,} pci** | ใช้อยู่สูงกว่า {diff:,} pci — ปลอดภัย")
+                    st.success(f"✅ Optimum k_eff = **{optimum_k:,} pci** | ค่าที่เลือกใช้ มีค่าสูงกว่า Optimum k_eff อยู่ = {diff:,} pci — ปลอดภัย/ประหยัด")
                 elif diff == 0:
                     st.info(f"ℹ️ Optimum k_eff = **{optimum_k:,} pci** | เท่ากับค่าที่ใช้อยู่พอดี")
                 else:
