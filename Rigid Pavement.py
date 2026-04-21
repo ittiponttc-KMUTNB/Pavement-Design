@@ -2218,71 +2218,6 @@ def main():
                 'W₁₈ รองรับได้': f"{r['w18']:,.0f}", 'อัตราส่วน': f"{r['ratio']:.2f}", 'ผล': "✅" if r['passed'] else "❌"
             } for r in comparison_results])
             st.dataframe(df, use_container_width=True, hide_index=True)
-
-            # ── Sensitivity Analysis: หา Optimum k_eff ──────────────────
-            st.markdown("---")
-            st.subheader("🎯 วิเคราะห์ค่า Optimum Effective k (pci)")
-
-            # วนหา k_eff ที่น้อยที่สุดที่ทำให้ผ่าน (step=10 pci)
-            k_search_range = range(50, 1010, 10)
-            optimum_k = None
-            for k_try in k_search_range:
-                _, w18_try = calculate_aashto_rigid_w18(
-                    d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_try
-                )
-                if w18_try >= w18_design:
-                    optimum_k = k_try
-                    break
-
-            if optimum_k is not None:
-                st.success(f"✅ **Optimum k_eff = {optimum_k:,} pci** "
-                           f"(ค่าต่ำสุดที่ทำให้ผ่านเกณฑ์ที่ D = {d_cm_selected} ซม.)")
-            else:
-                st.error("❌ ไม่พบ Optimum k_eff ในช่วง 50–1,000 pci "
-                         f"(D = {d_cm_selected} ซม. ยังไม่ผ่านแม้ที่ k = 1,000 pci)")
-
-            # สร้างตาราง ±3 ชุดรอบ Optimum (หรือ 7 ชุดท้ายถ้าไม่พบ)
-            if optimum_k is not None:
-                center_k = optimum_k
-                all_k_list = list(k_search_range)
-                opt_idx = all_k_list.index(optimum_k)
-                start_idx = max(0, opt_idx - 3)
-                end_idx   = min(len(all_k_list) - 1, opt_idx + 3)
-                display_ks = all_k_list[start_idx : end_idx + 1]
-            else:
-                # ไม่พบ Optimum → แสดง 7 ค่าสุดท้าย
-                display_ks = list(k_search_range)[-7:]
-
-            sens_rows = []
-            for k_try in display_ks:
-                _, w18_try = calculate_aashto_rigid_w18(
-                    d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_try
-                )
-                ratio_try = w18_try / w18_design if w18_design > 0 else 0
-                passed_try = w18_try >= w18_design
-
-                # label พิเศษ
-                tags = []
-                if optimum_k is not None and k_try == optimum_k:
-                    tags.append("🎯 Optimum")
-                if k_try == k_eff:
-                    tags.append("← ใช้อยู่")
-                status = ("✅ PASS" if passed_try else "❌ FAIL")
-                if tags:
-                    status += "  " + "  ".join(tags)
-
-                sens_rows.append({
-                    'k_eff (pci)': k_try,
-                    'W18 Capacity': f"{w18_try:,.0f}",
-                    'W18 Ratio': f"{ratio_try:.3f}",
-                    'สถานะ': status,
-                })
-
-            df_sens = pd.DataFrame(sens_rows)
-            st.dataframe(df_sens, use_container_width=True, hide_index=True)
-            st.caption("* แสดง ±3 ชุดรอบค่า Optimum k_eff | ค่า k_eff ค้นหาทีละ 10 pci (50–1,000 pci)")
-            # ────────────────────────────────────────────────────────────
-
             st.markdown("---")
            
             fig_structure = create_pavement_structure_figure(layers_data, d_cm_selected)
@@ -2313,7 +2248,87 @@ def main():
                     if buffer:
                         st.download_button("⬇️ ดาวน์โหลดรายงาน (.docx)", buffer, f"AASHTO_Design_{datetime.now().strftime('%Y%m%d_%H%M')}.docx",
                                            "application/vnd.openxmlformats-officedocument.wordprocessingml.document")
-    
+
+        # =========================================================
+        # Sensitivity Analysis: Optimum k_eff (full-width)
+        # =========================================================
+        st.markdown("---")
+        st.subheader("🎯 วิเคราะห์ค่า Optimum Effective k (pci)")
+        st.caption(f"ค้นหา k_eff ต่ำสุดที่ทำให้ผ่านเกณฑ์ที่ D = {d_cm_selected} ซม. | ค้นหาทีละ 10 pci (50–1,000 pci)")
+
+        # วนหา k_eff ที่น้อยที่สุดที่ทำให้ผ่าน (step=10 pci)
+        k_search_range = range(50, 1010, 10)
+        optimum_k = None
+        for k_try in k_search_range:
+            _, w18_try = calculate_aashto_rigid_w18(
+                d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_try
+            )
+            if w18_try >= w18_design:
+                optimum_k = k_try
+                break
+
+        col_opt1, col_opt2, col_opt3 = st.columns([1, 1, 2])
+        with col_opt1:
+            if optimum_k is not None:
+                st.metric("🎯 Optimum k_eff", f"{optimum_k:,} pci",
+                          help="ค่า k_eff ต่ำสุดที่ทำให้ W18 Capacity ≥ W18 Design")
+            else:
+                st.error("❌ ไม่พบ Optimum ในช่วง 50–1,000 pci")
+        with col_opt2:
+            st.metric("📌 k_eff ที่ใช้อยู่", f"{k_eff:,} pci")
+        with col_opt3:
+            if optimum_k is not None:
+                diff = k_eff - optimum_k
+                if diff > 0:
+                    st.success(f"✅ k_eff ที่ใช้อยู่ สูงกว่า Optimum **{diff:,} pci** — ออกแบบปลอดภัย")
+                elif diff == 0:
+                    st.info("ℹ️ k_eff ที่ใช้อยู่ **เท่ากับ** Optimum พอดี")
+                else:
+                    st.error(f"❌ k_eff ที่ใช้อยู่ ต่ำกว่า Optimum **{abs(diff):,} pci** — ควรเพิ่ม k_eff หรือเพิ่ม D")
+
+        # สร้างตาราง ±3 ชุดรอบ Optimum
+        if optimum_k is not None:
+            all_k_list = list(k_search_range)
+            opt_idx = all_k_list.index(optimum_k)
+            start_idx = max(0, opt_idx - 3)
+            end_idx   = min(len(all_k_list) - 1, opt_idx + 3)
+            display_ks = all_k_list[start_idx : end_idx + 1]
+        else:
+            display_ks = list(k_search_range)[-7:]
+
+        # เพิ่ม k_eff ที่ใช้อยู่เข้าไปในตารางถ้าไม่อยู่ใน display_ks
+        k_eff_rounded = round(k_eff / 10) * 10
+        if k_eff_rounded not in display_ks and 50 <= k_eff_rounded <= 1000:
+            display_ks = sorted(set(display_ks) | {k_eff_rounded})
+
+        sens_rows = []
+        for k_try in display_ks:
+            _, w18_try = calculate_aashto_rigid_w18(
+                d_inch_selected, delta_psi, pt, zr, so, sc, cd, j_value, ec, k_try
+            )
+            ratio_try = w18_try / w18_design if w18_design > 0 else 0
+            passed_try = w18_try >= w18_design
+
+            tags = []
+            if optimum_k is not None and k_try == optimum_k:
+                tags.append("🎯 Optimum")
+            if k_try == k_eff_rounded:
+                tags.append("← ใช้อยู่")
+            status = ("✅ PASS" if passed_try else "❌ FAIL")
+            if tags:
+                status += "  " + "  ".join(tags)
+
+            sens_rows.append({
+                'k_eff (pci)': k_try,
+                'W18 Capacity': f"{w18_try:,.0f}",
+                'W18 Ratio': f"{ratio_try:.3f}",
+                'สถานะ': status,
+            })
+
+        df_sens = pd.DataFrame(sens_rows)
+        st.dataframe(df_sens, use_container_width=True, hide_index=True)
+        st.caption("* แสดง ±3 ชุดรอบค่า Optimum k_eff (และแถว k_eff ที่ใช้อยู่ถ้าอยู่นอกช่วง)")
+
     # =========================================================
     # TAB 2: Composite Modulus (Nomograph)
     # =========================================================
