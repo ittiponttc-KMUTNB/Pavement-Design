@@ -2263,7 +2263,7 @@ def main():
             if optimum_k is not None:
                 diff = k_eff - optimum_k
                 if diff > 0:
-                    st.success(f"✅ Optimum k_eff = **{optimum_k:,} pci** | ค่าที่เลือกใช้ มีค่าสูงกว่า Optimum k_eff อยู่ = {diff:,} pci — ปลอดภัย/ประหยัด")
+                    st.success(f"✅ Optimum k_eff = **{optimum_k:,} pci** | ใช้อยู่สูงกว่า {diff:,} pci — ปลอดภัย")
                 elif diff == 0:
                     st.info(f"ℹ️ Optimum k_eff = **{optimum_k:,} pci** | เท่ากับค่าที่ใช้อยู่พอดี")
                 else:
@@ -2686,12 +2686,10 @@ def main():
                         value=st.session_state.get('rpt_crcp_k', 200),
                         step=25, key='rpt_crcp_k'
                     )
-                    crcp_cd_manual = st.number_input(
-                        "Drainage Cd (CRCP)", 0.7, 1.3,
-                        value=st.session_state.get('rpt_crcp_cd',
-                              st.session_state.get('calc_cd', 1.0)),
-                        step=0.05, format="%.2f", key='rpt_crcp_cd'
-                    )
+                    # Cd ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
+                    crcp_cd_use = st.session_state.get('calc_cd', 1.0)
+                    st.caption("Drainage Cd (CRCP)")
+                    st.info(f"**{crcp_cd_use:.2f}**  *(ใช้ร่วมกับ JPCP)*", icon="📌")
                     # CBR ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
                     crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
                     st.caption("CBR ดินคันทาง (%)")
@@ -2699,12 +2697,13 @@ def main():
                 # แสดงสรุปค่า
                 crcp_sc_use  = st.session_state.get('calc_sc', 600)
                 crcp_cbr_use = st.session_state.get('calc_cbr', 4.0)
+                crcp_cd_use  = st.session_state.get('calc_cd', 1.0)
                 st.caption(
                     f"📊 CRCP: D={st.session_state.get('rpt_crcp_d',28)} ซม. | "
                     f"J={st.session_state.get('rpt_crcp_j',2.5):.1f} | "
                     f"Sc={crcp_sc_use} psi | "
                     f"k={st.session_state.get('rpt_crcp_k',200)} pci | "
-                    f"Cd={st.session_state.get('rpt_crcp_cd',1.0):.2f} | "
+                    f"Cd={crcp_cd_use:.2f} | "
                     f"CBR={crcp_cbr_use:.1f}%"
                 )
 
@@ -2717,7 +2716,7 @@ def main():
                 _crcp_d_inch = round(_crcp_d_cm / 2.54)
                 _crcp_k      = st.session_state.get('rpt_crcp_k', 200)
                 _crcp_j      = st.session_state.get('rpt_crcp_j', 2.6)
-                _crcp_cd     = st.session_state.get('rpt_crcp_cd', st.session_state.get('calc_cd', 1.0))
+                _crcp_cd     = st.session_state.get('calc_cd', 1.0)
                 _crcp_sc     = st.session_state.get('calc_sc', 600)
                 _crcp_fc     = st.session_state.get('calc_fc', 350)
                 _crcp_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_crcp_fc))
@@ -2898,7 +2897,7 @@ def main():
                 crcp_d_use   = st.session_state.get('rpt_crcp_d', 28)
                 crcp_k_use   = st.session_state.get('rpt_crcp_k', 200)
                 crcp_j_use   = st.session_state.get('rpt_crcp_j', 2.6)
-                crcp_cd_use  = st.session_state.get('rpt_crcp_cd', cd_r)
+                crcp_cd_use  = cd_r        # ใช้ร่วมกับ JPCP
                 crcp_sc_use  = sc_r        # ใช้ร่วมกับ JPCP
                 crcp_cbr_use = cbr_r       # ใช้ร่วมกับ JPCP
                 crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
