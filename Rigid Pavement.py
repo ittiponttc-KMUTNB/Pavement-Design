@@ -2108,17 +2108,31 @@ def main():
             st.info(f"**{esal_million:.2f} ล้าน ESALs**")
             st.markdown("---")
             
-            st.subheader("2️⃣ Serviceability📉")
-            pt = st.slider("Terminal Serviceability (Pt)", 1.5, 3.0, st.session_state.get('calc_pt', 2.0), 0.1, key="calc_pt")
+            _pt_disp  = st.session_state.get('calc_pt', 2.0)
+            _rel_disp = st.session_state.get('calc_reliability', 90)
+            _so_disp  = st.session_state.get('calc_so', 0.35)
+            _zr_disp  = get_zr_value(_rel_disp)
+            with st.expander(
+                f"2️⃣-3️⃣ Serviceability & Reliability  "
+                f"(Pt={_pt_disp:.1f} | R={_rel_disp}% | So={_so_disp:.2f} | ZR={_zr_disp:.3f})",
+                expanded=False
+            ):
+                st.markdown("**2️⃣ Serviceability 📉**")
+                pt = st.slider("Terminal Serviceability (Pt)", 1.5, 3.0, _pt_disp, 0.1, key="calc_pt")
+                delta_psi = 4.5 - pt
+                st.info(f"ΔPSI = 4.5 - {pt:.1f} = **{delta_psi:.1f}**")
+                st.markdown("---")
+                st.markdown("**3️⃣ ความเชื่อมั่น 📈**")
+                reliability = st.select_slider("Reliability (R)", [80, 85, 90, 95], _rel_disp, key="calc_reliability")
+                zr = get_zr_value(reliability)
+                st.info(f"ZR = **{zr:.3f}**")
+                so = st.number_input("Standard Deviation (So)", 0.30, 0.45, _so_disp, 0.01, "%.2f", key="calc_so")
+            # อ่านค่าจาก session_state กรณี expander ปิด (widgets ยังคง return ค่าล่าสุด)
+            pt        = st.session_state.get('calc_pt', 2.0)
             delta_psi = 4.5 - pt
-            st.info(f"ΔPSI = 4.5 - {pt:.1f} = **{delta_psi:.1f}**")
-            st.markdown("---")
-            
-            st.subheader("3️⃣ ความเชื่อมั่น📈")
-            reliability = st.select_slider("Reliability (R)", [80, 85, 90, 95], st.session_state.get('calc_reliability', 90), key="calc_reliability")
-            zr = get_zr_value(reliability)
-            st.info(f"ZR = **{zr:.3f}**")
-            so = st.number_input("Standard Deviation (So)", 0.30, 0.45, st.session_state.get('calc_so', 0.35), 0.01, "%.2f", key="calc_so")
+            reliability = st.session_state.get('calc_reliability', 90)
+            zr        = get_zr_value(reliability)
+            so        = st.session_state.get('calc_so', 0.35)
             st.markdown("---")
             
             st.subheader("4️⃣ คุณสมบัติดินคันทาง")
