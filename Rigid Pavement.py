@@ -2154,7 +2154,7 @@ def main():
             ec = calculate_concrete_modulus(fc_cylinder)
             st.info(f"f'c (Cyl) = **{fc_cylinder:.0f} ksc** | Ec = **{ec:,.0f} psi**")
             sc_auto = estimate_modulus_of_rupture(fc_cylinder)
-            sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 600, st.session_state.get('calc_sc', int(sc_auto)), 10, key="calc_sc")
+            sc = st.number_input("Modulus of Rupture (Sc) psi", 400, 600, min(600, max(400, st.session_state.get('calc_sc', int(sc_auto)))), 10, key="calc_sc")
             st.markdown("---")
             
             st.subheader("6️⃣ Load Transfer🔗 และ Drainage💧")
@@ -2175,7 +2175,7 @@ def main():
                 """)
             j_auto = J_VALUES[pavement_type]
             j_value = st.number_input("Load Transfer (J)", 2.0, 4.5, st.session_state.get('calc_j', j_auto), 0.1, "%.1f", key="calc_j")
-            cd = st.number_input("Drainage (Cd)", 0.7, 1.2, st.session_state.get('calc_cd', 1.0), 0.05, "%.2f", key="calc_cd")
+            cd = st.number_input("Drainage (Cd)", 0.7, 1.2, min(1.2, max(0.7, st.session_state.get('calc_cd', 1.0))), 0.05, "%.2f", key="calc_cd")
 
             
         with col2:
