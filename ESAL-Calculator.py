@@ -1696,7 +1696,7 @@ def main():
                 st.divider()
 
                 # Truck Factor Table — แสดงทุก param
-                st.write("**🚛 ค่า Truck Factor ตาม AASHTO 1993 สมการจริง:**")
+                st.write("**🚛 ค่า Truck Factor ตามสมการ AASHTO (1993) :**")
                 tf_display = []
                 for code in TRUCKS.keys():
                     row = {'รหัส': code, 'ประเภท': TRUCKS[code]['desc']}
