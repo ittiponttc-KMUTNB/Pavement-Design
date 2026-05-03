@@ -1,5 +1,5 @@
 """
-ESAL Calculator - AASHTO 1993 (Version 4.0)
+ESAL Calculator - AASHTO 1993 (Version 3.0)
 โปรแกรมคำนวณปริมาณเพลาเดี่ยวมาตรฐานเทียบเท่า (Equivalent Single Axle Load)
 สำหรับผิวทาง Rigid Pavement และ Flexible Pavement
 ตามมาตรฐาน AASHTO Guide for Design of Pavement Structures (1993)
@@ -1497,11 +1497,12 @@ def main():
             if isinstance(default_params_r, int):
                 default_params_r = [default_params_r]
             default_params_r = [d for d in default_params_r if d in rigid_d_options] or [11, 12, 13]
+            _D_CM = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
             params_selected = st.multiselect(
                 "ความหนาพื้นคอนกรีต D (เลือก 3 ค่า)",
                 options=rigid_d_options,
                 default=default_params_r,
-                format_func=lambda x: f"D = {x} นิ้ว",
+                format_func=lambda x: f"D = {x} นิ้ว ({_D_CM.get(x,'')} cm)",
                 key="input_params_rigid",
             )
             if len(params_selected) == 0:
@@ -1820,11 +1821,12 @@ def main():
                             if isinstance(_cr_d_def, int):
                                 _cr_d_def = [_cr_d_def]
                             _cr_d_def = [d for d in _cr_d_def if d in [10,11,12,13,14,15,16]] or [11,12,13]
+                            _D_CM2 = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
                             _cr_sel = st.multiselect(
                                 "D (นิ้ว) — เลือก 3 ค่า",
                                 options=[10,11,12,13,14,15,16],
                                 default=_cr_d_def,
-                                format_func=lambda x: f'D={x}"',
+                                format_func=lambda x: f"D={x}\" ({_D_CM2.get(x,'')} cm)",
                                 key="comb_rigid_d_list"
                             )
                             if len(_cr_sel) == 0:
