@@ -2859,8 +2859,19 @@ def main():
                     _k_opt_cd     = st.session_state.get('calc_cd', 1.0)
                     _k_opt_fc     = st.session_state.get('calc_fc', 350)
                     _k_opt_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_k_opt_fc))
-                    _k_opt_w18    = st.session_state.get('calc_w18_crcp',
-                                    st.session_state.get('calc_w18', 500000))
+                    # คำนวณ W18 CRCP ภายใน block เอง (ไม่พึ่ง session_state ที่อาจยังไม่ถูก set)
+                    _esal_src = st.session_state.get('esal_json_data')
+                    if _esal_src:
+                        _k_opt_w18, _, _ = compute_esal_for_d(
+                            _esal_src['traffic_data'],
+                            _esal_src['pt'],
+                            _esal_src['lane_factor'],
+                            _esal_src['direction_factor'],
+                            _k_opt_d_cm
+                        )
+                    else:
+                        _k_opt_w18 = st.session_state.get('calc_w18_crcp',
+                                     st.session_state.get('calc_w18', 500000))
                     for _ko in _k_opt_search:
                         _, _w18_ko = calculate_aashto_rigid_w18(
                             _k_opt_d_inch, _k_opt_dpsi, _k_opt_pt, _k_opt_zr, _k_opt_so,
