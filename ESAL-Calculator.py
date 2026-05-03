@@ -4,7 +4,7 @@ ESAL Calculator - AASHTO 1993 (Version 4.0)
 สำหรับผิวทาง Rigid Pavement และ Flexible Pavement
 ตามมาตรฐาน AASHTO Guide for Design of Pavement Structures (1993)
 
-Features V3:
+Features V4:
 - รองรับ Export Excel และ Word ในรูปแบบมาตรฐาน
 - Save/Load Project สำหรับแก้ไขภายหลัง
 - คำนวณ ACC. ESAL (สะสม)
@@ -1732,7 +1732,7 @@ def main():
                 st.divider()
 
                 # Truck Factor Table — แสดงทุก param
-                st.write("**🚛 ค่า Truck Factor ตาม AASHTO 1993 สมการจริง:**")
+                st.write("**🚛 ค่า Truck Factor ตามสมการ AASHTO (1993):**")
                 tf_display = []
                 for code in TRUCKS.keys():
                     row = {'รหัส': code, 'ประเภท': TRUCKS[code]['desc']}
