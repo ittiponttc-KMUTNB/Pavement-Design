@@ -2845,6 +2845,55 @@ def main():
                         value=st.session_state.get('rpt_crcp_k', 200),
                         step=25, key='rpt_crcp_k'
                     )
+                    # ── Optimum k_eff inline (ใต้ช่อง k_eff) ──────────────
+                    _k_opt_search = range(50, 1010, 10)
+                    _k_opt_val    = None
+                    _k_opt_j      = st.session_state.get('rpt_crcp_j', 2.6)
+                    _k_opt_d_cm   = st.session_state.get('rpt_crcp_d', 28)
+                    _k_opt_d_inch = round(_k_opt_d_cm / 2.54)
+                    _k_opt_pt     = st.session_state.get('calc_pt', 2.0)
+                    _k_opt_zr     = get_zr_value(st.session_state.get('calc_reliability', 90))
+                    _k_opt_so     = st.session_state.get('calc_so', 0.35)
+                    _k_opt_dpsi   = 4.5 - _k_opt_pt
+                    _k_opt_sc     = st.session_state.get('calc_sc', 600)
+                    _k_opt_cd     = st.session_state.get('calc_cd', 1.0)
+                    _k_opt_fc     = st.session_state.get('calc_fc', 350)
+                    _k_opt_ec     = calculate_concrete_modulus(convert_cube_to_cylinder(_k_opt_fc))
+                    _k_opt_w18    = st.session_state.get('calc_w18_crcp',
+                                    st.session_state.get('calc_w18', 500000))
+                    for _ko in _k_opt_search:
+                        _, _w18_ko = calculate_aashto_rigid_w18(
+                            _k_opt_d_inch, _k_opt_dpsi, _k_opt_pt, _k_opt_zr, _k_opt_so,
+                            _k_opt_sc, _k_opt_cd, _k_opt_j, _k_opt_ec, _ko
+                        )
+                        if _w18_ko >= _k_opt_w18:
+                            _k_opt_val = _ko
+                            break
+                    if _k_opt_val is not None:
+                        _k_diff = crcp_k_manual - _k_opt_val
+                        if _k_diff > 0:
+                            st.success(f"✅ Optimum = **{_k_opt_val:,} pci** | สูงกว่า {_k_diff:,} pci — ปลอดภัย")
+                        elif _k_diff == 0:
+                            st.info(f"ℹ️ Optimum = **{_k_opt_val:,} pci** | เท่ากับค่าที่ใช้อยู่พอดี")
+                        else:
+                            st.error(f"❌ Optimum = **{_k_opt_val:,} pci** | ใช้อยู่ต่ำกว่า {abs(_k_diff):,} pci")
+                        # หาช่วง k สูงสุดที่ผ่าน
+                        _k_max_pass = None
+                        for _ko in reversed(list(_k_opt_search)):
+                            _, _w18_ko = calculate_aashto_rigid_w18(
+                                _k_opt_d_inch, _k_opt_dpsi, _k_opt_pt, _k_opt_zr, _k_opt_so,
+                                _k_opt_sc, _k_opt_cd, _k_opt_j, _k_opt_ec, _ko
+                            )
+                            if _w18_ko >= _k_opt_w18:
+                                _k_max_pass = _ko
+                                break
+                        if _k_max_pass:
+                            st.caption(
+                                f"💡 ช่วง k ที่ผ่านเกณฑ์: {_k_opt_val:,}–{_k_max_pass:,} pci "
+                                f"(J = {_k_opt_j:.1f})"
+                            )
+                    else:
+                        st.error("❌ ไม่พบ Optimum k — ลอง D ที่หนาขึ้น")
                     # Cd ใช้ร่วมกับ JPCP — แสดงค่าอย่างเดียว
                     crcp_cd_use = st.session_state.get('calc_cd', 1.0)
                     st.caption("Drainage Cd (CRCP)")
@@ -2958,56 +3007,6 @@ def main():
                     st.success(f"✅ **CRCP ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้ {_w18_crcp:,.0f} ESALs  (อัตราส่วน = {_ratio_crcp:.2f})")
                 else:
                     st.error(f"❌ **CRCP ไม่ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้เพียง {_w18_crcp:,.0f} ESALs  (ต้องการ {_crcp_w18_req:,.0f})  อัตราส่วน = {_ratio_crcp:.2f}")
-
-                # ── Optimum k_eff สำหรับ CRCP (ไม่มีตาราง) ─────────────
-                st.markdown("---")
-                st.subheader("🎯 Optimum k_eff สำหรับ CRCP")
-
-                _crcp_k_search = range(50, 1010, 10)
-                _crcp_opt_k    = None
-                for _k_try in _crcp_k_search:
-                    _, _w18_ktry = calculate_aashto_rigid_w18(
-                        _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
-                        _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _k_try
-                    )
-                    if _w18_ktry >= _crcp_w18_req:
-                        _crcp_opt_k = _k_try
-                        break
-
-                if _crcp_opt_k is not None:
-                    _crcp_k_diff = _crcp_k - _crcp_opt_k
-                    if _crcp_k_diff > 0:
-                        st.success(
-                            f"✅ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
-                            f"ใช้อยู่สูงกว่า {_crcp_k_diff:,} pci — ปลอดภัย"
-                        )
-                    elif _crcp_k_diff == 0:
-                        st.info(
-                            f"ℹ️ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
-                            f"เท่ากับค่าที่ใช้อยู่พอดี"
-                        )
-                    else:
-                        st.error(
-                            f"❌ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
-                            f"ใช้อยู่ต่ำกว่า {abs(_crcp_k_diff):,} pci — ควรเพิ่ม k หรือ D"
-                        )
-                    # หาช่วง k ที่ผ่านเกณฑ์ทั้งหมด
-                    _crcp_k_pass_max = None
-                    for _k_try in reversed(list(_crcp_k_search)):
-                        _, _w18_ktry = calculate_aashto_rigid_w18(
-                            _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
-                            _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _k_try
-                        )
-                        if _w18_ktry >= _crcp_w18_req:
-                            _crcp_k_pass_max = _k_try
-                            break
-                    if _crcp_k_pass_max:
-                        st.caption(
-                            f"💡 ช่วง k ที่ผ่านเกณฑ์: {_crcp_opt_k:,} – {_crcp_k_pass_max:,} pci "
-                            f"| ค้นหาทีละ 10 pci (J = {_crcp_j:.1f} สำหรับ CRCP)"
-                        )
-                else:
-                    st.error("❌ ไม่พบ Optimum k_eff ในช่วง 50–1,000 pci — ลอง D ที่หนาขึ้น")
 
                 # ตารางเปรียบเทียบความหนา CRCP
                 with st.expander("📊 ตารางเปรียบเทียบความหนา CRCP (20–40 ซม.)", expanded=False):
