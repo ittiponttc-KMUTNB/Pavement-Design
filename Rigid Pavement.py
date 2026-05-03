@@ -2830,7 +2830,7 @@ def main():
                         key='rpt_crcp_d'
                     )
                     crcp_j_manual = st.number_input(
-                        "Load Transfer J (CRCP)", 2.0, 4.5,
+                        "Load Transfer J (CRCP)", 2.3, 2.9,
                         value=st.session_state.get('rpt_crcp_j', 2.6),
                         step=0.1, format="%.1f", key='rpt_crcp_j',
                         help="ค่าแนะนำ CRCP = 2.6 (มี Tied shoulder)"
