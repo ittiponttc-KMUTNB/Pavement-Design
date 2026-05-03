@@ -1711,11 +1711,15 @@ def main():
     with tab2:
         st.subheader("🚛 ข้อมูลรถบรรทุก 6 ประเภทตามกรมทางหลวง")
         
+        # แปลง VEHICLE_AXLES → ชื่อเพลาสำหรับแสดงใน Tab 2
+        _AXLE_TYPE_LABEL = {1: 'Single', 2: 'Tandem'}
+        _AXLE_NAMES = ['เพลาหน้า', 'เพลาหลัง', 'เพลาพ่วงหน้า', 'เพลาพ่วงหลัง']
         truck_details = []
         for code, truck in TRUCKS.items():
             axle_info = []
-            for axle in truck['axles']:
-                axle_info.append(f"{axle['name']}: {axle['load_ton']} ตัน ({axle['type']})")
+            for i, (load_ton, l2, _cnt) in enumerate(VEHICLE_AXLES[code]):
+                name = _AXLE_NAMES[i] if i < len(_AXLE_NAMES) else f'เพลาที่ {i+1}'
+                axle_info.append(f"{name}: {load_ton} ตัน ({_AXLE_TYPE_LABEL[l2]})")
             truck_details.append({'รหัส': code, 'ประเภท': truck['desc'], 'ข้อมูลเพลา': ' | '.join(axle_info)})
         
         st.dataframe(pd.DataFrame(truck_details), use_container_width=True, hide_index=True)
