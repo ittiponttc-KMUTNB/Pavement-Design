@@ -1520,7 +1520,7 @@ def main():
             # ใช้ saved_params_rigid เก็บค่าแยกจาก widget key
             # ป้องกัน reset เมื่อสลับ pavement_type
             if 'saved_params_rigid' not in st.session_state:
-                st.session_state['saved_params_rigid'] = [11, 12, 13]
+                st.session_state['saved_params_rigid'] = [11, 12, 13, 14]
             _saved_r = st.session_state['saved_params_rigid']
             # backward-compat: JSON เก่าบันทึก param เดี่ยว
             if isinstance(_saved_r, int):
@@ -1528,7 +1528,7 @@ def main():
             _saved_r = [d for d in _saved_r if d in rigid_d_options] or [11, 12, 13]
             _D_CM = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
             params_selected = st.multiselect(
-                "ความหนาพื้นคอนกรีต D (เลือก 3 ค่า)",
+                "ความหนาพื้นคอนกรีต D (เลือก 4 ค่า)",
                 options=rigid_d_options,
                 default=_saved_r,
                 format_func=lambda x: f"D = {x} นิ้ว ({_D_CM.get(x,'')} cm)",
@@ -1539,9 +1539,9 @@ def main():
             if len(params_selected) == 0:
                 st.warning("⚠️ กรุณาเลือกอย่างน้อย 1 ค่า")
                 params_selected = [12]
-            elif len(params_selected) > 3:
-                st.warning("⚠️ เลือกได้สูงสุด 3 ค่า — ใช้ 3 ค่าแรก")
-                params_selected = params_selected[:3]
+            elif len(params_selected) > 4:
+                st.warning("⚠️ เลือกได้สูงสุด 4 ค่า — ใช้ 4 ค่าแรก")
+                params_selected = params_selected[:4]
             param        = params_selected[0]          # ค่าแรก (ใช้กับ TF sidebar + combined report)
             param_list   = params_selected             # list ใช้คำนวณ multi
             param_label  = ", ".join(f'D={d}"' for d in param_list)
