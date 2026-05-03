@@ -1399,9 +1399,9 @@ def main():
     <style>
     .main-header { font-size: 2.5rem; font-weight: bold; color: #1E3A5F; text-align: center; margin-bottom: 0.5rem; }
     .sub-header { font-size: 1.2rem; color: #4A6FA5; text-align: center; margin-bottom: 2rem; }
-    .metric-box { background: linear-gradient(135deg, #1E3A5F 0%, #4A6FA5 100%); padding: 1.5rem; border-radius: 10px; color: white; text-align: center; margin: 0.5rem 0; }
-    .metric-value { font-size: 2rem; font-weight: bold; }
-    .metric-label { font-size: 0.9rem; opacity: 0.9; }
+    .metric-box { background: linear-gradient(135deg, #1E3A5F 0%, #4A6FA5 100%); padding: 1rem; border-radius: 10px; color: white; text-align: center; margin: 0.5rem 0; min-width: 0; }
+    .metric-value { font-size: 1.6rem; font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .metric-label { font-size: 0.85rem; opacity: 0.9; }
     </style>
     """, unsafe_allow_html=True)
     
@@ -1654,7 +1654,8 @@ def main():
                 st.dataframe(traffic_df, use_container_width=True, height=350)
         
         with col2:
-            st.subheader("📈 ผลการคำนวณ ESAL")
+            num_years_disp = len(traffic_df)
+            st.subheader(f"📈 ผลการคำนวณ ESAL — ระยะเวลาออกแบบ {num_years_disp} ปี")
             
             if traffic_df is not None:
                 # ── คำนวณ multi-param: loop ทุก D หรือ SN ──
@@ -1670,16 +1671,10 @@ def main():
                 # ใช้ค่าแรกสำหรับ metric หลัก
                 results_df, total_esal = multi_results[param_list[0]]
 
-                # Metrics — แสดง ESAL รวมทุก param
+                # Metrics — ประเภทผิวทาง + ESAL 3 ค่า (ตัดจำนวนปีออก ย้ายไปหัวข้อแล้ว)
                 n_params = len(param_list)
-                metric_cols = st.columns(n_params + 2)
+                metric_cols = st.columns(n_params + 1)
                 with metric_cols[0]:
-                    st.markdown(f"""
-                    <div class="metric-box">
-                        <div class="metric-value">{len(traffic_df)}</div>
-                        <div class="metric-label">จำนวนปี</div>
-                    </div>""", unsafe_allow_html=True)
-                with metric_cols[1]:
                     pv_lbl = "Rigid" if pavement_type == 'rigid' else "Flexible"
                     st.markdown(f"""
                     <div class="metric-box">
@@ -1689,7 +1684,7 @@ def main():
                 for i, p in enumerate(param_list):
                     _, t = multi_results[p]
                     p_lbl = f'D={p}"' if pavement_type == 'rigid' else f"SN={p}"
-                    with metric_cols[2 + i]:
+                    with metric_cols[1 + i]:
                         st.markdown(f"""
                         <div class="metric-box">
                             <div class="metric-value">{t:,}</div>
