@@ -815,7 +815,6 @@ def _add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE):
 
     doc.add_paragraph()   # blank line after legend
 
-_add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE)
 def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num,
                    num_years, param_label, pt, lane_factor, direction_factor,
                    total_esal, truck_factors, results_df,
@@ -973,6 +972,8 @@ def _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num
     
     doc.add_paragraph()
 
+
+    _add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE)
 
     _add_esal_formula_block(doc, num_years, FONT_NAME, FONT_SIZE)
 
