@@ -1172,6 +1172,7 @@ def create_word_report_multi(traffic_df, pavement_type, pt, param_list,
 
     # ══════════════════════════════════════════════════════
     # ตารางที่ tbl_tf — Truck Factor (3 คอลัมน์ TF)
+    # คำนวณ TF ใหม่จาก pt ที่รับมาโดยตรง (ป้องกัน pt เก่าจาก multi_results)
     # ══════════════════════════════════════════════════════
     add_caption(tbl_tf, "ค่า Truck Factor ของรถบรรทุกหนัก")
     tf_headers = ["รหัส", "ประเภท"] + [p_col(p) for p in param_list]
@@ -1183,7 +1184,7 @@ def create_word_report_multi(traffic_df, pavement_type, pt, param_list,
         t2.rows[0].cells[j].text = h
         set_cell(t2.rows[0].cells[j], bold=True, sz=TFS,
                  align=WD_ALIGN_PARAGRAPH.CENTER, shading=HDR_COLOR)
-    # data rows
+    # data rows — คำนวณ TF จาก pt argument โดยตรง
     for i, code in enumerate(TRUCKS.keys()):
         row = t2.rows[i+1]
         row.cells[0].text = code
@@ -1191,10 +1192,22 @@ def create_word_report_multi(traffic_df, pavement_type, pt, param_list,
         set_cell(row.cells[0], sz=TFS, align=WD_ALIGN_PARAGRAPH.CENTER)
         set_cell(row.cells[1], sz=TFS)
         for k, p in enumerate(param_list):
-            tf_val = get_default_truck_factor(code, pavement_type, pt, p)
+            tf_val = get_default_truck_factor(code, pavement_type, float(pt), p)
             row.cells[2+k].text = f"{tf_val:.3f}"
             set_cell(row.cells[2+k], sz=TFS, align=WD_ALIGN_PARAGRAPH.RIGHT)
     doc.add_paragraph()
+
+    # ── คำนวณ multi_results ใหม่จาก pt ที่รับมา (ป้องกันค่าเก่า) ──
+    multi_results_word = {}
+    for p in param_list:
+        tf_p = {code: get_default_truck_factor(code, pavement_type, float(pt), p)
+                for code in TRUCKS.keys()}
+        r_df, t_esal = calculate_esal_with_acc(
+            traffic_df, tf_p, lane_factor, direction_factor
+        )
+        multi_results_word[p] = (r_df, t_esal)
+    # ใช้ multi_results_word แทน multi_results ที่รับมา
+    multi_results = multi_results_word
 
     # ══════════════════════════════════════════════════════
     # สมการ W18 (คงเดิม — เรียก _add_esal_formula_block)
@@ -1480,7 +1493,12 @@ def main():
         )
         
         pt_options = [2.0, 2.5, 3.0]
-        pt_idx = pt_options.index(default_pt) if default_pt in pt_options else 1
+        # แปลง default_pt เป็น float ก่อนเปรียบเทียบ ป้องกัน int vs float mismatch
+        try:
+            _default_pt_f = float(default_pt)
+            pt_idx = next((i for i, v in enumerate(pt_options) if abs(v - _default_pt_f) < 1e-9), 1)
+        except (TypeError, ValueError):
+            pt_idx = 1
         pt = st.selectbox(
             "Terminal Serviceability (pt)",
             options=pt_options,
@@ -1696,7 +1714,7 @@ def main():
                 st.divider()
 
                 # Truck Factor Table — แสดงทุก param
-                st.write("**🚛 ค่า Truck Factor ตามสมการ AASHTO (1993) :**")
+                st.write("**🚛 ค่า Truck Factor ตาม AASHTO 1993 สมการจริง:**")
                 tf_display = []
                 for code in TRUCKS.keys():
                     row = {'รหัส': code, 'ประเภท': TRUCKS[code]['desc']}
