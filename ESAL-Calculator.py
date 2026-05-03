@@ -1520,7 +1520,7 @@ def main():
             # ใช้ saved_params_rigid เก็บค่าแยกจาก widget key
             # ป้องกัน reset เมื่อสลับ pavement_type
             if 'saved_params_rigid' not in st.session_state:
-                st.session_state['saved_params_rigid'] = [11, 12, 13, 14]
+                st.session_state['saved_params_rigid'] = [10, 11, 12, 13]
             _saved_r = st.session_state['saved_params_rigid']
             # backward-compat: JSON เก่าบันทึก param เดี่ยว
             if isinstance(_saved_r, int):
