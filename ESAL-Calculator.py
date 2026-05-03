@@ -1803,8 +1803,13 @@ def main():
                         st.markdown("**🛤️ พารามิเตอร์ Flexible Pavement (สำหรับรายงานรวม)**")
                         col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
                         with col_p1:
+                            _cf_pt_def = st.session_state.get('comb_flex_pt', pt)
+                            try:
+                                _cf_pt_idx = [2.0, 2.5, 3.0].index(float(_cf_pt_def))
+                            except (ValueError, TypeError):
+                                _cf_pt_idx = [2.0, 2.5, 3.0].index(pt) if pt in [2.0, 2.5, 3.0] else 1
                             comb_flex_pt = st.selectbox("pt (Flexible)", [2.0, 2.5, 3.0],
-                                                        index=1, key="comb_flex_pt")
+                                                        index=_cf_pt_idx, key="comb_flex_pt")
                         with col_p2:
                             st.caption("SN (3 ค่า)")
                             _cf_sn_def = st.session_state.get('comb_flex_sn_list', [6.5, 7.0, 7.5])
@@ -1833,8 +1838,13 @@ def main():
                         st.markdown("**🧱 พารามิเตอร์ Rigid Pavement (สำหรับรายงานรวม)**")
                         col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
                         with col_p1:
+                            _cr_pt_def = st.session_state.get('comb_rigid_pt', pt)
+                            try:
+                                _cr_pt_idx = [2.0, 2.5, 3.0].index(float(_cr_pt_def))
+                            except (ValueError, TypeError):
+                                _cr_pt_idx = [2.0, 2.5, 3.0].index(pt) if pt in [2.0, 2.5, 3.0] else 1
                             comb_rigid_pt = st.selectbox("pt (Rigid)", [2.0, 2.5, 3.0],
-                                                          index=1, key="comb_rigid_pt")
+                                                          index=_cr_pt_idx, key="comb_rigid_pt")
                         with col_p2:
                             _cr_d_def = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
                             if isinstance(_cr_d_def, int):
@@ -1973,7 +1983,7 @@ def main():
                             }
                         else:
                             # กำลังอยู่ Flexible → rigid ใช้ D list จาก combined settings
-                            _cr_pt     = st.session_state.get('comb_rigid_pt', 2.5)
+                            _cr_pt     = st.session_state.get('comb_rigid_pt', pt)
                             _cr_d_list = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
                             if isinstance(_cr_d_list, int):
                                 _cr_d_list = [_cr_d_list]
