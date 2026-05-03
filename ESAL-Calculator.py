@@ -1082,10 +1082,17 @@ def create_word_report_multi(traffic_df, pavement_type, pt, param_list,
     tbl_esal  = increment_table_number(tbl_base, 3)
 
     # label ต่อ param
+    _D_CM_RPT = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
     def p_lbl(p):
-        return f'D = {p} นิ้ว' if pavement_type == 'rigid' else f'SN = {p}'
+        if pavement_type == 'rigid':
+            cm = _D_CM_RPT.get(p, '')
+            return f'D = {p} นิ้ว ({cm} cm)' if cm else f'D = {p} นิ้ว'
+        return f'SN = {p}'
     def p_col(p):
-        return f'D={p}"' if pavement_type == 'rigid' else f'SN={p}'
+        if pavement_type == 'rigid':
+            cm = _D_CM_RPT.get(p, '')
+            return f'D={p}" ({cm} cm)' if cm else f'D={p}"'
+        return f'SN={p}'
 
     # ── helpers ──
     def set_run(run, bold=False, sz=FS):
