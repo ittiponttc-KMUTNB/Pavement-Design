@@ -447,102 +447,100 @@ def create_word_report_single(results_df, pavement_type, pt, param, lane_factor,
 
 def create_word_report_combined(traffic_df, flex_params, rigid_params, report_settings=None):
     """
-    สร้างรายงาน Word รวม Flexible + Rigid ในไฟล์เดียว
-    flex_params / rigid_params = dict with keys: pt, param, lane_factor, direction_factor, truck_factors
+    สร้างรายงาน Word รวม Flexible + Rigid ในไฟล์เดียว (รูปแบบ multi-param)
+    flex_params  : dict with keys: pt, param_list, lane_factor, direction_factor
+    rigid_params : dict with keys: pt, param_list, lane_factor, direction_factor
+    backward-compat: รับ param (int/float เดี่ยว) แปลงเป็น list อัตโนมัติ
     """
     try:
         from docx import Document
-        from docx.shared import Pt, Cm, RGBColor
+        from docx.shared import Pt, Cm
         from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.enum.table import WD_TABLE_ALIGNMENT
-        from docx.oxml.ns import nsdecls, qn
-        from docx.oxml import parse_xml, OxmlElement
+        from docx.oxml.ns import qn
+        from docx.oxml import OxmlElement
     except ImportError:
         return None
-    
-    doc = Document()
-    FONT_NAME = 'TH SarabunPSK'
-    FONT_SIZE = 15
-    TABLE_FONT_SIZE = 14
-    
-    # ตั้งค่า Normal style
-    style = doc.styles['Normal']
-    style.font.name = FONT_NAME
-    style.font.size = Pt(FONT_SIZE)
-    style._element.rPr.rFonts.set(qn('w:eastAsia'), FONT_NAME)
-    
-    # ตั้งค่าหน้ากระดาษ A4
-    section = doc.sections[0]
-    section.page_width = Cm(21.0)
-    section.page_height = Cm(29.7)
-    section.left_margin = Cm(2.0)
-    section.right_margin = Cm(2.0)
-    section.top_margin = Cm(2.0)
-    section.bottom_margin = Cm(2.0)
-    
+
     if report_settings is None:
         report_settings = {}
-    
-    num_years = len(traffic_df)
-    
-    # ===== ส่วน Flexible Pavement =====
+
+    # ── backward-compat: param เดี่ยว → list ──
+    def to_list(p):
+        if isinstance(p, list):
+            return p
+        return [p]
+
+    fp_list = to_list(flex_params.get('param_list',  flex_params.get('param', 7)))
+    rp_list = to_list(rigid_params.get('param_list', rigid_params.get('param', 12)))
+
+    # ── คำนวณ multi_results สำหรับ Flexible ──
     fp = flex_params
-    flex_results, flex_total = calculate_esal_with_acc(
-        traffic_df, fp['truck_factors'], fp['lane_factor'], fp['direction_factor']
-    )
-    
-    flex_section_num = report_settings.get('flex_section_number', '4.2.2')
-    flex_table_start = report_settings.get('flex_table_start', '4-1')
-    flex_tbl_param = flex_table_start
-    flex_tbl_tf = increment_table_number(flex_table_start, 1)
-    flex_tbl_esal = increment_table_number(flex_table_start, 2)
-    
-    flex_param_label = f"SN = {fp['param']}"
-    
-    _build_section(doc, 'flexible', 'Flexible Pavement', 'ยืดหยุ่น', flex_section_num,
-                   num_years, flex_param_label, fp['pt'], fp['lane_factor'], fp['direction_factor'],
-                   flex_total, fp['truck_factors'], flex_results,
-                   flex_tbl_param, flex_tbl_tf, flex_tbl_esal,
-                   FONT_NAME, FONT_SIZE, TABLE_FONT_SIZE)
-    
-    # Page break
-    from docx.oxml import OxmlElement
-    from docx.oxml.ns import qn as qn2
-    p = doc.add_paragraph()
-    run = p.add_run()
-    br = OxmlElement('w:br')
-    br.set(qn2('w:type'), 'page')
-    run._element.append(br)
-    
-    # ===== ส่วน Rigid Pavement =====
+    flex_multi = {}
+    for p in fp_list:
+        tf_p = {code: get_default_truck_factor(code, 'flexible', fp['pt'], p)
+                for code in TRUCKS.keys()}
+        r_df, t_esal = calculate_esal_with_acc(
+            traffic_df, tf_p, fp['lane_factor'], fp['direction_factor']
+        )
+        flex_multi[p] = (r_df, t_esal)
+
+    # ── คำนวณ multi_results สำหรับ Rigid ──
     rp = rigid_params
-    rigid_results, rigid_total = calculate_esal_with_acc(
-        traffic_df, rp['truck_factors'], rp['lane_factor'], rp['direction_factor']
+    rigid_multi = {}
+    for p in rp_list:
+        tf_p = {code: get_default_truck_factor(code, 'rigid', rp['pt'], p)
+                for code in TRUCKS.keys()}
+        r_df, t_esal = calculate_esal_with_acc(
+            traffic_df, tf_p, rp['lane_factor'], rp['direction_factor']
+        )
+        rigid_multi[p] = (r_df, t_esal)
+
+    # ── settings แยก Flex / Rigid ──
+    flex_settings = {
+        'flex_section_number': report_settings.get('flex_section_number', '4.2.2'),
+        'flex_table_start':    report_settings.get('flex_table_start',    '4-1'),
+    }
+    rigid_settings = {
+        'rigid_section_number': report_settings.get('rigid_section_number', '4.2.3'),
+        'rigid_table_start':    report_settings.get('rigid_table_start',    '4-4'),
+    }
+
+    # ── สร้าง Word Flex ก่อน ──
+    buf_flex = create_word_report_multi(
+        traffic_df, 'flexible', fp['pt'], fp_list,
+        fp['lane_factor'], fp['direction_factor'],
+        flex_multi, flex_settings
     )
-    
-    rigid_section_num = report_settings.get('rigid_section_number', '4.2.3')
-    rigid_table_start = report_settings.get('rigid_table_start', '4-4')
-    rigid_tbl_param = rigid_table_start
-    rigid_tbl_tf = increment_table_number(rigid_table_start, 1)
-    rigid_tbl_esal = increment_table_number(rigid_table_start, 2)
-    
-    rigid_param_label = f"D = {rp['param']} นิ้ว"
-    
-    _build_section(doc, 'rigid', 'Rigid Pavement', 'แบบแข็ง', rigid_section_num,
-                   num_years, rigid_param_label, rp['pt'], rp['lane_factor'], rp['direction_factor'],
-                   rigid_total, rp['truck_factors'], rigid_results,
-                   rigid_tbl_param, rigid_tbl_tf, rigid_tbl_esal,
-                   FONT_NAME, FONT_SIZE, TABLE_FONT_SIZE)
-    
-    # Footer
-    footer_para = doc.add_paragraph()
-    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = footer_para.add_run("พัฒนาเพื่อการเรียนการสอนโดย รศ.ดร.อิทธิพล มีผล ภาควิชาครุศาสตร์โยธา มจพ.")
-    run.font.name = FONT_NAME
-    run.font.size = Pt(14)
-    run.italic = True
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), FONT_NAME)
-    
+    if buf_flex is None:
+        return None
+
+    # ── merge: โหลด flex doc แล้วต่อ rigid เข้าไป ──
+    buf_flex.seek(0)
+    doc = Document(buf_flex)
+
+    # page break
+    p_br = doc.add_paragraph()
+    run  = p_br.add_run()
+    br   = OxmlElement('w:br')
+    br.set(qn('w:type'), 'page')
+    run._element.append(br)
+
+    # ── สร้าง Word Rigid ──
+    buf_rigid = create_word_report_multi(
+        traffic_df, 'rigid', rp['pt'], rp_list,
+        rp['lane_factor'], rp['direction_factor'],
+        rigid_multi, rigid_settings
+    )
+    if buf_rigid is None:
+        return None
+
+    # ── copy body elements จาก rigid → doc ──
+    buf_rigid.seek(0)
+    doc_rigid = Document(buf_rigid)
+    for elem in doc_rigid.element.body:
+        import copy
+        doc.element.body.append(copy.deepcopy(elem))
+
     output = BytesIO()
     doc.save(output)
     output.seek(0)
@@ -1927,38 +1925,36 @@ def main():
                     # Combined Word Report
                     try:
                         if pavement_type == 'rigid':
+                            # กำลังอยู่ Rigid → flex ใช้ค่าจาก combined settings (1 ค่า)
+                            _cf_pt  = st.session_state.get('comb_flex_pt', 2.5)
+                            _cf_sn  = st.session_state.get('comb_flex_sn', 7.0)
                             flex_params_comb = {
-                                'pt': st.session_state.get('comb_flex_pt', 2.5),
-                                'param': st.session_state.get('comb_flex_sn', 7),
+                                'pt': _cf_pt,
+                                'param_list': [_cf_sn],
                                 'lane_factor': st.session_state.get('comb_flex_lane', lane_factor),
                                 'direction_factor': st.session_state.get('comb_flex_dir', direction_factor),
-                                'truck_factors': {code: get_default_truck_factor(
-                                    code, 'flexible',
-                                    st.session_state.get('comb_flex_pt', 2.5),
-                                    st.session_state.get('comb_flex_sn', 7)
-                                ) for code in TRUCKS.keys()}
                             }
                             rigid_params_comb = {
-                                'pt': pt, 'param': param,
-                                'lane_factor': lane_factor, 'direction_factor': direction_factor,
-                                'truck_factors': truck_factors
+                                'pt': pt,
+                                'param_list': param_list,
+                                'lane_factor': lane_factor,
+                                'direction_factor': direction_factor,
                             }
                         else:
+                            # กำลังอยู่ Flexible → rigid ใช้ค่าจาก combined settings (1 ค่า)
+                            _cr_pt = st.session_state.get('comb_rigid_pt', 2.5)
+                            _cr_d  = st.session_state.get('comb_rigid_d', 13)
                             flex_params_comb = {
-                                'pt': pt, 'param': param,
-                                'lane_factor': lane_factor, 'direction_factor': direction_factor,
-                                'truck_factors': truck_factors
+                                'pt': pt,
+                                'param_list': param_list,
+                                'lane_factor': lane_factor,
+                                'direction_factor': direction_factor,
                             }
                             rigid_params_comb = {
-                                'pt': st.session_state.get('comb_rigid_pt', 2.5),
-                                'param': st.session_state.get('comb_rigid_d', 13),
+                                'pt': _cr_pt,
+                                'param_list': [_cr_d],
                                 'lane_factor': st.session_state.get('comb_rigid_lane', lane_factor),
                                 'direction_factor': st.session_state.get('comb_rigid_dir', direction_factor),
-                                'truck_factors': {code: get_default_truck_factor(
-                                    code, 'rigid',
-                                    st.session_state.get('comb_rigid_pt', 2.5),
-                                    st.session_state.get('comb_rigid_d', 13)
-                                ) for code in TRUCKS.keys()}
                             }
                         
                         word_combined = create_word_report_combined(
