@@ -1,5 +1,5 @@
 """
-ESAL Calculator - AASHTO 1993 (Version 3.0)
+ESAL Calculator - AASHTO 1993 (Version 4.0)
 โปรแกรมคำนวณปริมาณเพลาเดี่ยวมาตรฐานเทียบเท่า (Equivalent Single Axle Load)
 สำหรับผิวทาง Rigid Pavement และ Flexible Pavement
 ตามมาตรฐาน AASHTO Guide for Design of Pavement Structures (1993)
@@ -1784,53 +1784,66 @@ def main():
                     st.caption("กำหนดพารามิเตอร์ของผิวทางอีกประเภทหนึ่ง สำหรับ export รายงานรวม")
                     
                     if pavement_type == 'rigid':
-                        # ตั้งอยู่ Rigid → ต้องกรอก Flexible params
+                        # ตั้งอยู่ Rigid → กรอก Flexible SN 3 ช่อง
                         st.markdown("**🛤️ พารามิเตอร์ Flexible Pavement (สำหรับรายงานรวม)**")
-                        col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                        col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
                         with col_p1:
                             comb_flex_pt = st.selectbox("pt (Flexible)", [2.0, 2.5, 3.0],
                                                         index=1, key="comb_flex_pt")
                         with col_p2:
-                            comb_flex_sn = st.selectbox("SN", [4, 5, 6, 7, 8, 9],
-                                                         index=3, key="comb_flex_sn")
+                            st.caption("SN (3 ค่า)")
+                            _cf_sn_def = st.session_state.get('comb_flex_sn_list', [6.5, 7.0, 7.5])
+                            if isinstance(_cf_sn_def, (int, float)):
+                                _cf_sn_def = [float(_cf_sn_def)] * 3
+                            while len(_cf_sn_def) < 3:
+                                _cf_sn_def.append(_cf_sn_def[-1] + 0.5)
+                            _cf_sn_cols = st.columns(3)
+                            comb_flex_sn_list = []
+                            for _i, _c in enumerate(_cf_sn_cols):
+                                with _c:
+                                    comb_flex_sn_list.append(round(st.number_input(
+                                        f"SN {_i+1}", value=float(_cf_sn_def[_i]),
+                                        min_value=1.0, max_value=20.0, step=0.1,
+                                        format="%.1f", key=f"comb_flex_sn_{_i}"), 2))
+                            st.session_state['comb_flex_sn_list'] = comb_flex_sn_list
                         with col_p3:
                             comb_flex_lane = st.number_input("Lane Factor", 0.1, 1.0,
                                                               value=lane_factor, step=0.05,
                                                               key="comb_flex_lane")
-                        with col_p4:
-                            comb_flex_dir = st.number_input("Direction Factor", 0.5, 1.0,
-                                                             value=direction_factor, step=0.1,
-                                                             key="comb_flex_dir")
-                        
-                        # Truck factors for flexible
-                        comb_flex_tf = {}
-                        for code in TRUCKS.keys():
-                            comb_flex_tf[code] = get_default_truck_factor(code, 'flexible', comb_flex_pt, comb_flex_sn)
+                            comb_flex_dir  = st.number_input("Direction Factor", 0.5, 1.0,
+                                                              value=direction_factor, step=0.1,
+                                                              key="comb_flex_dir")
                     else:
-                        # ตั้งอยู่ Flexible → ต้องกรอก Rigid params
+                        # ตั้งอยู่ Flexible → กรอก Rigid D multiselect
                         st.markdown("**🧱 พารามิเตอร์ Rigid Pavement (สำหรับรายงานรวม)**")
-                        col_p1, col_p2, col_p3, col_p4 = st.columns(4)
+                        col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
                         with col_p1:
                             comb_rigid_pt = st.selectbox("pt (Rigid)", [2.0, 2.5, 3.0],
                                                           index=1, key="comb_rigid_pt")
                         with col_p2:
-                            _rigid_d_options = [10, 11, 12, 13, 14, 15, 16]
-                            _rigid_d_default = st.session_state.get('comb_rigid_d', 13)
-                            _rigid_d_idx = _rigid_d_options.index(_rigid_d_default) if _rigid_d_default in _rigid_d_options else 3
-                            comb_rigid_d = st.selectbox("D (นิ้ว)", _rigid_d_options,
-                                                         index=_rigid_d_idx, key="comb_rigid_d")
+                            _cr_d_def = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
+                            if isinstance(_cr_d_def, int):
+                                _cr_d_def = [_cr_d_def]
+                            _cr_d_def = [d for d in _cr_d_def if d in [10,11,12,13,14,15,16]] or [11,12,13]
+                            _cr_sel = st.multiselect(
+                                "D (นิ้ว) — เลือก 3 ค่า",
+                                options=[10,11,12,13,14,15,16],
+                                default=_cr_d_def,
+                                format_func=lambda x: f'D={x}"',
+                                key="comb_rigid_d_list"
+                            )
+                            if len(_cr_sel) == 0:
+                                _cr_sel = [12]
+                            elif len(_cr_sel) > 3:
+                                _cr_sel = _cr_sel[:3]
+                            comb_rigid_d_list = _cr_sel
                         with col_p3:
                             comb_rigid_lane = st.number_input("Lane Factor", 0.1, 1.0,
                                                                value=lane_factor, step=0.05,
                                                                key="comb_rigid_lane")
-                        with col_p4:
-                            comb_rigid_dir = st.number_input("Direction Factor", 0.5, 1.0,
-                                                              value=direction_factor, step=0.1,
-                                                              key="comb_rigid_dir")
-                        
-                        comb_rigid_tf = {}
-                        for code in TRUCKS.keys():
-                            comb_rigid_tf[code] = get_default_truck_factor(code, 'rigid', comb_rigid_pt, comb_rigid_d)
+                            comb_rigid_dir  = st.number_input("Direction Factor", 0.5, 1.0,
+                                                               value=direction_factor, step=0.1,
+                                                               key="comb_rigid_dir")
                     
                     st.markdown("---")
                     
@@ -1925,12 +1938,14 @@ def main():
                     # Combined Word Report
                     try:
                         if pavement_type == 'rigid':
-                            # กำลังอยู่ Rigid → flex ใช้ค่าจาก combined settings (1 ค่า)
-                            _cf_pt  = st.session_state.get('comb_flex_pt', 2.5)
-                            _cf_sn  = st.session_state.get('comb_flex_sn', 7.0)
+                            # กำลังอยู่ Rigid → flex ใช้ SN list จาก combined settings
+                            _cf_pt      = st.session_state.get('comb_flex_pt', 2.5)
+                            _cf_sn_list = st.session_state.get('comb_flex_sn_list', [6.5, 7.0, 7.5])
+                            if isinstance(_cf_sn_list, (int, float)):
+                                _cf_sn_list = [float(_cf_sn_list)]
                             flex_params_comb = {
                                 'pt': _cf_pt,
-                                'param_list': [_cf_sn],
+                                'param_list': _cf_sn_list,
                                 'lane_factor': st.session_state.get('comb_flex_lane', lane_factor),
                                 'direction_factor': st.session_state.get('comb_flex_dir', direction_factor),
                             }
@@ -1941,9 +1956,11 @@ def main():
                                 'direction_factor': direction_factor,
                             }
                         else:
-                            # กำลังอยู่ Flexible → rigid ใช้ค่าจาก combined settings (1 ค่า)
-                            _cr_pt = st.session_state.get('comb_rigid_pt', 2.5)
-                            _cr_d  = st.session_state.get('comb_rigid_d', 13)
+                            # กำลังอยู่ Flexible → rigid ใช้ D list จาก combined settings
+                            _cr_pt     = st.session_state.get('comb_rigid_pt', 2.5)
+                            _cr_d_list = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
+                            if isinstance(_cr_d_list, int):
+                                _cr_d_list = [_cr_d_list]
                             flex_params_comb = {
                                 'pt': pt,
                                 'param_list': param_list,
@@ -1952,7 +1969,7 @@ def main():
                             }
                             rigid_params_comb = {
                                 'pt': _cr_pt,
-                                'param_list': [_cr_d],
+                                'param_list': _cr_d_list,
                                 'lane_factor': st.session_state.get('comb_rigid_lane', lane_factor),
                                 'direction_factor': st.session_state.get('comb_rigid_dir', direction_factor),
                             }
