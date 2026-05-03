@@ -2959,6 +2959,56 @@ def main():
                 else:
                     st.error(f"❌ **CRCP ไม่ผ่านเกณฑ์**  D = {_crcp_d_cm} ซม. รองรับได้เพียง {_w18_crcp:,.0f} ESALs  (ต้องการ {_crcp_w18_req:,.0f})  อัตราส่วน = {_ratio_crcp:.2f}")
 
+                # ── Optimum k_eff สำหรับ CRCP (ไม่มีตาราง) ─────────────
+                st.markdown("---")
+                st.subheader("🎯 Optimum k_eff สำหรับ CRCP")
+
+                _crcp_k_search = range(50, 1010, 10)
+                _crcp_opt_k    = None
+                for _k_try in _crcp_k_search:
+                    _, _w18_ktry = calculate_aashto_rigid_w18(
+                        _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                        _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _k_try
+                    )
+                    if _w18_ktry >= _crcp_w18_req:
+                        _crcp_opt_k = _k_try
+                        break
+
+                if _crcp_opt_k is not None:
+                    _crcp_k_diff = _crcp_k - _crcp_opt_k
+                    if _crcp_k_diff > 0:
+                        st.success(
+                            f"✅ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
+                            f"ใช้อยู่สูงกว่า {_crcp_k_diff:,} pci — ปลอดภัย"
+                        )
+                    elif _crcp_k_diff == 0:
+                        st.info(
+                            f"ℹ️ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
+                            f"เท่ากับค่าที่ใช้อยู่พอดี"
+                        )
+                    else:
+                        st.error(
+                            f"❌ Optimum k_eff = **{_crcp_opt_k:,} pci** | "
+                            f"ใช้อยู่ต่ำกว่า {abs(_crcp_k_diff):,} pci — ควรเพิ่ม k หรือ D"
+                        )
+                    # หาช่วง k ที่ผ่านเกณฑ์ทั้งหมด
+                    _crcp_k_pass_max = None
+                    for _k_try in reversed(list(_crcp_k_search)):
+                        _, _w18_ktry = calculate_aashto_rigid_w18(
+                            _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
+                            _crcp_sc, _crcp_cd, _crcp_j, _crcp_ec, _k_try
+                        )
+                        if _w18_ktry >= _crcp_w18_req:
+                            _crcp_k_pass_max = _k_try
+                            break
+                    if _crcp_k_pass_max:
+                        st.caption(
+                            f"💡 ช่วง k ที่ผ่านเกณฑ์: {_crcp_opt_k:,} – {_crcp_k_pass_max:,} pci "
+                            f"| ค้นหาทีละ 10 pci (J = {_crcp_j:.1f} สำหรับ CRCP)"
+                        )
+                else:
+                    st.error("❌ ไม่พบ Optimum k_eff ในช่วง 50–1,000 pci — ลอง D ที่หนาขึ้น")
+
                 # ตารางเปรียบเทียบความหนา CRCP
                 with st.expander("📊 ตารางเปรียบเทียบความหนา CRCP (20–40 ซม.)", expanded=False):
                     _crcp_rows = []
