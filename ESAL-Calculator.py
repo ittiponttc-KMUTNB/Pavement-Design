@@ -1655,8 +1655,9 @@ def main():
                 st.dataframe(traffic_df, use_container_width=True, height=350)
         
         with col2:
-            num_years_disp = len(traffic_df)
-            st.subheader(f"📈 ผลการคำนวณ ESAL — ระยะเวลาออกแบบ {num_years_disp} ปี")
+            num_years_disp = len(traffic_df) if traffic_df is not None else 0
+            suffix = f" — ระยะเวลาออกแบบ {num_years_disp} ปี" if num_years_disp > 0 else ""
+            st.subheader(f"📈 ผลการคำนวณ ESAL{suffix}")
             
             if traffic_df is not None:
                 # ── คำนวณ multi-param: loop ทุก D หรือ SN ──
