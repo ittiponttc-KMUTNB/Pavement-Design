@@ -1052,17 +1052,18 @@ def load_project(json_data):
 
 
 def get_all_truck_factors_table(pavement_type, pt):
-    """สร้างตาราง Truck Factor ทั้งหมดสำหรับแสดงผล"""
+    """สร้างตาราง Truck Factor ทั้งหมดสำหรับแสดงผล
+    คำนวณจากสมการ AASHTO 1993 โดยตรง (ไม่ใช้ lookup table)
+    """
     data = []
     params      = [10, 11, 12, 13, 14, 15, 16] if pavement_type == 'rigid' else [4, 5, 6, 7, 8, 9]
-    param_label = 'D' if pavement_type == 'rigid' else 'SN'
-    tf_table    = TRUCK_FACTORS[pavement_type][pt]
+    param_label = 'D' if pavement_type == 'rigid'  else 'SN'
 
     for code in TRUCKS.keys():
         row = {'ประเภท': code, 'รายละเอียด': TRUCKS[code]['desc']}
         for p in params:
             col_name = f'{param_label}={p}"' if pavement_type == 'rigid' else f'{param_label}={p}'
-            row[col_name] = f"{tf_table[code][p]:.3f}"
+            row[col_name] = f"{get_default_truck_factor(code, pavement_type, pt, p):.3f}"
         data.append(row)
 
     return pd.DataFrame(data)
