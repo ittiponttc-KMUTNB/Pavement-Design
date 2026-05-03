@@ -1520,7 +1520,7 @@ def main():
             # ใช้ saved_params_rigid เก็บค่าแยกจาก widget key
             # ป้องกัน reset เมื่อสลับ pavement_type
             if 'saved_params_rigid' not in st.session_state:
-                st.session_state['saved_params_rigid'] = [10, 11, 12, 13]
+                st.session_state['saved_params_rigid'] = [11, 12, 13, 14]
             _saved_r = st.session_state['saved_params_rigid']
             # backward-compat: JSON เก่าบันทึก param เดี่ยว
             if isinstance(_saved_r, int):
@@ -1870,16 +1870,16 @@ def main():
                             _cr_d_def = [d for d in _cr_d_def if d in [10,11,12,13,14,15,16]] or [11,12,13]
                             _D_CM2 = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
                             _cr_sel = st.multiselect(
-                                "D (นิ้ว) — เลือก 4 ค่า",
+                                "D (นิ้ว) — เลือก 3 ค่า",
                                 options=[10,11,12,13,14,15,16],
                                 default=_cr_d_def,
                                 format_func=lambda x: f"D={x}\" ({_D_CM2.get(x,'')} cm)",
                                 key="comb_rigid_d_list"
                             )
                             if len(_cr_sel) == 0:
-                                _cr_sel = [10]
-                            elif len(_cr_sel) > 4:
-                                _cr_sel = _cr_sel[:4]
+                                _cr_sel = [12]
+                            elif len(_cr_sel) > 3:
+                                _cr_sel = _cr_sel[:3]
                             comb_rigid_d_list = _cr_sel
                         with col_p3:
                             comb_rigid_lane = st.number_input("Lane Factor", 0.1, 1.0,
