@@ -1,5 +1,5 @@
 """
-ESAL Calculator - AASHTO 1993 (Version 3.0)
+ESAL Calculator - AASHTO 1993 (Version 4.0)
 โปรแกรมคำนวณปริมาณเพลาเดี่ยวมาตรฐานเทียบเท่า (Equivalent Single Axle Load)
 สำหรับผิวทาง Rigid Pavement และ Flexible Pavement
 ตามมาตรฐาน AASHTO Guide for Design of Pavement Structures (1993)
