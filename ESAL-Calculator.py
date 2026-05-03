@@ -1226,31 +1226,49 @@ def main():
         )
         
         if pavement_type == 'rigid':
-            param_options = [10, 11, 12, 13, 14, 15, 16]
-            if default_param not in param_options:
-                default_param = 12
-            default_idx = param_options.index(default_param) if default_param in param_options else 2
-            param = st.selectbox(
-                "ความหนาพื้นคอนกรีต (D)",
-                options=param_options,
-                index=default_idx,
+            # ── Multi-select D: เลือกได้ 3 ค่า จาก 10–16 นิ้ว ──
+            rigid_d_options = [10, 11, 12, 13, 14, 15, 16]
+            default_params_r = st.session_state.get('input_params_rigid', [11, 12, 13])
+            # backward-compat: ถ้าโหลด JSON เก่าที่บันทึก param เดี่ยว
+            if isinstance(default_params_r, int):
+                default_params_r = [default_params_r]
+            default_params_r = [d for d in default_params_r if d in rigid_d_options] or [11, 12, 13]
+            params_selected = st.multiselect(
+                "ความหนาพื้นคอนกรีต D (เลือก 3 ค่า)",
+                options=rigid_d_options,
+                default=default_params_r,
                 format_func=lambda x: f"D = {x} นิ้ว",
-                key="input_param_rigid"
+                key="input_params_rigid",
             )
-            param_label = f"D = {param} นิ้ว"
+            if len(params_selected) == 0:
+                st.warning("⚠️ กรุณาเลือกอย่างน้อย 1 ค่า")
+                params_selected = [12]
+            elif len(params_selected) > 3:
+                st.warning("⚠️ เลือกได้สูงสุด 3 ค่า — ใช้ 3 ค่าแรก")
+                params_selected = params_selected[:3]
+            param        = params_selected[0]          # ค่าแรก (ใช้กับ TF sidebar + combined report)
+            param_list   = params_selected             # list ใช้คำนวณ multi
+            param_label  = ", ".join(f'D={d}"' for d in param_list)
         else:
-            param_options = [4, 5, 6, 7, 8, 9]
-            if default_param not in param_options:
-                default_param = 7
-            default_idx = param_options.index(default_param) if default_param in param_options else 3
-            param = st.selectbox(
-                "Structural Number (SN)",
-                options=param_options,
-                index=default_idx,
-                format_func=lambda x: f"SN = {x}",
-                key="input_param_flex"
-            )
-            param_label = f"SN = {param}"
+            # ── 3 number_input SN ทศนิยม ──
+            st.caption("กำหนด Structural Number (SN) 3 ค่า")
+            default_sn = st.session_state.get('input_sn_list', [6.5, 7.0, 7.5])
+            if isinstance(default_sn, (int, float)):
+                default_sn = [float(default_sn), float(default_sn)+0.5, float(default_sn)+1.0]
+            while len(default_sn) < 3:
+                default_sn.append(default_sn[-1] + 0.5)
+            sn_cols = st.columns(3)
+            sn_vals = []
+            for i, col in enumerate(sn_cols):
+                with col:
+                    v = st.number_input(f"SN {i+1}", value=float(default_sn[i]),
+                                        min_value=1.0, max_value=20.0, step=0.1,
+                                        format="%.1f", key=f"input_sn_{i}")
+                    sn_vals.append(round(v, 2))
+            st.session_state['input_sn_list'] = sn_vals
+            param        = sn_vals[0]                  # ค่าแรก (ใช้กับ TF sidebar + combined report)
+            param_list   = sn_vals                     # list ใช้คำนวณ multi
+            param_label  = ", ".join(f'SN={s}' for s in param_list)
         
         st.divider()
         
@@ -1375,70 +1393,72 @@ def main():
             st.subheader("📈 ผลการคำนวณ ESAL")
             
             if traffic_df is not None:
-                results_df, total_esal = calculate_esal_with_acc(
-                    traffic_df, truck_factors, lane_factor, direction_factor
-                )
-                
-                # Metrics
-                col_m1, col_m2, col_m3, col_m4 = st.columns(4)
-                
-                with col_m1:
-                    st.markdown(f"""
-                    <div class="metric-box">
-                        <div class="metric-value">{total_esal:,}</div>
-                        <div class="metric-label">ESAL รวมทั้งหมด</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_m2:
+                # ── คำนวณ multi-param: loop ทุก D หรือ SN ──
+                multi_results = {}   # {param_val: (results_df, total_esal)}
+                for p in param_list:
+                    tf_p = {code: get_default_truck_factor(code, pavement_type, pt, p)
+                            for code in TRUCKS.keys()}
+                    r_df, t_esal = calculate_esal_with_acc(
+                        traffic_df, tf_p, lane_factor, direction_factor
+                    )
+                    multi_results[p] = (r_df, t_esal)
+
+                # ใช้ค่าแรกสำหรับ metric หลัก
+                results_df, total_esal = multi_results[param_list[0]]
+
+                # Metrics — แสดง ESAL รวมทุก param
+                n_params = len(param_list)
+                metric_cols = st.columns(n_params + 2)
+                with metric_cols[0]:
                     st.markdown(f"""
                     <div class="metric-box">
                         <div class="metric-value">{len(traffic_df)}</div>
                         <div class="metric-label">จำนวนปี</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_m3:
-                    pavement_label = "Rigid" if pavement_type == 'rigid' else "Flexible"
+                    </div>""", unsafe_allow_html=True)
+                with metric_cols[1]:
+                    pv_lbl = "Rigid" if pavement_type == 'rigid' else "Flexible"
                     st.markdown(f"""
                     <div class="metric-box">
-                        <div class="metric-value">{pavement_label}</div>
+                        <div class="metric-value">{pv_lbl}</div>
                         <div class="metric-label">ประเภทผิวทาง</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
-                with col_m4:
-                    st.markdown(f"""
-                    <div class="metric-box">
-                        <div class="metric-value">{param_label}</div>
-                        <div class="metric-label">พารามิเตอร์</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                
+                    </div>""", unsafe_allow_html=True)
+                for i, p in enumerate(param_list):
+                    _, t = multi_results[p]
+                    p_lbl = f'D={p}"' if pavement_type == 'rigid' else f"SN={p}"
+                    with metric_cols[2 + i]:
+                        st.markdown(f"""
+                        <div class="metric-box">
+                            <div class="metric-value">{t:,}</div>
+                            <div class="metric-label">ESAL – {p_lbl}</div>
+                        </div>""", unsafe_allow_html=True)
+
                 st.divider()
-                
-                # Truck Factor Table
-                st.write("**🚛 ค่า Truck Factor ที่ใช้:**")
+
+                # Truck Factor Table — แสดงทุก param
+                st.write("**🚛 ค่า Truck Factor ตาม AASHTO 1993 สมการจริง:**")
                 tf_display = []
-                for code, tf in truck_factors.items():
-                    default_tf = get_default_truck_factor(code, pavement_type, pt, param)
-                    status = "✅" if abs(tf - default_tf) < 0.0001 else "✏️ แก้ไข"
-                    tf_display.append({
-                        'รหัส': code, 
-                        'ประเภท': TRUCKS[code]['desc'], 
-                        'Truck Factor': f"{tf:.3f}",
-                        'Default': f"{default_tf:.3f}",
-                        'สถานะ': status
-                    })
+                for code in TRUCKS.keys():
+                    row = {'รหัส': code, 'ประเภท': TRUCKS[code]['desc']}
+                    for p in param_list:
+                        p_lbl = f'D={p}"' if pavement_type == 'rigid' else f"SN={p}"
+                        row[p_lbl] = f"{get_default_truck_factor(code, pavement_type, pt, p):.3f}"
+                    tf_display.append(row)
                 st.dataframe(pd.DataFrame(tf_display), use_container_width=True, hide_index=True)
-                
+
                 st.divider()
-                
-                # ESAL Results Table
-                st.write("**📊 ESAL รายปี:**")
-                display_df = results_df.copy()
-                display_df.columns = ['ปีที่', 'MB', 'HB', 'MT', 'HT', 'TR', 'STR', 'AADT', 'ESAL', 'ACC. ESAL']
-                st.dataframe(display_df, use_container_width=True, height=400)
+
+                # ESAL Results Table — รวม ESAL ทุก param ในตารางเดียว
+                st.write("**📊 ESAL รายปี (ทุก param):**")
+                # สร้าง display_df รวม: Year, MB–STR, ADTT, ESAL(p1), ACC(p1), ...
+                base_df = results_df[['Year','MB','HB','MT','HT','TR','STR']].copy()
+                base_df['ADTT'] = base_df[['MB','HB','MT','HT','TR','STR']].sum(axis=1)
+                for p in param_list:
+                    r_df, _ = multi_results[p]
+                    p_lbl = f'D={p}"' if pavement_type == 'rigid' else f"SN={p}"
+                    base_df[f'ESAL({p_lbl})']     = r_df['ESAL'].values
+                    base_df[f'ACC.ESAL({p_lbl})'] = r_df['ACC_ESAL'].values
+                base_df = base_df.rename(columns={'Year': 'ปีที่'})
+                st.dataframe(base_df, use_container_width=True, height=400)
                 
                 st.divider()
                 
