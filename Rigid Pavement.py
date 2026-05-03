@@ -24,6 +24,60 @@ import json
 import pandas as pd
 
 # ============================================================
+# ESAL Calculator Engine (นำเข้าจาก ESAL Calculator v4)
+# ใช้สำหรับคำนวณ ESAL จาก JSON ของ ESAL Calculator
+# ============================================================
+
+_TON_TO_KIP = 2.2046
+
+_VEHICLE_AXLES = {
+    'MB':  [(4,  1, 1), (11, 1, 1)],
+    'HB':  [(5,  1, 1), (20, 2, 1)],
+    'MT':  [(4,  1, 1), (11, 1, 1)],
+    'HT':  [(5,  1, 1), (20, 2, 1)],
+    'TR':  [(5,  1, 1), (20, 2, 1), (11, 1, 1), (11, 1, 1)],
+    'STR': [(5,  1, 1), (20, 2, 1), (20, 2, 1)],
+}
+
+def _ealf_rigid(L1_ton, L2, D_in, pt):
+    """EALF สำหรับ Rigid Pavement ตาม AASHTO 1993 Appendix D"""
+    L1  = L1_ton * _TON_TO_KIP
+    Gt  = math.log10((4.5 - pt) / (4.5 - 1.5))
+    Bx  = 1.0 + 3.63 * (L1 + L2) ** 5.20 / ((D_in + 1) ** 8.46 * L2 ** 3.52)
+    B18 = 1.0 + 3.63 * (18 + 1)  ** 5.20 / ((D_in + 1) ** 8.46 * 1.0  ** 3.52)
+    return 10 ** (4.62 * math.log10(L1 + L2) - 3.28 * math.log10(L2)
+                  - 4.62 * math.log10(19) + Gt * (1 / B18 - 1 / Bx))
+
+def compute_esal_for_d(traffic_data, pt, lane_factor, direction_factor, d_cm):
+    """คำนวณ Accumulated ESAL สำหรับความหนา D ที่กำหนด
+    
+    Parameters
+    ----------
+    traffic_data    : list of dict จาก JSON ของ ESAL Calculator
+                      (มี key: Year, MB, HB, MT, HT, TR, STR)
+    pt              : Terminal Serviceability Index
+    lane_factor     : Lane Distribution Factor
+    direction_factor: Directional Distribution Factor
+    d_cm            : ความหนาแผ่นคอนกรีต (ซม.)
+    
+    Returns
+    -------
+    (acc_esal, d_inch, truck_factors_dict)
+    """
+    d_inch = round(d_cm / 2.54)
+    # คำนวณ Truck Factor ตาม D นี้
+    tf = {}
+    for code, axles in _VEHICLE_AXLES.items():
+        tf[code] = sum(_ealf_rigid(L1, L2, d_inch, pt) * cnt for L1, L2, cnt in axles)
+    # สะสม ESAL รายปี
+    acc = 0.0
+    for row in traffic_data:
+        yr_esal = sum(row.get(code, 0) * tf[code] * lane_factor * direction_factor * 365
+                      for code in tf)
+        acc += yr_esal
+    return (round(acc), d_inch, tf)
+
+# ============================================================
 # ค่าคงที่และตารางอ้างอิง AASHTO 1993
 # ============================================================
 
@@ -2012,8 +2066,70 @@ def main():
                 st.session_state['last_uploaded_file'] = None
                 st.rerun()
         st.markdown("---")
-    
-    
+        # ──────────────────────────────────────────────────────
+        # ESAL JSON Importer (จาก ESAL Calculator v4)
+        # ──────────────────────────────────────────────────────
+        st.subheader("📊 นำเข้า ESAL จาก ESAL Calculator")
+        st.caption("อัปโหลดไฟล์ .json ที่ Save จาก ESAL Calculator (Rigid)")
+
+        esal_json_file = st.file_uploader(
+            "เลือกไฟล์ ESAL Project (.json)",
+            type=['json'],
+            key='esal_json_uploader',
+            help="ไฟล์ที่ได้จากปุ่ม 💾 บันทึก Project ใน ESAL Calculator"
+        )
+
+        if esal_json_file is not None:
+            try:
+                file_id_esal = f"{esal_json_file.name}_{esal_json_file.size}"
+                if st.session_state.get('esal_json_file_id') != file_id_esal:
+                    st.session_state['esal_json_file_id'] = file_id_esal
+                    raw = json.load(esal_json_file)
+                    # ตรวจสอบ format
+                    if raw.get('pavement_type') != 'rigid':
+                        st.error("❌ ไฟล์นี้เป็น Flexible Pavement — กรุณาใช้ไฟล์ Rigid")
+                        st.session_state['esal_json_data'] = None
+                    elif 'traffic_data' not in raw or 'truck_factors' not in raw:
+                        st.error("❌ ไฟล์ JSON ไม่ถูกต้อง (ขาด traffic_data หรือ truck_factors)")
+                        st.session_state['esal_json_data'] = None
+                    else:
+                        st.session_state['esal_json_data'] = {
+                            'traffic_data':     raw['traffic_data'],
+                            'pt':               raw.get('pt', 2.0),
+                            'lane_factor':      raw.get('lane_factor', 0.9),
+                            'direction_factor': raw.get('direction_factor', 0.5),
+                            'filename':         esal_json_file.name,
+                            'num_years':        len(raw['traffic_data']),
+                        }
+                        # Reset source flags เพื่อให้ auto-map ทำงานครั้งแรก
+                        st.session_state['calc_w18_jpcp_source'] = 'auto'
+                        st.session_state['calc_w18_crcp_source'] = 'auto'
+                        st.success(f"✅ โหลดสำเร็จ: {esal_json_file.name}")
+                        st.rerun()
+            except Exception as ex:
+                st.error(f"❌ อ่านไฟล์ไม่ได้: {ex}")
+
+        # แสดงสถานะ ESAL JSON ที่โหลด
+        esal_data = st.session_state.get('esal_json_data')
+        if esal_data:
+            st.info(
+                f"📌 **{esal_data['filename']}**\n\n"
+                f"ระยะออกแบบ: {esal_data['num_years']} ปี | "
+                f"pt = {esal_data['pt']} | "
+                f"LF = {esal_data['lane_factor']} | "
+                f"DF = {esal_data['direction_factor']}"
+            )
+            if st.button("🗑️ ล้างข้อมูล ESAL", key='clear_esal_json'):
+                for k in ['esal_json_data', 'esal_json_file_id',
+                          'calc_w18_jpcp_source', 'calc_w18_crcp_source']:
+                    st.session_state.pop(k, None)
+                st.rerun()
+        else:
+            st.caption("⚪ ยังไม่ได้นำเข้าข้อมูล ESAL")
+
+        st.markdown("---")
+
+
     # Define Tabs
     tab1, tab2, tab3, tab4, tab5, tab_report = st.tabs([
         "🔢 AASHTO Calculator", "📊 Nomograph: Composite k∞", "📉 Nomograph: Loss of Support",
@@ -2103,9 +2219,52 @@ def main():
                 | ทางหลวงแผ่นดินสายรอง | 5-30 |
                 | ถนนในเมือง | 1-10 |
                 """)
-            w18_design = st.number_input("ESAL ที่ต้องการรองรับ (W₁₈)", 10000, 500000000, st.session_state.get('calc_w18', 500000), 100000, key="calc_w18")
+            # ── Auto-map ESAL จาก ESAL JSON (JPCP) ─────────────────────────
+            _esal_data = st.session_state.get('esal_json_data')
+            _d_jpcp_cm = st.session_state.get('calc_d', 30)
+            if _esal_data and st.session_state.get('calc_w18_jpcp_source', 'manual') == 'auto':
+                _auto_esal_jpcp, _auto_d_inch_jpcp, _ = compute_esal_for_d(
+                    _esal_data['traffic_data'],
+                    _esal_data['pt'],
+                    _esal_data['lane_factor'],
+                    _esal_data['direction_factor'],
+                    _d_jpcp_cm
+                )
+                if st.session_state.get('calc_w18') != _auto_esal_jpcp:
+                    st.session_state['calc_w18'] = _auto_esal_jpcp
+
+            w18_design = st.number_input(
+                "ESAL ที่ต้องการรองรับ (W₁₈) — JPCP/JRCP",
+                10000, 500000000,
+                st.session_state.get('calc_w18', 500000),
+                100000, key="calc_w18"
+            )
+            # ตรวจว่าผู้ใช้แก้ค่าเอง → เปลี่ยน source เป็น manual
+            if _esal_data:
+                _auto_check, _, _ = compute_esal_for_d(
+                    _esal_data['traffic_data'], _esal_data['pt'],
+                    _esal_data['lane_factor'], _esal_data['direction_factor'],
+                    _d_jpcp_cm
+                )
+                if w18_design != _auto_check:
+                    st.session_state['calc_w18_jpcp_source'] = 'manual'
+                else:
+                    st.session_state['calc_w18_jpcp_source'] = 'auto'
+
             esal_million = w18_design / 1_000_000
-            st.info(f"**{esal_million:.2f} ล้าน ESALs**")
+            # Badge แสดงที่มา
+            if _esal_data:
+                _src_jpcp = st.session_state.get('calc_w18_jpcp_source', 'auto')
+                _d_in_jpcp = round(_d_jpcp_cm / 2.54)
+                if _src_jpcp == 'auto':
+                    st.success(f"🟢 Auto-map จาก ESAL JSON | D = {_d_jpcp_cm} ซม. ({_d_in_jpcp} นิ้ว) => {w18_design:,.0f} ESALs ({esal_million:.2f} ล้าน)")
+                else:
+                    st.warning(f"🟡 Manual Override | **{w18_design:,.0f} ESALs** ({esal_million:.2f} ล้าน) — กด Reset เพื่อกลับ Auto")
+                    if st.button("↩️ Reset JPCP → Auto", key='reset_w18_jpcp'):
+                        st.session_state['calc_w18_jpcp_source'] = 'auto'
+                        st.rerun()
+            else:
+                st.info(f"**{esal_million:.2f} ล้าน ESALs**  ⚪ (กรอกมือ — ยังไม่ได้นำเข้า ESAL JSON)")
             st.markdown("---")
             
             _pt_disp  = st.session_state.get('calc_pt', 2.0)
@@ -2707,6 +2866,52 @@ def main():
                     f"CBR={crcp_cbr_use:.1f}%"
                 )
 
+                # ── ESAL สำหรับ CRCP (Auto-map หรือ Manual) ───────────────
+                st.markdown("---")
+                _esal_data_crcp = st.session_state.get('esal_json_data')
+                _crcp_d_cm_cur  = st.session_state.get('rpt_crcp_d', 28)
+                if _esal_data_crcp and st.session_state.get('calc_w18_crcp_source', 'auto') == 'auto':
+                    _auto_esal_crcp, _auto_d_inch_c, _ = compute_esal_for_d(
+                        _esal_data_crcp['traffic_data'],
+                        _esal_data_crcp['pt'],
+                        _esal_data_crcp['lane_factor'],
+                        _esal_data_crcp['direction_factor'],
+                        _crcp_d_cm_cur
+                    )
+                    if st.session_state.get('calc_w18_crcp') != _auto_esal_crcp:
+                        st.session_state['calc_w18_crcp'] = _auto_esal_crcp
+
+                _crcp_w18_default = st.session_state.get('calc_w18_crcp',
+                                    st.session_state.get('calc_w18', 500000))
+                crcp_w18_input = st.number_input(
+                    "ESAL ที่ต้องการรองรับ (W₁₈) — CRCP",
+                    10000, 500000000,
+                    _crcp_w18_default,
+                    100000, key="calc_w18_crcp"
+                )
+                # ตรวจว่าผู้ใช้แก้ค่าเอง
+                if _esal_data_crcp:
+                    _auto_check_c, _, _ = compute_esal_for_d(
+                        _esal_data_crcp['traffic_data'], _esal_data_crcp['pt'],
+                        _esal_data_crcp['lane_factor'], _esal_data_crcp['direction_factor'],
+                        _crcp_d_cm_cur
+                    )
+                    if crcp_w18_input != _auto_check_c:
+                        st.session_state['calc_w18_crcp_source'] = 'manual'
+                    else:
+                        st.session_state['calc_w18_crcp_source'] = 'auto'
+                    _src_crcp = st.session_state.get('calc_w18_crcp_source', 'auto')
+                    _d_in_c   = round(_crcp_d_cm_cur / 2.54)
+                    if _src_crcp == 'auto':
+                        st.success(f"🟢 Auto-map | D = {_crcp_d_cm_cur} ซม. ({_d_in_c} นิ้ว) => {crcp_w18_input:,.0f} ESALs ({crcp_w18_input/1e6:.2f} ล้าน)")
+                    else:
+                        st.warning(f"🟡 Manual Override | **{crcp_w18_input:,.0f} ESALs**")
+                        if st.button("↩️ Reset CRCP → Auto", key='reset_w18_crcp'):
+                            st.session_state['calc_w18_crcp_source'] = 'auto'
+                            st.rerun()
+                else:
+                    st.info(f"**{crcp_w18_input/1e6:.2f} ล้าน ESALs**  ⚪ (กรอกมือ)")
+
                 # ── ผลตรวจสอบ CRCP แบบ real-time ──────────────────────────
                 st.markdown("---")
                 st.subheader(f"🎯 ผลตรวจสอบ CRCP D = {st.session_state.get('rpt_crcp_d', 28)} ซม.")
@@ -2724,7 +2929,8 @@ def main():
                 _crcp_zr     = get_zr_value(st.session_state.get('calc_reliability', 90))
                 _crcp_so     = st.session_state.get('calc_so', 0.35)
                 _crcp_dpsi   = 4.5 - _crcp_pt
-                _crcp_w18_req = st.session_state.get('calc_w18', 500000)
+                _crcp_w18_req = st.session_state.get('calc_w18_crcp',
+                                st.session_state.get('calc_w18', 500000))
 
                 _log_w18_crcp, _w18_crcp = calculate_aashto_rigid_w18(
                     _crcp_d_inch, _crcp_dpsi, _crcp_pt, _crcp_zr, _crcp_so,
@@ -2902,8 +3108,11 @@ def main():
                 crcp_cbr_use = cbr_r       # ใช้ร่วมกับ JPCP
                 crcp_mr_use  = 1500 * crcp_cbr_use if crcp_cbr_use < 10 else 1000 + 555 * crcp_cbr_use
 
+                crcp_w18_r   = st.session_state.get('calc_w18_crcp',
+                               st.session_state.get('calc_w18', 500000))
                 crcp_inputs  = {
                     **inputs_r,
+                    'w18_design': crcp_w18_r,
                     'k_eff': crcp_k_use,
                     'j':     crcp_j_use,
                     'sc':    crcp_sc_use,
@@ -2918,7 +3127,7 @@ def main():
                         d_inch, dpsi_r, pt_r, zr_r, so_r,
                         crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
                     )
-                    passed, ratio = check_design(w18_r, w18_cap)
+                    passed, ratio = check_design(crcp_w18_r, w18_cap)
                     crcp_comp.append({
                         'd_cm': d_cm, 'd_inch': d_inch, 'log_w18': log_w18,
                         'w18': w18_cap, 'passed': passed, 'ratio': ratio
@@ -2928,7 +3137,7 @@ def main():
                     d_inch_crcp, dpsi_r, pt_r, zr_r, so_r,
                     crcp_sc_use, crcp_cd_use, crcp_j_use, crcp_ec, crcp_k_use
                 )
-                passed_crcp, ratio_crcp = check_design(w18_r, w18_crcp)
+                passed_crcp, ratio_crcp = check_design(crcp_w18_r, w18_crcp)
                 subgrade_crcp = {'cbr': crcp_cbr_use, 'mr_psi': crcp_mr_use, 'mr_mpa': crcp_mr_use / 145.038}
 
                 try:
