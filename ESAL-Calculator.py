@@ -1510,19 +1510,25 @@ def main():
         if pavement_type == 'rigid':
             # ── Multi-select D: เลือกได้ 3 ค่า จาก 10–16 นิ้ว ──
             rigid_d_options = [10, 11, 12, 13, 14, 15, 16]
-            default_params_r = st.session_state.get('input_params_rigid', [11, 12, 13])
-            # backward-compat: ถ้าโหลด JSON เก่าที่บันทึก param เดี่ยว
-            if isinstance(default_params_r, int):
-                default_params_r = [default_params_r]
-            default_params_r = [d for d in default_params_r if d in rigid_d_options] or [11, 12, 13]
+            # ใช้ saved_params_rigid เก็บค่าแยกจาก widget key
+            # ป้องกัน reset เมื่อสลับ pavement_type
+            if 'saved_params_rigid' not in st.session_state:
+                st.session_state['saved_params_rigid'] = [11, 12, 13]
+            _saved_r = st.session_state['saved_params_rigid']
+            # backward-compat: JSON เก่าบันทึก param เดี่ยว
+            if isinstance(_saved_r, int):
+                _saved_r = [_saved_r]
+            _saved_r = [d for d in _saved_r if d in rigid_d_options] or [11, 12, 13]
             _D_CM = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
             params_selected = st.multiselect(
                 "ความหนาพื้นคอนกรีต D (เลือก 3 ค่า)",
                 options=rigid_d_options,
-                default=default_params_r,
+                default=_saved_r,
                 format_func=lambda x: f"D = {x} นิ้ว ({_D_CM.get(x,'')} cm)",
                 key="input_params_rigid",
             )
+            # บันทึกทันทีที่เปลี่ยน
+            st.session_state['saved_params_rigid'] = params_selected
             if len(params_selected) == 0:
                 st.warning("⚠️ กรุณาเลือกอย่างน้อย 1 ค่า")
                 params_selected = [12]
@@ -1535,19 +1541,24 @@ def main():
         else:
             # ── 3 number_input SN ทศนิยม ──
             st.caption("กำหนด Structural Number (SN) 3 ค่า")
-            default_sn = st.session_state.get('input_sn_list', [6.5, 7.0, 7.5])
-            if isinstance(default_sn, (int, float)):
-                default_sn = [float(default_sn), float(default_sn)+0.5, float(default_sn)+1.0]
-            while len(default_sn) < 3:
-                default_sn.append(default_sn[-1] + 0.5)
+            # ใช้ saved_sn_list เก็บค่าแยกจาก widget key
+            if 'saved_sn_list' not in st.session_state:
+                st.session_state['saved_sn_list'] = [6.5, 7.0, 7.5]
+            _saved_sn = st.session_state['saved_sn_list']
+            if isinstance(_saved_sn, (int, float)):
+                _saved_sn = [float(_saved_sn), float(_saved_sn)+0.5, float(_saved_sn)+1.0]
+            while len(_saved_sn) < 3:
+                _saved_sn.append(_saved_sn[-1] + 0.5)
             sn_cols = st.columns(3)
             sn_vals = []
             for i, col in enumerate(sn_cols):
                 with col:
-                    v = st.number_input(f"SN {i+1}", value=float(default_sn[i]),
+                    v = st.number_input(f"SN {i+1}", value=float(_saved_sn[i]),
                                         min_value=1.0, max_value=20.0, step=0.1,
                                         format="%.1f", key=f"input_sn_{i}")
                     sn_vals.append(round(v, 2))
+            # บันทึกทันทีที่เปลี่ยน
+            st.session_state['saved_sn_list'] = sn_vals
             st.session_state['input_sn_list'] = sn_vals
             param        = sn_vals[0]                  # ค่าแรก (ใช้กับ TF sidebar + combined report)
             param_list   = sn_vals                     # list ใช้คำนวณ multi
