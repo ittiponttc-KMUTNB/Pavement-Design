@@ -212,121 +212,209 @@ def create_template():
     return pd.DataFrame(data)
 
 
-def create_excel_report(results_df, pavement_type, pt, param, lane_factor, direction_factor, 
-                       total_esal, truck_factors, num_years):
-    """สร้างรายงาน Excel ในรูปแบบมาตรฐาน"""
+def create_excel_report(results_df, pavement_type, pt, param, lane_factor, direction_factor,
+                        total_esal, truck_factors, num_years,
+                        param_list=None, multi_results=None):
+    """สร้างรายงาน Excel รองรับ multi-param (Option B: ทุก param ในชีตเดียว)
+
+    Parameters
+    ----------
+    param_list    : list of D หรือ SN ทั้งหมด (ถ้าไม่ส่งจะใช้ [param] เดี่ยว)
+    multi_results : dict {param_val: (results_df, total_esal)} จาก UI
+    """
+    # backward-compat: ถ้าไม่ส่ง param_list ใช้ param เดี่ยว
+    if param_list is None:
+        param_list = [param]
+    if multi_results is None:
+        multi_results = {param: (results_df, total_esal)}
+
     wb = Workbook()
     ws = wb.active
     ws.title = "ESAL Report"
-    
-    # Styles
+
+    # ── Styles ──────────────────────────────────────────────────
+    title_font  = Font(bold=True, size=16)
     header_font = Font(bold=True, size=14)
-    title_font = Font(bold=True, size=16)
+    bold_font   = Font(bold=True, size=12)
     border = Border(
-        left=Side(style='thin'),
-        right=Side(style='thin'),
-        top=Side(style='thin'),
-        bottom=Side(style='thin')
+        left=Side(style='thin'), right=Side(style='thin'),
+        top=Side(style='thin'),  bottom=Side(style='thin')
     )
-    header_fill = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+    header_fill  = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
+    param_fills  = [
+        PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid'),  # เขียวอ่อน
+        PatternFill(start_color='FFF2CC', end_color='FFF2CC', fill_type='solid'),  # เหลืองอ่อน
+        PatternFill(start_color='FCE4D6', end_color='FCE4D6', fill_type='solid'),  # ส้มอ่อน
+        PatternFill(start_color='DDEBF7', end_color='DDEBF7', fill_type='solid'),  # ฟ้าอ่อน
+    ]
     center_align = Alignment(horizontal='center', vertical='center')
-    right_align = Alignment(horizontal='right', vertical='center')
-    
+    right_align  = Alignment(horizontal='right',  vertical='center')
+
     pavement_text = "Rigid Pavement" if pavement_type == 'rigid' else "Flexible Pavement"
-    ws.merge_cells('A1:I1')
+    pavement_thai = "แข็ง" if pavement_type == 'rigid' else "ยืดหยุ่น"
+    param_unit    = "นิ้ว" if pavement_type == 'rigid' else ""
+    param_prefix  = "D" if pavement_type == 'rigid' else "SN"
+
+    # ── จำนวนคอลัมน์รวม: Year+6รถ+AADT + (ESAL+ACC)*n_params ──
+    n = len(param_list)
+    total_cols = 8 + 2 * n   # A=Year, B-G=6รถ, H=AADT, I..=ESAL/ACC ต่อ param
+
+    def col_letter(idx):
+        """1-based index → Excel column letter"""
+        from openpyxl.utils import get_column_letter
+        return get_column_letter(idx)
+
+    last_col = col_letter(total_cols)
+
+    # ── Row 1: หัวข้อ ──
+    ws.merge_cells(f'A1:{last_col}1')
     ws['A1'] = f"ปริมาณเพลามาตรฐาน (ESALs) ระยะเวลาออกแบบ {num_years} ปี"
     ws['A1'].font = title_font
     ws['A1'].alignment = center_align
-    
-    ws.merge_cells('A2:I2')
-    ws['A2'] = f"ผิวทางแบบ{'แข็ง' if pavement_type == 'rigid' else 'ยืดหยุ่น'} ({pavement_text})"
+
+    # ── Row 2: ประเภทผิวทาง ──
+    ws.merge_cells(f'A2:{last_col}2')
+    ws['A2'] = f"ผิวทางแบบ{pavement_thai} ({pavement_text})"
     ws['A2'].font = header_font
     ws['A2'].alignment = center_align
-    
-    param_label = f"D = {param}" if pavement_type == 'rigid' else f"SN = {param}"
-    params_data = [
-        ('รายการ', 'ค่า'),
-        ('ประเภทผิวทาง', pavement_text),
-        ('pt', str(pt)),
-        ('พารามิเตอร์', param_label),
-        ('Lane Factor', str(lane_factor)),
-        ('Direction Factor', str(direction_factor)),
-        ('ESAL รวม', f"{total_esal:,}"),
-        ('จำนวนปี', str(num_years))
+
+    # ── Row 4-11: พารามิเตอร์ทั่วไป (A-B) | TF ทุก param (D เป็นต้นไป) ──
+    common_params = [
+        ('รายการ',          'ค่า'),
+        ('ประเภทผิวทาง',    pavement_text),
+        ('pt',              str(pt)),
+        ('Lane Factor',     str(lane_factor)),
+        ('Direction Factor',str(direction_factor)),
+        ('จำนวนปี',         str(num_years)),
     ]
-    
-    for i, (label, value) in enumerate(params_data):
-        row = 4 + i
-        ws[f'A{row}'] = label
-        ws[f'B{row}'] = value
-        ws[f'A{row}'].border = border
-        ws[f'B{row}'].border = border
+    for i, (label, value) in enumerate(common_params):
+        r = 4 + i
+        ws[f'A{r}'] = label
+        ws[f'B{r}'] = value
+        ws[f'A{r}'].border = border
+        ws[f'B{r}'].border = border
         if i == 0:
-            ws[f'A{row}'].fill = header_fill
-            ws[f'B{row}'].fill = header_fill
-            ws[f'A{row}'].font = Font(bold=True)
-            ws[f'B{row}'].font = Font(bold=True)
-    
-    ws['D4'] = 'รหัส'
-    ws['E4'] = 'ประเภท'
-    ws['F4'] = 'Truck Factor'
-    for col in ['D', 'E', 'F']:
-        ws[f'{col}4'].fill = header_fill
-        ws[f'{col}4'].font = Font(bold=True)
-        ws[f'{col}4'].border = border
-        ws[f'{col}4'].alignment = center_align
-    
-    for i, code in enumerate(TRUCKS.keys()):
-        row = 5 + i
-        ws[f'D{row}'] = code
-        ws[f'E{row}'] = TRUCKS[code]['desc']
-        ws[f'F{row}'] = f"{truck_factors[code]:.3f}"
-        ws[f'D{row}'].border = border
-        ws[f'E{row}'].border = border
-        ws[f'F{row}'].border = border
-        ws[f'D{row}'].alignment = center_align
-        ws[f'F{row}'].alignment = right_align
-    
-    start_row = 14
-    ws[f'I{start_row-1}'] = 'แสดงปริมาณสะสม'
-    ws[f'I{start_row-1}'].font = Font(italic=True, size=9)
-    
-    headers = ['Year', 'MB', 'HB', 'MT', 'HT', 'TR', 'STR', 'AADT', 'ESAL', 'ACC. ESAL']
-    for col_idx, header in enumerate(headers, 1):
-        cell = ws.cell(row=start_row, column=col_idx, value=header)
-        cell.fill = header_fill
-        cell.font = Font(bold=True)
-        cell.border = border
+            ws[f'A{r}'].fill = header_fill
+            ws[f'B{r}'].fill = header_fill
+            ws[f'A{r}'].font = bold_font
+            ws[f'B{r}'].font = bold_font
+
+    # ── TF table: คอลัมน์ D+ แยกตาม param ──
+    # header row 4: รหัส | ประเภท | TF(p1) | TF(p2) ...
+    tf_cols_start = 4   # col D = index 4
+    ws.cell(row=4, column=tf_cols_start,   value='รหัส').fill   = header_fill
+    ws.cell(row=4, column=tf_cols_start,   value='รหัส').font   = bold_font
+    ws.cell(row=4, column=tf_cols_start+1, value='ประเภท').fill = header_fill
+    ws.cell(row=4, column=tf_cols_start+1, value='ประเภท').font = bold_font
+    for ci, p in enumerate(param_list):
+        p_lbl = f'{param_prefix}={p}"{param_unit}' if pavement_type == 'rigid' else f'{param_prefix}={p}'
+        cell = ws.cell(row=4, column=tf_cols_start+2+ci, value=f'TF ({p_lbl})')
+        cell.fill = param_fills[ci % len(param_fills)]
+        cell.font = bold_font
         cell.alignment = center_align
-    
-    for row_idx, row_data in results_df.iterrows():
-        excel_row = start_row + 1 + row_idx
-        for col_idx, header in enumerate(headers, 1):
-            if header == 'ACC. ESAL':
-                value = row_data.get('ACC_ESAL', 0)
-            else:
-                value = row_data.get(header, 0)
-            
-            cell = ws.cell(row=excel_row, column=col_idx, value=value)
+        cell.border = border
+
+    for ci in range(2 + n):
+        ws.cell(row=4, column=tf_cols_start+ci).border = border
+        ws.cell(row=4, column=tf_cols_start+ci).alignment = center_align
+
+    for ri, code in enumerate(TRUCKS.keys()):
+        r = 5 + ri
+        ws.cell(row=r, column=tf_cols_start,   value=code).alignment   = center_align
+        ws.cell(row=r, column=tf_cols_start+1, value=TRUCKS[code]['desc'])
+        for ci, p in enumerate(param_list):
+            tf_val = get_default_truck_factor(code, pavement_type, pt, p)
+            cell = ws.cell(row=r, column=tf_cols_start+2+ci, value=round(tf_val, 4))
+            cell.number_format = '0.0000'
+            cell.alignment = right_align
             cell.border = border
-            
-            if header in ['ESAL', 'ACC. ESAL', 'AADT']:
+        for ci in range(2 + n):
+            ws.cell(row=r, column=tf_cols_start+ci).border = border
+
+    # ── ESAL summary row ──
+    # แสดง ESAL รวม ต่อ param ใน row 11
+    ws.cell(row=10, column=tf_cols_start,   value='ESAL รวม').font   = bold_font
+    ws.cell(row=10, column=tf_cols_start).border = border
+    ws.cell(row=10, column=tf_cols_start+1, value='').border = border
+    for ci, p in enumerate(param_list):
+        _, t_esal = multi_results[p]
+        cell = ws.cell(row=10, column=tf_cols_start+2+ci, value=t_esal)
+        cell.number_format = '#,##0'
+        cell.alignment = right_align
+        cell.border = border
+        cell.font = bold_font
+
+    # ── Header ตารางข้อมูล ──
+    start_row = 13
+    base_headers = ['Year', 'MB', 'HB', 'MT', 'HT', 'TR', 'STR', 'AADT']
+    all_headers  = base_headers[:]
+    for p in param_list:
+        p_lbl = f'D={p}"' if pavement_type == 'rigid' else f'SN={p}'
+        all_headers.append(f'ESAL({p_lbl})')
+        all_headers.append(f'ACC.ESAL({p_lbl})')
+
+    for ci, h in enumerate(all_headers, 1):
+        cell = ws.cell(row=start_row, column=ci, value=h)
+        cell.font      = bold_font
+        cell.border    = border
+        cell.alignment = center_align
+        # ใส่สีตาม param group
+        if ci <= 8:
+            cell.fill = header_fill
+        else:
+            param_idx = (ci - 9) // 2
+            cell.fill = param_fills[param_idx % len(param_fills)]
+
+    # ── ข้อมูลรายปี ──
+    # ดึง base (Year, MB..STR, AADT) จาก results_df ของ param แรก
+    base_df = multi_results[param_list[0]][0]
+    for ri, (_, row_data) in enumerate(base_df.iterrows()):
+        r = start_row + 1 + ri
+        # base columns
+        for ci, h in enumerate(base_headers, 1):
+            val = int(row_data.get(h, row_data.get('AADT', 0))) if h == 'AADT' else row_data.get(h, 0)
+            if h == 'AADT':
+                val = int(row_data[['MB','HB','MT','HT','TR','STR']].sum())
+            cell = ws.cell(row=r, column=ci, value=val)
+            cell.border = border
+            if h == 'Year':
+                cell.alignment = center_align
+            elif h in ['AADT']:
                 cell.number_format = '#,##0'
                 cell.alignment = right_align
-            elif header == 'Year':
-                cell.alignment = center_align
             else:
                 cell.alignment = right_align
-    
-    ws.column_dimensions['A'].width = 18
-    ws.column_dimensions['B'].width = 15
-    ws.column_dimensions['C'].width = 3
-    ws.column_dimensions['D'].width = 8
-    ws.column_dimensions['E'].width = 35
-    ws.column_dimensions['F'].width = 14
-    for col in ['G', 'H', 'I', 'J']:
-        ws.column_dimensions[col].width = 14
-    
+        # ESAL + ACC per param
+        for pi, p in enumerate(param_list):
+            r_df, _ = multi_results[p]
+            esal_val = int(r_df.iloc[ri]['ESAL'])
+            acc_val  = int(r_df.iloc[ri]['ACC_ESAL'])
+            col_esal = 9 + pi * 2
+            col_acc  = 10 + pi * 2
+            c1 = ws.cell(row=r, column=col_esal, value=esal_val)
+            c2 = ws.cell(row=r, column=col_acc,  value=acc_val)
+            for c in [c1, c2]:
+                c.number_format = '#,##0'
+                c.alignment     = right_align
+                c.border        = border
+
+    # ── Column widths ──
+    ws.column_dimensions['A'].width = 8   # Year
+    for col in ['B','C','D','E','F','G']:
+        ws.column_dimensions[col].width = 9
+    ws.column_dimensions['H'].width = 10  # AADT
+    # TF table cols
+    from openpyxl.utils import get_column_letter
+    tf_d_col = get_column_letter(tf_cols_start)
+    tf_e_col = get_column_letter(tf_cols_start+1)
+    ws.column_dimensions[tf_d_col].width = 8
+    ws.column_dimensions[tf_e_col].width = 36
+    for ci in range(n):
+        ws.column_dimensions[get_column_letter(tf_cols_start+2+ci)].width = 14
+    # ESAL/ACC cols
+    for ci in range(2 * n):
+        ws.column_dimensions[get_column_letter(9+ci)].width = 16
+
     output = BytesIO()
     wb.save(output)
     output.seek(0)
@@ -1812,10 +1900,10 @@ def main():
                 col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
                 
                 with col_dl1:
-                    # ── ข้อ 7: Excel multi-param Option B ──
                     excel_report = create_excel_report(
                         results_df, pavement_type, pt, param, lane_factor, direction_factor,
-                        total_esal, tf_for_report, len(traffic_df)
+                        total_esal, tf_for_report, len(traffic_df),
+                        param_list=param_list, multi_results=multi_results
                     )
                     st.download_button(
                         label="📊 Excel",
