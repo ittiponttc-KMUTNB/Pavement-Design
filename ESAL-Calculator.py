@@ -1,5 +1,6 @@
 """
 ESAL Calculator - AASHTO 1993 (Version 4.0)
+
 โปรแกรมคำนวณปริมาณเพลาเดี่ยวมาตรฐานเทียบเท่า (Equivalent Single Axle Load)
 สำหรับผิวทาง Rigid Pavement และ Flexible Pavement
 ตามมาตรฐาน AASHTO Guide for Design of Pavement Structures (1993)
@@ -371,80 +372,6 @@ def increment_table_number(base_number, offset):
 
 # ============================================================
 # Word Report Generation (python-docx)
-# ============================================================
-def create_word_report_single(results_df, pavement_type, pt, param, lane_factor, direction_factor,
-                              total_esal, truck_factors, num_years, report_settings=None):
-    """สร้างรายงาน Word สำหรับผิวทางประเภทเดียว (Flexible หรือ Rigid)"""
-    try:
-        from docx import Document
-        from docx.shared import Pt, Cm, RGBColor
-        from docx.enum.text import WD_ALIGN_PARAGRAPH
-        from docx.enum.table import WD_TABLE_ALIGNMENT
-        from docx.oxml.ns import nsdecls, qn
-        from docx.oxml import parse_xml, OxmlElement
-    except ImportError:
-        return None
-    
-    doc = Document()
-    FONT_NAME = 'TH SarabunPSK'
-    FONT_SIZE = 15
-    TABLE_FONT_SIZE = 14
-    
-    # ตั้งค่า Normal style
-    style = doc.styles['Normal']
-    style.font.name = FONT_NAME
-    style.font.size = Pt(FONT_SIZE)
-    style._element.rPr.rFonts.set(qn('w:eastAsia'), FONT_NAME)
-    
-    # ตั้งค่าหน้ากระดาษ A4
-    section = doc.sections[0]
-    section.page_width = Cm(21.0)
-    section.page_height = Cm(29.7)
-    section.left_margin = Cm(2.0)
-    section.right_margin = Cm(2.0)
-    section.top_margin = Cm(2.0)
-    section.bottom_margin = Cm(2.0)
-    
-    # กำหนดค่า default report settings
-    if report_settings is None:
-        report_settings = {}
-    
-    if pavement_type == 'flexible':
-        section_num = report_settings.get('flex_section_number', '4.2.2')
-        table_start = report_settings.get('flex_table_start', '4-1')
-    else:
-        section_num = report_settings.get('rigid_section_number', '4.2.3')
-        table_start = report_settings.get('rigid_table_start', '4-4')
-    
-    tbl_param = table_start
-    tbl_tf = increment_table_number(table_start, 1)
-    tbl_esal = increment_table_number(table_start, 2)
-    
-    pavement_text = "Rigid Pavement" if pavement_type == 'rigid' else "Flexible Pavement"
-    pavement_thai = "แบบแข็ง" if pavement_type == 'rigid' else "ยืดหยุ่น"
-    param_label = f"D = {param} นิ้ว" if pavement_type == 'rigid' else f"SN = {param}"
-    
-    _build_section(doc, pavement_type, pavement_text, pavement_thai, section_num,
-                   num_years, param_label, pt, lane_factor, direction_factor,
-                   total_esal, truck_factors, results_df,
-                   tbl_param, tbl_tf, tbl_esal,
-                   FONT_NAME, FONT_SIZE, TABLE_FONT_SIZE)
-    
-    # Footer
-    footer_para = doc.add_paragraph()
-    footer_para.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    run = footer_para.add_run("พัฒนาเพื่อการเรียนการสอนโดย รศ.ดร.อิทธิพล มีผล ภาควิชาครุศาสตร์โยธา มจพ.")
-    run.font.name = FONT_NAME
-    run.font.size = Pt(14)
-    run.italic = True
-    run._element.rPr.rFonts.set(qn('w:eastAsia'), FONT_NAME)
-    
-    output = BytesIO()
-    doc.save(output)
-    output.seek(0)
-    return output
-
-
 def create_word_report_combined(traffic_df, flex_params, rigid_params, report_settings=None):
     """
     สร้างรายงาน Word รวม Flexible + Rigid ในไฟล์เดียว (รูปแบบ multi-param)
@@ -1301,17 +1228,17 @@ def create_word_report_multi(traffic_df, pavement_type, pt, param_list,
     doc.save(out);  out.seek(0)
     return out
 
-def save_project(pavement_type, pt, param, lane_factor, direction_factor, truck_factors, traffic_df,
-                 report_settings=None, comb_rigid_params=None):
-    """บันทึก Project เป็น JSON
-    comb_rigid_params = dict ของ rigid params สำหรับรายงานรวม (เฉพาะกรณี flexible)
-    """
+def save_project(pavement_type, pt, param, param_list, lane_factor, direction_factor,
+                 truck_factors, traffic_df, report_settings=None, project_name=''):
+    """บันทึก Project เป็น JSON"""
     project = {
-        'version': '3.0',
+        'version': '4.0',
         'created': datetime.now().isoformat(),
+        'project_name': project_name,
         'pavement_type': pavement_type,
         'pt': pt,
         'param': param,
+        'param_list': param_list,
         'lane_factor': lane_factor,
         'direction_factor': direction_factor,
         'truck_factors': truck_factors,
@@ -1319,9 +1246,6 @@ def save_project(pavement_type, pt, param, lane_factor, direction_factor, truck_
     }
     if report_settings:
         project['report_settings'] = report_settings
-    # บันทึก rigid params สำหรับรายงานรวม (เฉพาะกรณี flexible)
-    if comb_rigid_params:
-        project['comb_rigid_params'] = comb_rigid_params
     return json.dumps(project, ensure_ascii=False, indent=2)
 
 
@@ -1410,7 +1334,7 @@ def generate_intro_preview_html(pavement_type, num_years, tbl_param, tbl_tf, tbl
 # ============================================================
 def main():
     st.set_page_config(
-        page_title="ESAL Calculator - AASHTO 1993 v3.0",
+        page_title="ESAL Calculator - AASHTO 1993 v4.0",
         page_icon="🛣️",
         layout="wide"
     )
@@ -1425,7 +1349,7 @@ def main():
     </style>
     """, unsafe_allow_html=True)
     
-    st.markdown('<p class="main-header">🛣️ ESAL Calculator v3.0</p>', unsafe_allow_html=True)
+    st.markdown('<p class="main-header">🛣️ ESAL Calculator v4.0</p>', unsafe_allow_html=True)
     st.markdown('<p class="sub-header">คำนวณปริมาณเพลาเดี่ยวมาตรฐานเทียบเท่า ตามมาตรฐาน AASHTO 1993</p>', unsafe_allow_html=True)
     
     # Initialize session state
@@ -1438,6 +1362,13 @@ def main():
         
         # Project Load/Save
         st.subheader("📁 Project")
+        
+        project_name = st.text_input(
+            "📌 ชื่อโครงการ",
+            value=st.session_state.get('input_project_name', ''),
+            placeholder="เช่น ทางหลวงหมายเลข 304 ตอน กบินทร์บุรี",
+            key="input_project_name"
+        )
         
         uploaded_project = st.file_uploader("📥 โหลด Project", type=['json'], key='load_project')
         if uploaded_project is not None:
@@ -1454,14 +1385,16 @@ def main():
                         st.session_state['input_lane_factor'] = project.get('lane_factor', 0.9)
                         st.session_state['input_direction_factor'] = project.get('direction_factor', 0.5)
                         st.session_state['loaded_tf'] = project.get('truck_factors', {})
+                        st.session_state['input_project_name'] = project.get('project_name', '')
 
-                        # โหลด comb_rigid_params (สำหรับ flexible project)
-                        crp = project.get('comb_rigid_params', {})
-                        if crp:
-                            st.session_state['comb_rigid_pt']   = crp.get('pt',   2.5)
-                            st.session_state['comb_rigid_d']    = crp.get('param', 13)
-                            st.session_state['comb_rigid_lane'] = crp.get('lane_factor',      0.9)
-                            st.session_state['comb_rigid_dir']  = crp.get('direction_factor', 0.5)
+                        # restore param_list
+                        _plist = project.get('param_list', None)
+                        _ptype = project.get('pavement_type', 'rigid')
+                        if _plist:
+                            if _ptype == 'rigid':
+                                st.session_state['saved_params_rigid'] = _plist
+                            else:
+                                st.session_state['saved_sn_list'] = _plist
                         
                         # โหลด report_settings
                         rs = project.get('report_settings', {})
@@ -1812,85 +1745,6 @@ def main():
                     
                     st.markdown("---")
                     
-                    # ===== พารามิเตอร์สำหรับ Combined Report =====
-                    st.markdown("#### ⚙️ พารามิเตอร์สำหรับรายงานรวม (Flexible + Rigid)")
-                    st.caption("กำหนดพารามิเตอร์ของผิวทางอีกประเภทหนึ่ง สำหรับ export รายงานรวม")
-                    
-                    if pavement_type == 'rigid':
-                        # ตั้งอยู่ Rigid → กรอก Flexible SN 3 ช่อง
-                        st.markdown("**🛤️ พารามิเตอร์ Flexible Pavement (สำหรับรายงานรวม)**")
-                        col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
-                        with col_p1:
-                            _cf_pt_def = st.session_state.get('comb_flex_pt', pt)
-                            try:
-                                _cf_pt_idx = [2.0, 2.5, 3.0].index(float(_cf_pt_def))
-                            except (ValueError, TypeError):
-                                _cf_pt_idx = [2.0, 2.5, 3.0].index(pt) if pt in [2.0, 2.5, 3.0] else 1
-                            comb_flex_pt = st.selectbox("pt (Flexible)", [2.0, 2.5, 3.0],
-                                                        index=_cf_pt_idx, key="comb_flex_pt")
-                        with col_p2:
-                            st.caption("SN (3 ค่า)")
-                            _cf_sn_def = st.session_state.get('comb_flex_sn_list', [6.5, 7.0, 7.5])
-                            if isinstance(_cf_sn_def, (int, float)):
-                                _cf_sn_def = [float(_cf_sn_def)] * 3
-                            while len(_cf_sn_def) < 3:
-                                _cf_sn_def.append(_cf_sn_def[-1] + 0.5)
-                            _cf_sn_cols = st.columns(3)
-                            comb_flex_sn_list = []
-                            for _i, _c in enumerate(_cf_sn_cols):
-                                with _c:
-                                    comb_flex_sn_list.append(round(st.number_input(
-                                        f"SN {_i+1}", value=float(_cf_sn_def[_i]),
-                                        min_value=1.0, max_value=20.0, step=0.1,
-                                        format="%.1f", key=f"comb_flex_sn_{_i}"), 2))
-                            st.session_state['comb_flex_sn_list'] = comb_flex_sn_list
-                        with col_p3:
-                            comb_flex_lane = st.number_input("Lane Factor", 0.1, 1.0,
-                                                              value=lane_factor, step=0.05,
-                                                              key="comb_flex_lane")
-                            comb_flex_dir  = st.number_input("Direction Factor", 0.5, 1.0,
-                                                              value=direction_factor, step=0.1,
-                                                              key="comb_flex_dir")
-                    else:
-                        # ตั้งอยู่ Flexible → กรอก Rigid D multiselect
-                        st.markdown("**🧱 พารามิเตอร์ Rigid Pavement (สำหรับรายงานรวม)**")
-                        col_p1, col_p2, col_p3 = st.columns([1, 2, 1])
-                        with col_p1:
-                            _cr_pt_def = st.session_state.get('comb_rigid_pt', pt)
-                            try:
-                                _cr_pt_idx = [2.0, 2.5, 3.0].index(float(_cr_pt_def))
-                            except (ValueError, TypeError):
-                                _cr_pt_idx = [2.0, 2.5, 3.0].index(pt) if pt in [2.0, 2.5, 3.0] else 1
-                            comb_rigid_pt = st.selectbox("pt (Rigid)", [2.0, 2.5, 3.0],
-                                                          index=_cr_pt_idx, key="comb_rigid_pt")
-                        with col_p2:
-                            _cr_d_def = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
-                            if isinstance(_cr_d_def, int):
-                                _cr_d_def = [_cr_d_def]
-                            _cr_d_def = [d for d in _cr_d_def if d in [10,11,12,13,14,15,16]] or [11,12,13]
-                            _D_CM2 = {10:25, 11:28, 12:30, 13:32, 14:35, 15:38, 16:40}
-                            _cr_sel = st.multiselect(
-                                "D (นิ้ว) — เลือก 3 ค่า",
-                                options=[10,11,12,13,14,15,16],
-                                default=_cr_d_def,
-                                format_func=lambda x: f"D={x}\" ({_D_CM2.get(x,'')} cm)",
-                                key="comb_rigid_d_list"
-                            )
-                            if len(_cr_sel) == 0:
-                                _cr_sel = [12]
-                            elif len(_cr_sel) > 3:
-                                _cr_sel = _cr_sel[:3]
-                            comb_rigid_d_list = _cr_sel
-                        with col_p3:
-                            comb_rigid_lane = st.number_input("Lane Factor", 0.1, 1.0,
-                                                               value=lane_factor, step=0.05,
-                                                               key="comb_rigid_lane")
-                            comb_rigid_dir  = st.number_input("Direction Factor", 0.5, 1.0,
-                                                               value=direction_factor, step=0.1,
-                                                               key="comb_rigid_dir")
-                    
-                    st.markdown("---")
-                    
                     # ===== Preview บทเกริ่นนำ =====
                     st.markdown("#### 👁️ ตัวอย่างบทเกริ่นนำ (Preview)")
                     
@@ -1940,36 +1794,49 @@ def main():
                     'rigid_section_number': st.session_state.get('input_rigid_section_number', '4.2.3'),
                     'rigid_table_start': st.session_state.get('input_rigid_table_start', '4-4'),
                 }
-                
+
+                # ── ข้อ 2: TF real-time ต่อแต่ละ param (ไม่ใช้ sidebar override) ──
+                # ใช้ multi_results ที่คำนวณไว้แล้ว — tf แต่ละ param คำนวณจาก get_default_truck_factor
+                tf_for_report = {
+                    code: get_default_truck_factor(code, pavement_type, pt, param)
+                    for code in TRUCKS.keys()
+                }
+
+                # ── ข้อ 7: สร้าง safe filename จาก project_name ──
+                _pname = project_name.strip()
+                _fname_prefix = f"ESAL_{_pname}_" if _pname else "ESAL_"
+                _fname_prefix = _fname_prefix.replace(' ', '_').replace('/', '-')
+                param_str = "_".join(str(p) for p in param_list)
+                pv_label  = "Rigid" if pavement_type == 'rigid' else "Flexible"
+
                 col_dl1, col_dl2, col_dl3, col_dl4 = st.columns(4)
                 
                 with col_dl1:
+                    # ── ข้อ 7: Excel multi-param Option B ──
                     excel_report = create_excel_report(
                         results_df, pavement_type, pt, param, lane_factor, direction_factor,
-                        total_esal, truck_factors, len(traffic_df)
+                        total_esal, tf_for_report, len(traffic_df)
                     )
                     st.download_button(
-                        label="📊 Excel (ปัจจุบัน)",
+                        label="📊 Excel",
                         data=excel_report.getvalue(),
-                        file_name=f"ESAL_Report_{pavement_type}_{param}.xlsx",
+                        file_name=f"{_fname_prefix}{pavement_type}_{param_str}.xlsx",
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                         use_container_width=True
                     )
                 
                 with col_dl2:
                     try:
-                        pv_label = "Rigid" if pavement_type == 'rigid' else "Flexible"
                         word_report = create_word_report_multi(
                             traffic_df, pavement_type, pt, param_list,
                             lane_factor, direction_factor,
                             multi_results, report_settings
                         )
                         if word_report:
-                            param_str = "_".join(str(p) for p in param_list)
                             st.download_button(
                                 label=f"📝 Word ({pv_label})",
                                 data=word_report.getvalue(),
-                                file_name=f"ESAL_Report_{pavement_type}_{param_str}.docx",
+                                file_name=f"{_fname_prefix}{pavement_type}_{param_str}.docx",
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 use_container_width=True
                             )
@@ -1979,19 +1846,18 @@ def main():
                         st.error(f"❌ Word Report: {e}")
                 
                 with col_dl3:
-                    # Combined Word Report
+                    # ── ข้อ 6: Combined Report ดึง param จาก sidebar อัตโนมัติ ──
                     try:
                         if pavement_type == 'rigid':
-                            # กำลังอยู่ Rigid → flex ใช้ SN list จาก combined settings
-                            _cf_pt      = st.session_state.get('comb_flex_pt', 2.5)
-                            _cf_sn_list = st.session_state.get('comb_flex_sn_list', [6.5, 7.0, 7.5])
-                            if isinstance(_cf_sn_list, (int, float)):
-                                _cf_sn_list = [float(_cf_sn_list)]
+                            # อยู่ Rigid → Flexible ใช้ saved_sn_list จาก sidebar
+                            _sn_list = st.session_state.get('saved_sn_list', [6.5, 7.0, 7.5])
+                            if isinstance(_sn_list, (int, float)):
+                                _sn_list = [float(_sn_list)]
                             flex_params_comb = {
-                                'pt': _cf_pt,
-                                'param_list': _cf_sn_list,
-                                'lane_factor': st.session_state.get('comb_flex_lane', lane_factor),
-                                'direction_factor': st.session_state.get('comb_flex_dir', direction_factor),
+                                'pt': pt,
+                                'param_list': _sn_list,
+                                'lane_factor': lane_factor,
+                                'direction_factor': direction_factor,
                             }
                             rigid_params_comb = {
                                 'pt': pt,
@@ -2000,11 +1866,10 @@ def main():
                                 'direction_factor': direction_factor,
                             }
                         else:
-                            # กำลังอยู่ Flexible → rigid ใช้ D list จาก combined settings
-                            _cr_pt     = st.session_state.get('comb_rigid_pt', pt)
-                            _cr_d_list = st.session_state.get('comb_rigid_d_list', [11, 12, 13])
-                            if isinstance(_cr_d_list, int):
-                                _cr_d_list = [_cr_d_list]
+                            # อยู่ Flexible → Rigid ใช้ saved_params_rigid จาก sidebar
+                            _d_list = st.session_state.get('saved_params_rigid', [11, 12, 13, 14])
+                            if isinstance(_d_list, int):
+                                _d_list = [_d_list]
                             flex_params_comb = {
                                 'pt': pt,
                                 'param_list': param_list,
@@ -2012,10 +1877,10 @@ def main():
                                 'direction_factor': direction_factor,
                             }
                             rigid_params_comb = {
-                                'pt': _cr_pt,
-                                'param_list': _cr_d_list,
-                                'lane_factor': st.session_state.get('comb_rigid_lane', lane_factor),
-                                'direction_factor': st.session_state.get('comb_rigid_dir', direction_factor),
+                                'pt': pt,
+                                'param_list': _d_list,
+                                'lane_factor': lane_factor,
+                                'direction_factor': direction_factor,
                             }
                         
                         word_combined = create_word_report_combined(
@@ -2025,7 +1890,7 @@ def main():
                             st.download_button(
                                 label="📝 Word (รวม Flex+Rigid)",
                                 data=word_combined.getvalue(),
-                                file_name="ESAL_Report_Combined.docx",
+                                file_name=f"{_fname_prefix}Combined.docx",
                                 mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
                                 use_container_width=True
                             )
@@ -2035,24 +1900,16 @@ def main():
                         st.error(f"❌ เกิดข้อผิดพลาด: {e}")
                 
                 with col_dl4:
-                    # รวบรวม comb_rigid_params เฉพาะกรณี flexible
-                    _crp = None
-                    if pavement_type == 'flexible':
-                        _crp = {
-                            'pt':               st.session_state.get('comb_rigid_pt',  2.5),
-                            'param':            st.session_state.get('comb_rigid_d',   13),
-                            'lane_factor':      st.session_state.get('comb_rigid_lane', lane_factor),
-                            'direction_factor': st.session_state.get('comb_rigid_dir',  direction_factor),
-                        }
                     project_json = save_project(
-                        pavement_type, pt, param, lane_factor, direction_factor,
-                        truck_factors, traffic_df, report_settings,
-                        comb_rigid_params=_crp
+                        pavement_type, pt, param, param_list,
+                        lane_factor, direction_factor,
+                        tf_for_report, traffic_df, report_settings,
+                        project_name=_pname
                     )
                     st.download_button(
                         label="💾 บันทึก Project",
                         data=project_json,
-                        file_name=f"ESAL_Project_{pavement_type}_{param}.json",
+                        file_name=f"{_fname_prefix}{pavement_type}_{param_str}.json",
                         mime="application/json",
                         use_container_width=True
                     )
@@ -2154,7 +2011,7 @@ def main():
     st.divider()
     st.markdown("""
     <div style="text-align: center; color: #888;">
-        พัฒนาเพื่อการเรียนการสอนโดย รศ.ดร.อิทธิพล มีผล ภาควิชาครุศาสตร์โยธา มจพ. | ESAL Calculator v3.0
+        พัฒนาเพื่อการเรียนการสอนโดย รศ.ดร.อิทธิพล มีผล ภาควิชาครุศาสตร์โยธา มจพ. | ESAL Calculator v4.0
     </div>
     """, unsafe_allow_html=True)
 
