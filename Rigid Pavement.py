@@ -194,6 +194,37 @@ def calc_composite_k_from_layers(layers, MR_psi):
     except Exception:
         return None
 
+def apply_loss_of_support(k_inf_pci, ls):
+    """
+    ปรับแก้ k∞ ด้วย Loss of Support (LS) จาก Digitized AASHTO 1993 Nomograph
+    ls = 0, 0.5, 1.0, 1.5, 2.0, 2.5, 3.0
+    คืนค่า k_corrected (pci)
+    """
+    if ls <= 0:
+        return k_inf_pci
+    _k_pts  = np.array([10, 50, 100, 500, 1000], dtype=float)
+    _ls1    = np.array([6,  25,  40, 160,  270], dtype=float)
+    _ls2    = np.array([3.6, 10, 17,  45,   68], dtype=float)
+    _ls3    = np.array([2.2, 5.3, 7.8, 18,  36], dtype=float)
+    f1 = interp1d(np.log10(_k_pts), np.log10(_ls1), kind='linear', fill_value='extrapolate')
+    f2 = interp1d(np.log10(_k_pts), np.log10(_ls2), kind='linear', fill_value='extrapolate')
+    f3 = interp1d(np.log10(_k_pts), np.log10(_ls3), kind='linear', fill_value='extrapolate')
+    k_log = np.log10(float(np.clip(k_inf_pci, 10, 1000)))
+    k1 = float(10 ** f1(k_log))
+    k2 = float(10 ** f2(k_log))
+    k3 = float(10 ** f3(k_log))
+    # interpolate ระหว่าง LS levels
+    if ls <= 1.0:
+        t = ls / 1.0
+        k_corr = k_inf_pci * (1 - t) + k1 * t
+    elif ls <= 2.0:
+        t = (ls - 1.0) / 1.0
+        k_corr = k1 * (1 - t) + k2 * t
+    else:
+        t = (ls - 2.0) / 1.0
+        k_corr = k2 * (1 - t) + k3 * t
+    return float(np.clip(k_corr, 2, k_inf_pci))
+
 # ============================================================
 
 MATERIAL_MODULUS = {
@@ -2423,6 +2454,19 @@ def main():
                 **หมายเหตุ:** ค่า LS ใช้ปรับลดค่า k_eff เพื่อคำนึงถึงการสูญเสียการรองรับจากการกัดเซาะ
                 """)
             ls_value = st.number_input("Loss of Support (LS)", 0.0, 3.0, st.session_state.get('calc_ls', 1.0), 0.5, "%.1f", key="calc_ls")
+
+            # ── k∞ พร้อม LS correction ──────────────────────────────────
+            _ck2 = calc_composite_k_from_layers(layers_data, mr_subgrade_psi)
+            if _ck2 is not None:
+                _ki2 = _ck2["k_inf_pci"]
+                _kc2 = apply_loss_of_support(_ki2, ls_value)
+                _ka2, _kb2 = st.columns(2)
+                with _ka2:
+                    st.metric("k∞ (LS=0)", f"{_ki2:,.0f} pci")
+                with _kb2:
+                    st.metric(f"k∞ ปรับแก้ (LS={ls_value:.1f})", f"{_kc2:,.0f} pci",
+                              delta=f"{_kc2 - _ki2:+,.0f} pci", delta_color="inverse")
+            # ────────────────────────────────────────────────────────────
             st.markdown("---")
             
             _fc_disp     = st.session_state.get('calc_fc', 350)
@@ -2576,55 +2620,6 @@ def main():
             df_sens = pd.DataFrame(sens_rows)
             st.dataframe(df_sens, use_container_width=True, hide_index=True)
             st.caption("* ±3 ชุดรอบ Optimum | ค้นหาทีละ 10 pci (50–1,000 pci)")
-
-            # ── k∞ จากโครงสร้างชั้นทาง (Composite k Engine) ─────────────
-            st.markdown("---")
-            st.subheader("🧮 k∞ จากโครงสร้างชั้นทาง (Figure 3.3)")
-            st.caption("คำนวณจาก E_eq (Odemark) + D_total → AASHTO 1993 Figure 3.3 | RBF Interpolation")
-
-            _ck_result = calc_composite_k_from_layers(layers_data, mr_subgrade_psi)
-
-            if _ck_result is None:
-                st.info("ℹ️ กรุณากรอกชั้นทางและความหนาให้ครบถ้วน")
-            else:
-                _k_inf   = _ck_result["k_inf_pci"]
-                _e_eq    = _ck_result["E_eq_MPa"]
-                _d_total = _ck_result["D_total_cm"]
-                _mr      = _ck_result["MR_psi"]
-
-                # แสดงค่า input ที่ใช้คำนวณ
-                _ci1, _ci2, _ci3 = st.columns(3)
-                with _ci1:
-                    st.metric("E_eq", f"{_e_eq:,.0f} MPa")
-                with _ci2:
-                    _d_total_in = round(_ck_result["D_total_in"])
-                    st.metric("D_total", f"{_d_total:.1f} cm", f"{_d_total_in} นิ้ว", delta_color="off")
-                with _ci3:
-                    st.metric("M_R", f"{_mr:,.0f} psi")
-
-                # แสดง k∞ และเปรียบเทียบกับ Optimum
-                st.markdown(f"### k∞ ≈ **{_k_inf:,.0f} pci**")
-
-                if optimum_k is not None:
-                    _diff = _k_inf - optimum_k
-                    if _diff >= 0:
-                        st.success(
-                            f"✅ k∞ ({_k_inf:,.0f} pci) ≥ Optimum k_eff ({optimum_k:,} pci) "
-                            f"— โครงสร้างชั้นทางเพียงพอ (เผื่อ +{_diff:,.0f} pci)"
-                        )
-                    else:
-                        st.error(
-                            f"❌ k∞ ({_k_inf:,.0f} pci) < Optimum k_eff ({optimum_k:,} pci) "
-                            f"— ขาด {abs(_diff):,.0f} pci | ควรเพิ่มความหนาหรือปรับวัสดุ"
-                        )
-                else:
-                    st.info(f"k∞ ≈ {_k_inf:,.0f} pci  (ยังไม่มีค่า Optimum k_eff)")
-
-                st.caption(
-                    "หมายเหตุ: ค่า k∞ นี้เป็นค่าประมาณจาก Digitized Figure 3.3 "
-                    "ควรตรวจสอบกับ Nomograph จริงใน Tab 2"
-                )
-            # ────────────────────────────────────────────────────────────
             st.markdown("---")
            
             fig_structure = create_pavement_structure_figure(layers_data, d_cm_selected)
