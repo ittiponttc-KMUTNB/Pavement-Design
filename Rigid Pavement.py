@@ -2466,6 +2466,7 @@ def main():
                 with _kb2:
                     st.metric(f"k∞ ปรับแก้ (LS={ls_value:.1f})", f"{_kc2:,.0f} pci",
                               delta=f"{_kc2 - _ki2:+,.0f} pci", delta_color="inverse")
+                st.caption("หมายเหตุ: ค่า k∞ นี้เป็นค่าประมาณจาก Digitized Figure 3.3 ควรตรวจสอบกับ Nomograph จริงใน Tab 2")
             # ────────────────────────────────────────────────────────────
             st.markdown("---")
             
