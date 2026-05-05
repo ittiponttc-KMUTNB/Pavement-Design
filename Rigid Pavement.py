@@ -22,6 +22,8 @@ from PIL import Image, ImageDraw
 import io
 import json
 import pandas as pd
+import numpy as np
+from scipy.interpolate import RBFInterpolator, interp1d
 
 # ============================================================
 # ESAL Calculator Engine (นำเข้าจาก ESAL Calculator v4)
@@ -89,6 +91,104 @@ ZR_TABLE = {
 
 J_VALUES = {"JRCP": 2.8, "JPCP": 2.8, "JRCP/JPCP": 2.8, "CRCP": 2.6}
 CD_DEFAULT = 1.0
+
+# ============================================================
+# Composite k∞ Engine  (AASHTO 1993 Figure 3.3)
+# นำเข้าจาก composite_k_app.py — เฉพาะ engine ไม่มี UI
+# ============================================================
+import warnings as _warnings
+_warnings.filterwarnings('ignore')
+
+_CK_MPa_TO_PSI = 145.038
+_CK_CM_TO_INCH = 0.393701
+
+_TURNING_LINE_DATA = {
+    "MR_psi": [1000, 1500, 2000, 3000, 4000, 5000, 6000, 7000,
+               8000, 9000, 10000, 12000, 15000, 20000],
+    "DSB_in": [19.5, 17.2, 15.8, 13.5, 12.0, 10.8,  9.9,  9.2,
+                8.6,  8.1,  7.7,  7.1,  6.4,  5.6]
+}
+
+_CALIB_POINTS = [
+    (15000,   6,  4500,  220), (50000,   6,  4500,  300), (100000,  6,  4500,  350),
+    (15000,  10,  4500,  250), (50000,  10,  4500,  350), (100000, 10,  4500,  400),
+    (15000,  14,  4500,  300), (30000,  14,  4500,  350), (50000,  14,  4500,  420),
+    (75000,  14,  4500,  450),
+    (15000,  18,  4500,  320), (100000, 18,  4500,  550), (200000, 18,  4500,  650),
+    (100000, 20,  4500,  250), (400000, 20,  4500,  990), (1000000,20,  4500, 1300),
+    (15000,  14,  3000,  250), (50000,  14,  3000,  350),
+    (15000,  14,  7500,  460), (50000,  14,  7500,  600),
+    (15000,  14, 15000,  760), (50000,  14, 15000, 1000),
+    (15000,   6,  3000,   80), (50000,   6,  3000,  160),
+    (15000,   6,  7500,  390), (50000,   6,  7500,  450),
+    (15000,   6, 15000,  600), (50000,   6, 15000,  800),
+    (15000,  20,  3000,  290), (100000, 20,  3000,  500),
+    (15000,  20,  7500,  500), (100000, 20,  7500,  990),
+    (15000,  20, 15000,  800), (100000, 20, 15000, 1400),
+]
+
+class _TurningLine:
+    def __init__(self):
+        mr  = np.array(_TURNING_LINE_DATA["MR_psi"], dtype=float)
+        dsb = np.array(_TURNING_LINE_DATA["DSB_in"], dtype=float)
+        self._f = interp1d(np.log10(mr), np.log10(dsb),
+                           kind='linear', fill_value='extrapolate')
+    def mr_to_dsb(self, MR_psi):
+        return float(10 ** self._f(np.log10(MR_psi)))
+
+class _UpperChart:
+    def __init__(self):
+        pts  = np.array([[np.log10(e), np.log10(d), np.log10(mr)]
+                          for e, d, mr, k in _CALIB_POINTS])
+        vals = np.array([np.log10(k) for e, d, mr, k in _CALIB_POINTS])
+        self._rbf = RBFInterpolator(pts, vals,
+                                    kernel='thin_plate_spline', smoothing=0.0)
+    def get_k(self, E_psi, D_in, MR_psi=4500):
+        MR_psi = float(np.clip(MR_psi, 3000, 15000))
+        E_psi  = float(np.clip(E_psi,  15000, 1000000))
+        D_in   = float(np.clip(D_in,   6.0,   20.0))
+        pt = np.array([[np.log10(E_psi), np.log10(D_in), np.log10(MR_psi)]])
+        return float(np.clip(10 ** self._rbf(pt)[0], 50, 2000))
+
+@st.cache_resource
+def _get_composite_k_engine():
+    """Init ครั้งเดียวต่อ session — RBFInterpolator ใช้เวลา init ~1-2 วิ"""
+    turning = _TurningLine()
+    upper   = _UpperChart()
+    return turning, upper
+
+def calc_composite_k_from_layers(layers, MR_psi):
+    """
+    layers = [{"name": str, "thickness_cm": float, "E_MPa": float}, ...]
+    คำนวณ E_eq (Odemark weighted) + D_total → k∞ (pci)
+    คืนค่า dict หรือ None ถ้า input ไม่ครบ
+    """
+    valid = [l for l in layers if l.get("thickness_cm", 0) > 0
+             and l.get("E_MPa", 0) > 0]
+    if not valid:
+        return None
+    try:
+        _, upper = _get_composite_k_engine()
+        D_list   = [l["thickness_cm"] * _CK_CM_TO_INCH for l in valid]
+        E_list   = [l["E_MPa"] * _CK_MPa_TO_PSI        for l in valid]
+        D_total_in = sum(D_list)
+        D_total_cm = sum(l["thickness_cm"] for l in valid)
+        num      = sum(d * (e ** (1/3)) for d, e in zip(D_list, E_list))
+        E_eq_psi = (num / D_total_in) ** 3
+        E_eq_MPa = E_eq_psi / _CK_MPa_TO_PSI
+        k_inf    = upper.get_k(E_eq_psi, D_total_in, MR_psi)
+        return {
+            "E_eq_psi":   round(E_eq_psi, 0),
+            "E_eq_MPa":   round(E_eq_MPa, 1),
+            "D_total_in": round(D_total_in, 2),
+            "D_total_cm": round(D_total_cm, 1),
+            "MR_psi":     round(MR_psi, 0),
+            "k_inf_pci":  round(k_inf, 0),
+        }
+    except Exception:
+        return None
+
+# ============================================================
 
 MATERIAL_MODULUS = {
     "รองผิวทางคอนกรีตด้วย AC": 2500, "รองผิวทางคอนกรีตด้วย PMA(AC)": 3700,
@@ -2470,6 +2570,53 @@ def main():
             df_sens = pd.DataFrame(sens_rows)
             st.dataframe(df_sens, use_container_width=True, hide_index=True)
             st.caption("* ±3 ชุดรอบ Optimum | ค้นหาทีละ 10 pci (50–1,000 pci)")
+
+            # ── k∞ จากโครงสร้างชั้นทาง (Composite k Engine) ─────────────
+            st.markdown("---")
+            st.subheader("🧮 k∞ จากโครงสร้างชั้นทาง (Figure 3.3)")
+            st.caption("คำนวณจาก E_eq (Odemark) + D_total → AASHTO 1993 Figure 3.3 | RBF Interpolation")
+
+            _ck_result = calc_composite_k_from_layers(layers_data, mr_subgrade_psi)
+
+            if _ck_result is None:
+                st.info("ℹ️ กรุณากรอกชั้นทางและความหนาให้ครบถ้วน")
+            else:
+                _k_inf   = _ck_result["k_inf_pci"]
+                _e_eq    = _ck_result["E_eq_MPa"]
+                _d_total = _ck_result["D_total_cm"]
+                _mr      = _ck_result["MR_psi"]
+
+                # แสดงค่า input ที่ใช้คำนวณ
+                _ci1, _ci2, _ci3 = st.columns(3)
+                with _ci1:
+                    st.metric("E_eq", f"{_e_eq:,.0f} MPa")
+                with _ci2:
+                    st.metric("D_total", f"{_d_total:.1f} cm")
+                with _ci3:
+                    st.metric("M_R", f"{_mr:,.0f} psi")
+
+                # แสดง k∞ และเปรียบเทียบกับ Optimum
+                st.markdown(f"### k∞ ≈ **{_k_inf:,.0f} pci**")
+
+                if optimum_k is not None:
+                    _diff = _k_inf - optimum_k
+                    if _diff >= 0:
+                        st.success(
+                            f"✅ k∞ ({_k_inf:,.0f} pci) ≥ Optimum k_eff ({optimum_k:,} pci) "
+                            f"— โครงสร้างชั้นทางเพียงพอ (เผื่อ +{_diff:,.0f} pci)"
+                        )
+                    else:
+                        st.error(
+                            f"❌ k∞ ({_k_inf:,.0f} pci) < Optimum k_eff ({optimum_k:,} pci) "
+                            f"— ขาด {abs(_diff):,.0f} pci | ควรเพิ่มความหนาหรือปรับวัสดุ"
+                        )
+                else:
+                    st.info(f"k∞ ≈ {_k_inf:,.0f} pci  (ยังไม่มีค่า Optimum k_eff)")
+
+                st.caption(
+                    "หมายเหตุ: ค่า k∞ นี้เป็นค่าประมาณจาก Digitized Figure 3.3 "
+                    "ควรตรวจสอบกับ Nomograph จริงใน Tab 2"
+                )
             # ────────────────────────────────────────────────────────────
             st.markdown("---")
            
