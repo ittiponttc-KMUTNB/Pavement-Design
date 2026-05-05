@@ -2507,7 +2507,7 @@ def main():
                 - ไม่มี Dowel Bar: เพิ่มขึ้น 0.5-1.0
                 """)
             j_auto = J_VALUES[pavement_type]
-            j_value = st.number_input("Load Transfer (J)", 2.0, 4.5, st.session_state.get('calc_j', j_auto), 0.1, "%.1f", key="calc_j")
+            j_value = st.number_input("Load Transfer (J)", 2.5, 4.5, st.session_state.get('calc_j', j_auto), 0.1, "%.1f", key="calc_j")
             cd = st.number_input("Drainage (Cd)", 0.7, 1.2, min(1.2, max(0.7, st.session_state.get('calc_cd', 1.0))), 0.05, "%.2f", key="calc_cd")
 
             
