@@ -2591,7 +2591,8 @@ def main():
                 with _ci1:
                     st.metric("E_eq", f"{_e_eq:,.0f} MPa")
                 with _ci2:
-                    st.metric("D_total", f"{_d_total:.1f} cm")
+                    _d_total_in = round(_ck_result["D_total_in"])
+                    st.metric("D_total", f"{_d_total:.1f} cm ({_d_total_in} นิ้ว)")
                 with _ci3:
                     st.metric("M_R", f"{_mr:,.0f} psi")
 
