@@ -1236,10 +1236,10 @@ if st.session_state.get('cbr_design') is not None:
             with col_r2:
                 st.metric("CBR equivalent (จากการคำนวณ)", f"{res['cbr_eq']:.2f} %")
             with col_r3:
-                st.metric("CBR equivalent (ใช้ออกแบบ)", f"{res['cbr_eq_design']} %")
+                st.metric("CBR equivalent (ใช้ออกแบบ)", f"{res.get('cbr_eq_design', math.floor(res['cbr_eq']))} %")
 
             st.info(
-                f"**สรุป:** ใช้ CBR_equivalent = **{res['cbr_eq_design']} %** "
+                f"**สรุป:** ใช้ CBR_equivalent = **{res.get('cbr_eq_design', math.floor(res['cbr_eq']))} %** "
                 f"แทนค่า CBR ดินเดิม ({st.session_state['cbr_design']:.2f} %) "
                 f"ในการออกแบบโครงสร้างชั้นทาง"
             )
