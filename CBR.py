@@ -673,6 +673,14 @@ if cbr_values is not None and len(cbr_values) > 0:
                     jc.set(qn('w:val'), 'thaiDistribute')
                     pPr.append(jc)
                     
+                    # เลือก CBR ที่ใช้ออกแบบสำหรับรายงาน
+                    _improve = st.session_state.get('improve_soil_check', False)
+                    _ode = st.session_state.get('odemark_result')
+                    if _improve and _ode:
+                        cbr_for_report = _ode.get('cbr_eq_design', math.floor(_ode['cbr_eq']))
+                    else:
+                        cbr_for_report = math.floor(design_cbr)
+
                     # Build intro text with mixed formatting
                     intro_parts = [
                         ('ความแข็งแรงของดินฐานรากบริเวณโดยรอบพื้นที่โครงการ หรือกำลังรับน้ำหนักของดินพื้นทางเดิม '
@@ -687,7 +695,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                         (' ของค่ากำลังที่พบเท่ากับ CBR เท่ากับ ', False),
                         (f'{cbr_at_percentile:.1f}', True),
                         (' % อย่างไรก็ตาม ที่ปรึกษาเลือกค่า CBR เท่ากับ ', False),
-                        (f'{int(design_cbr)}', True),
+                        (f'{cbr_for_report}', True),
                         (' % มาใช้ในการออกแบบโครงสร้างชั้นทาง ดังแสดงผลการวิเคราะห์ใน', False),
                         (f'ตารางที่ {table_number}', True),
                         (' และ', False),
