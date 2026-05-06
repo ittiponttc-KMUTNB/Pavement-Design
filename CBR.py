@@ -342,6 +342,7 @@ if cbr_values is not None and len(cbr_values) > 0:
     
     # Calculate CBR at target percentile
     cbr_at_percentile = float(f_interp(target_percentile))
+    st.session_state['cbr_design'] = cbr_at_percentile  # เก็บไว้ใช้ใน Odemark section
     
     st.markdown("---")
     
@@ -920,6 +921,148 @@ if cbr_values is not None and len(cbr_values) > 0:
                     footer2_run.font.italic = True
                     footer2.alignment = WD_ALIGN_PARAGRAPH.CENTER
                     
+                    # =========================================================
+                    # 7) ส่วนปรับปรุงดินคันทาง (ถ้ามี)
+                    # =========================================================
+                    if (st.session_state.get('improve_soil_check')
+                            and st.session_state.get('odemark_result')):
+
+                        res = st.session_state['odemark_result']
+                        MPA_PER_CBR_DOC = 1500 * 0.006895
+
+                        doc.add_paragraph()
+                        doc.add_paragraph()
+
+                        # หัวข้อ
+                        imp_heading = doc.add_paragraph()
+                        imp_run = imp_heading.add_run("การปรับปรุงดินคันทาง (Subgrade Improvement)")
+                        imp_run.font.name = 'TH SarabunPSK'
+                        imp_run.font.size = Pt(15)
+                        imp_run.font.bold = True
+
+                        # ย่อหน้าอธิบาย
+                        imp_intro = doc.add_paragraph()
+                        imp_intro.paragraph_format.first_line_indent = Cm(1.25)
+                        pPr2 = imp_intro._element.get_or_add_pPr()
+                        jc2 = OxmlElement('w:jc')
+                        jc2.set(qn('w:val'), 'thaiDistribute')
+                        pPr2.append(jc2)
+                        intro_run2 = imp_intro.add_run(
+                            f"เนื่องจากค่า CBR ดินเดิมที่ได้จากการวิเคราะห์ทางสถิติมีค่าต่ำ "
+                            f"จึงได้ทำการปรับปรุงดินคันทางโดยการใช้วัสดุคุณภาพดีปูทับ "
+                            f"และคำนวณค่า CBR เทียบเท่า (CBR Equivalent) ด้วยวิธี Odemark (1974) "
+                            f"โดยพิจารณาโครงสร้างดิน 2 ชั้น ดังนี้"
+                        )
+                        intro_run2.font.name = 'TH SarabunPSK'
+                        intro_run2.font.size = Pt(15)
+
+                        doc.add_paragraph()
+
+                        # ตารางชั้นดิน
+                        imp_tbl = doc.add_table(rows=3, cols=4)
+                        imp_tbl.style = 'Table Grid'
+                        imp_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+                        imp_headers = ['ชั้นดิน', 'ชนิดวัสดุ', 'ความหนา (ซม.)', 'MR (MPa)']
+                        imp_data = [
+                            ('ชั้นที่ 1 (วัสดุปรับปรุง)',
+                             res['mat1'],
+                             f"{res['h1_cm']:.1f}",
+                             f"{res['mr1_mpa']:.1f}"),
+                            ('ชั้นที่ 2 (ดินถมคันทางใหม่)',
+                             f"ดินถมคันทาง CBR = {res['cbr2']:.1f} %",
+                             f"{res['h2_cm']:.1f}",
+                             f"{res['mr2_mpa']:.2f}"),
+                        ]
+
+                        for j, hdr in enumerate(imp_headers):
+                            cell = imp_tbl.rows[0].cells[j]
+                            r = cell.paragraphs[0].add_run(hdr)
+                            r.font.name = 'TH SarabunPSK'
+                            r.font.size = Pt(14)
+                            r.font.bold = True
+                            cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+                            set_cell_bg(cell, 'D9E2F3')
+
+                        for row_i, row_vals in enumerate(imp_data):
+                            for col_j, val in enumerate(row_vals):
+                                cell = imp_tbl.rows[row_i + 1].cells[col_j]
+                                r = cell.paragraphs[0].add_run(val)
+                                r.font.name = 'TH SarabunPSK'
+                                r.font.size = Pt(14)
+                                cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
+
+                        for row in imp_tbl.rows:
+                            row.cells[0].width = Cm(4.5)
+                            row.cells[1].width = Cm(5.5)
+                            row.cells[2].width = Cm(3.0)
+                            row.cells[3].width = Cm(3.0)
+
+                        doc.add_paragraph()
+
+                        # สูตรและการคำนวณ
+                        calc_heading = doc.add_paragraph()
+                        calc_r = calc_heading.add_run("วิธีการคำนวณ")
+                        calc_r.font.name = 'TH SarabunPSK'
+                        calc_r.font.size = Pt(15)
+                        calc_r.font.bold = True
+
+                        calc_lines = [
+                            "สูตร Odemark (1974):  MR_eq = ( Σ(h_i × MR_i^(1/3)) / Σh_i )^3",
+                            f"ชั้นที่ 1 : h = {res['h1_cm']:.1f} cm, MR = {res['mr1_mpa']:.1f} MPa, "
+                            f"MR^(1/3) = {res['mr1_mpa']**(1/3):.4f}",
+                            f"ชั้นที่ 2 : h = {res['h2_cm']:.1f} cm, MR = {res['mr2_mpa']:.2f} MPa, "
+                            f"MR^(1/3) = {res['mr2_mpa']**(1/3):.4f}",
+                            f"Σh = {res['sum_h']:.1f} cm",
+                            f"Σ(h·MR^(1/3)) = {res['sum_hE13']:.4f}",
+                            f"MR_eq = ({res['sum_hE13']:.4f} / {res['sum_h']:.1f})^3 = {res['mr_eq_mpa']:.2f} MPa",
+                            f"CBR_equivalent = MR_eq / (1500 × 0.006895) = {res['cbr_eq']:.2f} %",
+                        ]
+                        for line in calc_lines:
+                            p = doc.add_paragraph(style='Normal')
+                            r2 = p.add_run(line)
+                            r2.font.name = 'TH SarabunPSK'
+                            r2.font.size = Pt(14)
+
+                        doc.add_paragraph()
+
+                        # สรุปผล
+                        result_heading = doc.add_paragraph()
+                        result_r = result_heading.add_run("ผลการคำนวณ")
+                        result_r.font.name = 'TH SarabunPSK'
+                        result_r.font.size = Pt(15)
+                        result_r.font.bold = True
+
+                        summary_tbl = doc.add_table(rows=3, cols=2)
+                        summary_tbl.style = 'Table Grid'
+                        summary_tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
+
+                        summary_data = [
+                            ('รายการ', 'ค่า'),
+                            ('MR equivalent', f'{res["mr_eq_mpa"]:.2f} MPa'),
+                            ('CBR equivalent (ใช้ออกแบบ)', f'{res["cbr_eq"]:.2f} %'),
+                        ]
+                        for row_i, (c1, c2) in enumerate(summary_data):
+                            cell1 = summary_tbl.rows[row_i].cells[0]
+                            cell2 = summary_tbl.rows[row_i].cells[1]
+                            r1s = cell1.paragraphs[0].add_run(c1)
+                            r2s = cell2.paragraphs[0].add_run(c2)
+                            for r_s in (r1s, r2s):
+                                r_s.font.name = 'TH SarabunPSK'
+                                r_s.font.size = Pt(14)
+                                if row_i == 0:
+                                    r_s.font.bold = True
+                            if row_i == 0:
+                                set_cell_bg(cell1, 'D9E2F3')
+                                set_cell_bg(cell2, 'D9E2F3')
+                            if row_i == 2:  # แถว CBR_eq เน้นสีแดง
+                                r2s.font.bold = True
+                                r2s.font.color.rgb = RGBColor(255, 0, 0)
+
+                        for row in summary_tbl.rows:
+                            row.cells[0].width = Cm(7)
+                            row.cells[1].width = Cm(4)
+
                     # Save to buffer
                     buffer = io.BytesIO()
                     doc.save(buffer)
@@ -966,6 +1109,122 @@ if cbr_values is not None and len(cbr_values) > 0:
             use_container_width=True,
             hide_index=True
         )
+
+# =====================================================================
+# ODEMARK SECTION: ปรับปรุงดินคันทาง
+# =====================================================================
+
+# วัสดุที่เหมาะสมสำหรับปรับปรุงดินคันทาง
+IMPROVE_MATERIAL_DB = {
+    "หินคลุก CBR 80%":                     {"MR_default": 350},
+    "รองพื้นทางวัสดุมวลรวม (CBR 25%)":    {"MR_default": 150},
+    "วัสดุคัดเลือก ก":                     {"MR_default": 100},
+}
+
+MPA_PER_CBR = 1500 * 0.006895  # = 10.3425 MPa / %CBR
+
+if st.session_state.get('cbr_design') is not None:
+    st.markdown("---")
+    st.markdown("### 🔧 การปรับปรุงดินคันทาง")
+
+    improve_soil = st.checkbox(
+        "ต้องการปรับปรุงดินคันทาง (CBR ดินเดิมต่ำ)",
+        key="improve_soil_check"
+    )
+
+    if improve_soil:
+        st.markdown("#### กำหนดชั้นดิน 2 ชั้น")
+
+        # ── ชั้นที่ 1: วัสดุปรับปรุง ──────────────────────────────────
+        st.markdown("**ชั้นที่ 1 — วัสดุปรับปรุง**")
+        col_m1, col_h1, col_mr1 = st.columns(3)
+
+        with col_m1:
+            mat1 = st.selectbox(
+                "ชนิดวัสดุ",
+                list(IMPROVE_MATERIAL_DB.keys()),
+                key="imp_mat1"
+            )
+        with col_h1:
+            h1_cm = st.number_input(
+                "ความหนา (ซม.)",
+                min_value=1.0, max_value=150.0,
+                value=30.0, step=5.0,
+                key="imp_h1"
+            )
+        with col_mr1:
+            mr1_mpa = st.number_input(
+                "MR (MPa)",
+                min_value=10.0, max_value=1000.0,
+                value=float(IMPROVE_MATERIAL_DB[mat1]["MR_default"]),
+                step=10.0,
+                key="imp_mr1"
+            )
+
+        # ── ชั้นที่ 2: ดินถมคันทางใหม่ ────────────────────────────────
+        st.markdown("**ชั้นที่ 2 — ดินถมคันทางใหม่**")
+        col_h2, col_cbr2 = st.columns(2)
+
+        with col_h2:
+            h2_cm = st.number_input(
+                "ความหนา (ซม.)",
+                min_value=1.0, max_value=300.0,
+                value=50.0, step=5.0,
+                key="imp_h2"
+            )
+        with col_cbr2:
+            cbr2_input = st.number_input(
+                "CBR ดินถมคันทางใหม่ (%)",
+                min_value=0.1, max_value=100.0,
+                value=10.0, step=1.0,
+                key="imp_cbr2"
+            )
+
+        mr2_mpa = cbr2_input * MPA_PER_CBR
+        st.caption(f"MR ดินถมคันทางใหม่ = {cbr2_input:.1f} × {MPA_PER_CBR:.4f} = **{mr2_mpa:.2f} MPa**")
+
+        # ── คำนวณ Odemark ──────────────────────────────────────────────
+        if st.button("คำนวณ CBR_equivalent (Odemark)", key="btn_odemark"):
+            sum_h     = h1_cm + h2_cm
+            sum_hE13  = h1_cm * (mr1_mpa ** (1/3)) + h2_cm * (mr2_mpa ** (1/3))
+            mr_eq_mpa = (sum_hE13 / sum_h) ** 3
+            cbr_eq    = mr_eq_mpa / MPA_PER_CBR
+
+            st.session_state['odemark_result'] = {
+                'mat1': mat1, 'h1_cm': h1_cm, 'mr1_mpa': mr1_mpa,
+                'h2_cm': h2_cm, 'cbr2': cbr2_input, 'mr2_mpa': mr2_mpa,
+                'sum_h': sum_h, 'sum_hE13': sum_hE13,
+                'mr_eq_mpa': mr_eq_mpa, 'cbr_eq': cbr_eq
+            }
+
+        # ── แสดงผล ────────────────────────────────────────────────────
+        if st.session_state.get('odemark_result'):
+            res = st.session_state['odemark_result']
+            st.markdown("---")
+            st.markdown("#### ผลการคำนวณ Odemark")
+
+            col_r1, col_r2 = st.columns(2)
+            with col_r1:
+                st.metric("MR equivalent", f"{res['mr_eq_mpa']:.2f} MPa")
+            with col_r2:
+                st.metric("CBR equivalent", f"{res['cbr_eq']:.2f} %")
+
+            st.info(
+                f"**สรุป:** ใช้ CBR_equivalent = **{res['cbr_eq']:.2f} %** "
+                f"แทนค่า CBR ดินเดิม ({st.session_state['cbr_design']:.2f} %) "
+                f"ในการออกแบบโครงสร้างชั้นทาง"
+            )
+
+            with st.expander("แสดงวิธีการคำนวณ"):
+                st.latex(
+                    r"MR_{eq} = \left(\frac{\sum h_i \cdot MR_i^{1/3}}{\sum h_i}\right)^3"
+                )
+                st.write(f"- ชั้นที่ 1 ({res['mat1']}): h = {res['h1_cm']:.1f} cm, MR = {res['mr1_mpa']:.1f} MPa, MR¹ᐟ³ = {res['mr1_mpa']**(1/3):.4f}")
+                st.write(f"- ชั้นที่ 2 (ดินถมคันทางใหม่): h = {res['h2_cm']:.1f} cm, MR = {res['mr2_mpa']:.2f} MPa, MR¹ᐟ³ = {res['mr2_mpa']**(1/3):.4f}")
+                st.write(f"- Σh = {res['sum_h']:.1f} cm")
+                st.write(f"- Σ(h·MR¹ᐟ³) = {res['sum_hE13']:.4f}")
+                st.write(f"- MR_eq = ({res['sum_hE13']:.4f} / {res['sum_h']:.1f})³ = {res['mr_eq_mpa']:.2f} MPa")
+                st.write(f"- CBR_eq = {res['mr_eq_mpa']:.2f} / {MPA_PER_CBR:.4f} = **{res['cbr_eq']:.2f} %**")
 
 # Footer
 st.markdown("---")
