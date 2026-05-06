@@ -1123,6 +1123,11 @@ IMPROVE_MATERIAL_DB = {
 
 MPA_PER_CBR = 1500 * 0.006895  # = 10.3425 MPa / %CBR
 
+def update_imp_mr1():
+    """อัปเดต MR เมื่อเปลี่ยนชนิดวัสดุชั้นที่ 1"""
+    mat = st.session_state["imp_mat1"]
+    st.session_state["imp_mr1"] = float(IMPROVE_MATERIAL_DB[mat]["MR_default"])
+
 if st.session_state.get('cbr_design') is not None:
     st.markdown("---")
     st.markdown("### 🔧 การปรับปรุงดินคันทาง")
@@ -1135,6 +1140,12 @@ if st.session_state.get('cbr_design') is not None:
     if improve_soil:
         st.markdown("#### กำหนดชั้นดิน 2 ชั้น")
 
+        # ตั้งค่าเริ่มต้นครั้งแรก (ป้องกัน key error)
+        if "imp_mat1" not in st.session_state:
+            first_mat = list(IMPROVE_MATERIAL_DB.keys())[0]
+            st.session_state["imp_mat1"] = first_mat
+            st.session_state["imp_mr1"] = float(IMPROVE_MATERIAL_DB[first_mat]["MR_default"])
+
         # ── ชั้นที่ 1: วัสดุปรับปรุง ──────────────────────────────────
         st.markdown("**ชั้นที่ 1 — วัสดุปรับปรุง**")
         col_m1, col_h1, col_mr1 = st.columns(3)
@@ -1143,7 +1154,8 @@ if st.session_state.get('cbr_design') is not None:
             mat1 = st.selectbox(
                 "ชนิดวัสดุ",
                 list(IMPROVE_MATERIAL_DB.keys()),
-                key="imp_mat1"
+                key="imp_mat1",
+                on_change=update_imp_mr1
             )
         with col_h1:
             h1_cm = st.number_input(
@@ -1156,7 +1168,6 @@ if st.session_state.get('cbr_design') is not None:
             mr1_mpa = st.number_input(
                 "MR (MPa)",
                 min_value=10.0, max_value=1000.0,
-                value=float(IMPROVE_MATERIAL_DB[mat1]["MR_default"]),
                 step=10.0,
                 key="imp_mr1"
             )
