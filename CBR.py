@@ -1124,9 +1124,14 @@ IMPROVE_MATERIAL_DB = {
 MPA_PER_CBR = 1500 * 0.006895  # = 10.3425 MPa / %CBR
 
 def update_imp_mr1():
-    """อัปเดต MR เมื่อเปลี่ยนชนิดวัสดุชั้นที่ 1"""
+    """อัปเดต MR เมื่อเปลี่ยนชนิดวัสดุชั้นที่ 1 และ clear ผลเก่า"""
     mat = st.session_state["imp_mat1"]
     st.session_state["imp_mr1"] = float(IMPROVE_MATERIAL_DB[mat]["MR_default"])
+    st.session_state.pop('odemark_result', None)
+
+def clear_odemark_result():
+    """Clear ผลการคำนวณเมื่อ input เปลี่ยน"""
+    st.session_state.pop('odemark_result', None)
 
 if st.session_state.get('cbr_design') is not None:
     st.markdown("---")
@@ -1162,14 +1167,16 @@ if st.session_state.get('cbr_design') is not None:
                 "ความหนา (ซม.)",
                 min_value=1.0, max_value=150.0,
                 value=30.0, step=5.0,
-                key="imp_h1"
+                key="imp_h1",
+                on_change=clear_odemark_result
             )
         with col_mr1:
             mr1_mpa = st.number_input(
                 "MR (MPa)",
                 min_value=10.0, max_value=1000.0,
                 step=10.0,
-                key="imp_mr1"
+                key="imp_mr1",
+                on_change=clear_odemark_result
             )
 
         # ── ชั้นที่ 2: ดินถมคันทางใหม่ ────────────────────────────────
@@ -1181,14 +1188,16 @@ if st.session_state.get('cbr_design') is not None:
                 "ความหนา (ซม.)",
                 min_value=1.0, max_value=300.0,
                 value=50.0, step=5.0,
-                key="imp_h2"
+                key="imp_h2",
+                on_change=clear_odemark_result
             )
         with col_cbr2:
             cbr2_input = st.number_input(
                 "CBR ดินถมคันทางใหม่ (%)",
                 min_value=0.1, max_value=100.0,
                 value=10.0, step=1.0,
-                key="imp_cbr2"
+                key="imp_cbr2",
+                on_change=clear_odemark_result
             )
 
         mr2_mpa = cbr2_input * MPA_PER_CBR
