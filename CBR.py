@@ -1,3 +1,4 @@
+import math
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -780,11 +781,11 @@ if cbr_values is not None and len(cbr_values) > 0:
                     # Set column widths for CBR table
                     for row in cbr_table.rows:
                         row.cells[0].width = Cm(2.0)
-                        row.cells[1].width = Cm(2.0)
-                        row.cells[2].width = Cm(2.5)
+                        row.cells[1].width = Cm(2.5)
+                        row.cells[2].width = Cm(3.5)
                         row.cells[3].width = Cm(2.0)
-                        row.cells[4].width = Cm(2.0)
-                        row.cells[5].width = Cm(2.5)
+                        row.cells[4].width = Cm(2.5)
+                        row.cells[5].width = Cm(3.5)
                     
                     doc.add_paragraph()  # spacing
                     
@@ -837,7 +838,7 @@ if cbr_values is not None and len(cbr_values) > 0:
                     
                     # Set column widths
                     for row in table.rows:
-                        row.cells[0].width = Cm(6)
+                        row.cells[0].width = Cm(12)
                         row.cells[1].width = Cm(4)
                     
                     doc.add_paragraph()  # spacing
@@ -993,10 +994,10 @@ if cbr_values is not None and len(cbr_values) > 0:
                                 cell.paragraphs[0].alignment = WD_ALIGN_PARAGRAPH.CENTER
 
                         for row in imp_tbl.rows:
-                            row.cells[0].width = Cm(4.5)
-                            row.cells[1].width = Cm(5.5)
-                            row.cells[2].width = Cm(3.0)
-                            row.cells[3].width = Cm(3.0)
+                            row.cells[0].width = Cm(4.0)
+                            row.cells[1].width = Cm(7.0)
+                            row.cells[2].width = Cm(2.5)
+                            row.cells[3].width = Cm(2.5)
 
                         doc.add_paragraph()
 
@@ -1040,8 +1041,12 @@ if cbr_values is not None and len(cbr_values) > 0:
                         summary_data = [
                             ('รายการ', 'ค่า'),
                             ('MR equivalent', f'{res["mr_eq_mpa"]:.2f} MPa'),
-                            ('CBR equivalent (ใช้ออกแบบ)', f'{res["cbr_eq"]:.2f} %'),
+                            ('CBR equivalent (จากการคำนวณ)', f'{res["cbr_eq"]:.2f} %'),
+                            ('CBR equivalent (ใช้ออกแบบ)', f'{res["cbr_eq_design"]} %'),
                         ]
+                        # ปรับจำนวนแถวในตารางให้ครบ
+                        while len(summary_tbl.rows) < len(summary_data):
+                            summary_tbl.add_row()
                         for row_i, (c1, c2) in enumerate(summary_data):
                             cell1 = summary_tbl.rows[row_i].cells[0]
                             cell2 = summary_tbl.rows[row_i].cells[1]
@@ -1055,12 +1060,13 @@ if cbr_values is not None and len(cbr_values) > 0:
                             if row_i == 0:
                                 set_cell_bg(cell1, 'D9E2F3')
                                 set_cell_bg(cell2, 'D9E2F3')
-                            if row_i == 2:  # แถว CBR_eq เน้นสีแดง
+                            if row_i == 3:  # แถว CBR ใช้ออกแบบ เน้นสีแดง
                                 r2s.font.bold = True
                                 r2s.font.color.rgb = RGBColor(255, 0, 0)
 
+                        # ขยายตารางเต็มหน้ากระดาษ A4 (16 cm usable)
                         for row in summary_tbl.rows:
-                            row.cells[0].width = Cm(7)
+                            row.cells[0].width = Cm(12)
                             row.cells[1].width = Cm(4)
 
                     # Save to buffer
@@ -1214,7 +1220,8 @@ if st.session_state.get('cbr_design') is not None:
                 'mat1': mat1, 'h1_cm': h1_cm, 'mr1_mpa': mr1_mpa,
                 'h2_cm': h2_cm, 'cbr2': cbr2_input, 'mr2_mpa': mr2_mpa,
                 'sum_h': sum_h, 'sum_hE13': sum_hE13,
-                'mr_eq_mpa': mr_eq_mpa, 'cbr_eq': cbr_eq
+                'mr_eq_mpa': mr_eq_mpa, 'cbr_eq': cbr_eq,
+                'cbr_eq_design': math.floor(cbr_eq)
             }
 
         # ── แสดงผล ────────────────────────────────────────────────────
@@ -1223,14 +1230,16 @@ if st.session_state.get('cbr_design') is not None:
             st.markdown("---")
             st.markdown("#### ผลการคำนวณ Odemark")
 
-            col_r1, col_r2 = st.columns(2)
+            col_r1, col_r2, col_r3 = st.columns(3)
             with col_r1:
                 st.metric("MR equivalent", f"{res['mr_eq_mpa']:.2f} MPa")
             with col_r2:
-                st.metric("CBR equivalent", f"{res['cbr_eq']:.2f} %")
+                st.metric("CBR equivalent (จากการคำนวณ)", f"{res['cbr_eq']:.2f} %")
+            with col_r3:
+                st.metric("CBR equivalent (ใช้ออกแบบ)", f"{res['cbr_eq_design']} %")
 
             st.info(
-                f"**สรุป:** ใช้ CBR_equivalent = **{res['cbr_eq']:.2f} %** "
+                f"**สรุป:** ใช้ CBR_equivalent = **{res['cbr_eq_design']} %** "
                 f"แทนค่า CBR ดินเดิม ({st.session_state['cbr_design']:.2f} %) "
                 f"ในการออกแบบโครงสร้างชั้นทาง"
             )
