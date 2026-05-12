@@ -233,17 +233,22 @@ def apply_loss_of_support(k_inf_pci, ls):
     k1 = float(10 ** f1(k_log))
     k2 = float(10 ** f2(k_log))
     k3 = float(10 ** f3(k_log))
-    # interpolate ระหว่าง LS levels
+    # interpolate ระหว่าง LS levels — log-log scale (ถูกต้องตาม nomograph)
+    lk0 = np.log10(float(k_inf_pci))   # LS=0
+    lk1 = np.log10(k1)                  # LS=1
+    lk2 = np.log10(k2)                  # LS=2
+    lk3 = np.log10(k3)                  # LS=3
+
     if ls <= 1.0:
         t = ls / 1.0
-        k_corr = k_inf_pci * (1 - t) + k1 * t
+        lk_out = lk0 * (1 - t) + lk1 * t
     elif ls <= 2.0:
         t = (ls - 1.0) / 1.0
-        k_corr = k1 * (1 - t) + k2 * t
+        lk_out = lk1 * (1 - t) + lk2 * t
     else:
-        t = (ls - 2.0) / 1.0
-        k_corr = k2 * (1 - t) + k3 * t
-    return float(np.clip(k_corr, 2, k_inf_pci))
+        t = min((ls - 2.0) / 1.0, 1.0)
+        lk_out = lk2 * (1 - t) + lk3 * t
+    return float(np.clip(10 ** lk_out, 2, k_inf_pci))
 
 # ============================================================
 
