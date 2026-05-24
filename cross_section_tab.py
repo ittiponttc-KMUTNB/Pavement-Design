@@ -422,9 +422,16 @@ def render_cross_section_tab(ss: dict = None, project_name: str = ""):
     best_ptype = None
     if ss.get('_lc_sum') is not None:
         sdf = ss.get('_lc_sum')
-        if sdf is not None and 'NPV (บาท)' in sdf.columns:
-            idx = sdf['NPV (บาท)'].idxmin()
-            best_ptype = sdf.loc[idx, 'ทางเลือก'] if idx is not None else None
+        if sdf is not None and 'NPV (ล้านบาท/กม.)' in sdf.columns:
+            idx = sdf['NPV (ล้านบาท/กม.)'].idxmin()
+            if idx is not None:
+                # ประเภทผิวทาง = 'JPCP','JRCP','CRCP','AC'
+                raw = sdf.loc[idx, 'ประเภทผิวทาง']
+                # map ชื่อเต็ม → key ที่ใช้ใน cs_all_results
+                for key in ['JPCP','JRCP','CRCP','AC']:
+                    if key in str(raw).upper():
+                        best_ptype = key
+                        break
 
     mode = st.radio("เลือก pavement type",
                     ["🔄 ใช้ผล LCCA (NPV ต่ำสุด)", "✏️ เลือกเอง"],
