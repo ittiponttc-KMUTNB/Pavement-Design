@@ -62,6 +62,7 @@ SKIP_KEYWORDS = [
     'tack coat', 'prime coat', 'wire mesh',
     'geotextile', 'joint', 'steel', 'dowel',
     'tie bar', 'transverse', 'longitudinal steel',
+    'embankment', 'sand embankment',   # ไม่วาดใน drawing
 ]
 
 def get_color(name: str, override: str = None) -> str:
