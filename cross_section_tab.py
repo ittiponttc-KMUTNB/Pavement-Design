@@ -506,12 +506,43 @@ def render_cross_section_tab(ss: dict = None, project_name: str = ""):
         carriageway_w = st.number_input(
             "Carriageway (ม.)", 3.0, 20.0,
             float(ss.get('cs_carry_w', 7.5)), 0.5, key="cs_carry_w")
-        embankment_cbr = st.number_input(
-            "CBR Embankment (%)", 1.0, 20.0,
-            float(ss.get('cs_emb_cbr', 3.0)), 0.5, key="cs_emb_cbr")
     with col3:
         fig_no     = st.text_input("เลขรูปที่",      ss.get('cs_fig_no','3.9-1'),  key="cs_fig_no")
         section_no = st.text_input("หมายเลขหัวข้อ", ss.get('cs_sec_no','3.9.8'),  key="cs_sec_no")
+
+    # ── CBR Embankment — highlighted row ────────────────────
+    st.markdown("""
+    <div style="
+        background: linear-gradient(135deg, #FFF8E1, #FFF3CD);
+        border: 2px solid #F59E0B;
+        border-left: 6px solid #D97706;
+        border-radius: 8px;
+        padding: 12px 18px 4px 18px;
+        margin: 8px 0 4px 0;
+    ">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:4px;">
+            <span style="font-size:1.2rem;">🔑</span>
+            <span style="font-weight:700; font-size:1.0rem; color:#92400E;">
+                CBR Embankment — ค่าสำคัญ กรุณาตรวจสอบ
+            </span>
+        </div>
+        <div style="font-size:0.85rem; color:#78350F; margin-bottom:8px; padding-left:28px;">
+            💡 ใช้ค่า Design CBR จากผลทดสอบจริง
+            &nbsp;|&nbsp; ค่าปกติ: <b>3–5%</b> (ดินอ่อน–ปานกลาง)
+            &nbsp;|&nbsp; <b>&gt;7%</b> = ดินแข็ง
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
+
+    cbr_col, _ = st.columns([1, 2])
+    with cbr_col:
+        embankment_cbr = st.number_input(
+            "CBR Embankment (%)",
+            min_value=1.0, max_value=20.0,
+            value=float(ss.get('cs_emb_cbr', 3.0)),
+            step=0.5, key="cs_emb_cbr",
+            help="ค่า CBR ของดินคันทางเดิม ใช้ในการออกแบบและแสดงในรูป Cross-Section"
+        )
 
     st.divider()
 
