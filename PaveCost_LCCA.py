@@ -38,6 +38,8 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
+from cross_section_tab import render_cross_section_tab
+
 # ── optional imports ──────────────────────────────────────────────────────────
 try:
     import plotly.express as px
@@ -1340,6 +1342,27 @@ def generate_word_combined(
     doc.add_paragraph()
 
     # ════════════════════════════════════════════════════════════════════════
+    # แทรกรูป Cross-Section (ถ้าผู้ใช้ Generate ไว้ใน Tab Cross-Section)
+    # ════════════════════════════════════════════════════════════════════════
+    img_bytes = ss.get('cs_last_img_bytes')
+    if img_bytes:
+        next_h1(SCc, "รูปแบบหน้าตัดโครงสร้างชั้นทาง (Cross-Section)")
+        body("รูปต่อไปนี้แสดงหน้าตัดโครงสร้างชั้นทางที่ได้จากการออกแบบ "
+             "เพื่อใช้ประกอบการประเมินราคาและรายงาน:")
+        img_stream = io.BytesIO(img_bytes)
+        p_img = doc.add_paragraph()
+        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        p_img.add_run().add_picture(img_stream, width=Cm(15.0))
+        f_no    = ss.get('cs_last_fig_no', '3.9-1')
+        p_type  = ss.get('cs_last_ptype',  'โครงสร้างชั้นทาง')
+        p_cap   = doc.add_paragraph()
+        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
+        _set_rf(p_cap.add_run(f"รูปที่ {f_no}  รูปแบบหน้าตัด {p_type}"),
+                size=14, bold=False)
+        doc.add_paragraph()
+    # ════════════════════════════════════════════════════════════════════════
+
+    # ════════════════════════════════════════════════════════════════════════
     # ส่วนที่ 2 — งบประมาณบำรุงรักษาประจำปี (Routine Cost)
     # ════════════════════════════════════════════════════════════════════════
     doc.add_page_break()
@@ -1844,10 +1867,11 @@ tab_cs, tab_lc = st.tabs([
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 with tab_cs:
-    sub_layer, sub_price, sub_summary = st.tabs([
+    sub_layer, sub_price, sub_summary, sub_cross = st.tabs([
         "🏗️ กำหนดหน้าตัด",
         "💰 ราคาวัสดุ",
         "📊 สรุปต้นทุน & รายงาน",
+        "🖼️ Cross-Section",
     ])
 
     all_results: dict = {}
@@ -2055,6 +2079,13 @@ with tab_cs:
                     '<div class="info-band" style="margin-top:4px">📄 สร้าง <b>Word Report รวม</b> (Cost Structure + Routine Cost + LCCA) '
                     'ได้ที่ Tab <b>📊 LCCA → 📄 Word Report</b> — กดปุ่มเดียวได้ไฟล์ครบ</div>',
                     unsafe_allow_html=True)
+
+# ╔══════════════════════════════════════════════════════════════════════════════╗
+# ║  TAB A — CROSS-SECTION DRAWING                                              ║
+# ╚══════════════════════════════════════════════════════════════════════════════╝
+
+with sub_cross:
+    render_cross_section_tab(ss=ss, project_name=project_name)
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  TAB B — LCCA                                                               ║
