@@ -38,8 +38,6 @@ import numpy as np
 import pandas as pd
 import streamlit as st
 
-from cross_section_tab import render_cross_section_tab
-
 # ── optional imports ──────────────────────────────────────────────────────────
 try:
     import plotly.express as px
@@ -1239,8 +1237,21 @@ def generate_word_combined(
         body(intro_text)
     doc.add_paragraph()
 
-    # ── 1.1 รายละเอียดวัสดุและราคา ───────────────────────────────────────
+    # ── 1.1 ข้อมูลโครงการ ────────────────────────────────────────────────
     SCc = make_sc(sec_cost)
+    next_h1(SCc, "ข้อมูลโครงการและขนาดถนน")
+    _add_tbl_w(doc, ["รายการ", "ค่า"], [
+        ["ชื่อโครงการ",      proj_nm],
+        ["ระยะทางรวม",       f"{length:.2f} กม."],
+        ["ความกว้างรวม",     f"{tw:.2f} ม."],
+        ["จำนวนช่องจราจร",  f"{nl} ช่อง"],
+        ["อายุออกแบบ",      f"{dl} ปี"],
+        ["พื้นที่ทาง/กม.",   f"{tw*1000:,.0f} ตร.ม./กม."],
+        ["พื้นที่ทางรวม",    f"{tw*1000*length:,.0f} ตร.ม."],
+    ], col_widths=[7, 9])
+    doc.add_paragraph()
+
+    # ── 1.2 รายละเอียดวัสดุและราคา ───────────────────────────────────────
     next_h1(SCc, "รายละเอียดวัสดุและราคาโครงสร้างชั้นทางแต่ละประเภท")
     body(
         "ตารางต่อไปนี้แสดงรายการวัสดุ ปริมาณ และราคาโครงสร้างชั้นทางแต่ละประเภท "
@@ -1557,13 +1568,7 @@ def generate_word_combined(
     # สรุปและข้อเสนอแนะ (ท้ายรายงาน)
     # ════════════════════════════════════════════════════════════════════════
     doc.add_page_break()
-    # คำนวณเลขหัวข้อ เช่น base_sec="3.9" → "3.9.5"
-    try:
-        _p = base_sec.strip().split('.')
-        _sec_summary = '.'.join(_p[:2]) + '.5'
-    except Exception:
-        _sec_summary = base_sec + '.5'
-    hdg(f"{_sec_summary}  สรุปและข้อเสนอแนะ", size=18, uline=True, sb=14)
+    hdg("สรุปและข้อเสนอแนะ", size=18, uline=True, sb=14)
 
     if summary_df is not None and len(summary_df) > 0:
         best  = summary_df.iloc[0]
@@ -1618,41 +1623,6 @@ def generate_word_combined(
             f"ทั้งนี้ผู้ออกแบบควรพิจารณาปัจจัยอื่นประกอบด้วย ได้แก่ "
             f"ความสามารถในการก่อสร้าง ความพร้อมของวัสดุในพื้นที่ และความต้องการของลูกค้า"
         )
-
-    # ── รูปแบบหน้าตัดโครงสร้างชั้นทาง (Cross-Section) ──────────────────
-    # อยู่นอก if summary_df เพื่อให้แสดงเสมอถ้ามีรูป
-    img_bytes = ss.get('cs_last_img_bytes')
-    if img_bytes:
-        doc.add_paragraph()
-        # คำนวณเลขหัวข้อ เช่น base_sec="3.9" → "3.9.6"
-        try:
-            _parts = base_sec.strip().split('.')
-            _sec_cs = '.'.join(_parts[:2]) + '.6'
-        except Exception:
-            _sec_cs = base_sec + '.6'
-        sec_cs = f"{_sec_cs}  รูปแบบหน้าตัดโครงสร้างชั้นทาง"
-        hdg(sec_cs, size=16, uline=False, sb=10)
-        body("รูปต่อไปนี้แสดงหน้าตัดโครงสร้างชั้นทางที่เลือกใช้ "
-             "เพื่อประกอบการนำเสนอและรายงานผลการวิเคราะห์:")
-        img_stream = io.BytesIO(img_bytes)
-        p_img = doc.add_paragraph()
-        p_img.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        p_img.add_run().add_picture(img_stream, width=Cm(15.0))
-        f_no   = ss.get('cs_last_fig_no', '3.9-1')
-        p_type = ss.get('cs_last_ptype',  'โครงสร้างชั้นทาง')
-        p_cap  = doc.add_paragraph()
-        p_cap.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        _set_rf(p_cap.add_run(f"รูปที่ {f_no}  รูปแบบหน้าตัด {p_type}"),
-                size=14, bold=False)
-        doc.add_paragraph()
-    elif not img_bytes:
-        # แจ้งผู้ใช้ถ้ายังไม่ได้ generate รูป
-        doc.add_paragraph()
-        p_warn = doc.add_paragraph()
-        _set_rf(p_warn.add_run(
-            "หมายเหตุ: ยังไม่มีรูป Cross-Section — กรุณา Generate ใน Tab 🖼️ Cross-Section ก่อน Download รายงาน"),
-            size=13, bold=False)
-        p_warn.paragraph_format.left_indent = Cm(1)
 
     # อ้างอิง
     hdg("เอกสารอ้างอิง", size=16, uline=True, sb=12)
@@ -1874,11 +1844,10 @@ tab_cs, tab_lc = st.tabs([
 # ╚══════════════════════════════════════════════════════════════════════════════╝
 
 with tab_cs:
-    sub_layer, sub_price, sub_summary, sub_cross = st.tabs([
+    sub_layer, sub_price, sub_summary = st.tabs([
         "🏗️ กำหนดหน้าตัด",
         "💰 ราคาวัสดุ",
         "📊 สรุปต้นทุน & รายงาน",
-        "🖼️ Cross-Section",
     ])
 
     all_results: dict = {}
@@ -2086,13 +2055,6 @@ with tab_cs:
                     '<div class="info-band" style="margin-top:4px">📄 สร้าง <b>Word Report รวม</b> (Cost Structure + Routine Cost + LCCA) '
                     'ได้ที่ Tab <b>📊 LCCA → 📄 Word Report</b> — กดปุ่มเดียวได้ไฟล์ครบ</div>',
                     unsafe_allow_html=True)
-
-# ╔══════════════════════════════════════════════════════════════════════════════╗
-# ║  TAB A — CROSS-SECTION DRAWING                                              ║
-# ╚══════════════════════════════════════════════════════════════════════════════╝
-
-with sub_cross:
-    render_cross_section_tab(ss=ss, project_name=project_name)
 
 # ╔══════════════════════════════════════════════════════════════════════════════╗
 # ║  TAB B — LCCA                                                               ║
@@ -2362,16 +2324,6 @@ with tab_lc:
             if not ss.get("lc_tab_routine_done"):
                 st.error("กรุณาคำนวณ Routine Cost ก่อน (Sub-tab 🔧)")
             else:
-                # Auto-sync ราคาจาก Tab A ก่อนสร้าง Alternatives เสมอ
-                _cur_costs = {pt: ss.get('cs_all_results', {}).get(pt, {}).get('cost_sqm', 0)
-                              for pt in _pts}
-                for pt_ in _pts:
-                    if _cur_costs.get(pt_, 0) > 0:
-                        ss[f'lc_cost_{pt_}'] = float(_cur_costs[pt_])
-                ss['lc_synced_costs'] = dict(_cur_costs)
-                ss['lc_sync_ts'] = datetime.now().strftime('%H:%M:%S')
-                # อัปเดต costs ที่จะใช้สร้าง alternatives
-                costs = {pt: float(ss.get(f'lc_cost_{pt}', 0)) for pt in _pts}
                 alts_new=[]
                 for nm,pt,cost,mc in [
                     ("ผิวทางยืดหยุ่น (AC)","Flexible",costs["AC"],r_ac),
@@ -2575,69 +2527,6 @@ with tab_lc:
                 if _ik not in ss: ss[_ik] = _auto_intro
                 intro_txt = st.text_area("บทเกริ่นนำ", height=100, key=_ik)
 
-            st.divider()
-
-            # ── Progress Checklist ────────────────────────────────────────
-            st.markdown("**📋 สถานะก่อน Download**")
-
-            _checks = [
-                (bool(ss.get('cs_all_results')),      "กำหนดโครงสร้างชั้นทาง"),
-                (bool(ss.get('lc_synced_costs')),      "ราคาวัสดุ (Sync แล้ว)"),
-                (bool(ss.get('lc_tab_routine_done')),  "คำนวณ Routine Cost"),
-                (bool(ss.get('lc_tab_alts_done')),     "สร้าง Alternatives"),
-                (bool(ss.get('lc_tab_result_done')),   "คำนวณ LCCA"),
-                (bool(ss.get('cs_last_img_bytes')),    "Generate Cross-Section"),
-            ]
-            _hints = [
-                "ไปที่ Tab กำหนดหน้าตัด",
-                "กด Sync ราคาใน Tab ราคาวัสดุ",
-                "ไปที่ Sub-tab Routine Cost แล้วคำนวณ",
-                "กด สร้าง/รีเซ็ต Alternatives",
-                "กด คำนวณ LCCA",
-                "ไปที่ Tab 🖼️ Cross-Section แล้วกด Generate",
-            ]
-
-            _all_done = all(ok for ok, _ in _checks)
-            _pending  = [lbl for ok, lbl in _checks if not ok]
-
-            # แสดง checklist แบบ HTML
-            rows_html = ""
-            for (ok, lbl), hint in zip(_checks, _hints):
-                if ok:
-                    rows_html += f"""
-                    <div style="display:flex;align-items:center;gap:10px;
-                                padding:6px 10px;border-radius:6px;margin:3px 0;
-                                background:#F0FDF4;border:1px solid #BBF7D0;">
-                        <span style="font-size:1.1rem;">✅</span>
-                        <span style="color:#166534;font-weight:600;">{lbl}</span>
-                    </div>"""
-                else:
-                    rows_html += f"""
-                    <div style="display:flex;align-items:center;gap:10px;
-                                padding:6px 10px;border-radius:6px;margin:3px 0;
-                                background:#FFF7ED;border:1px solid #FED7AA;">
-                        <span style="font-size:1.1rem;">⬜</span>
-                        <span style="color:#9A3412;font-weight:600;">{lbl}</span>
-                        <span style="color:#C2410C;font-size:0.82rem;margin-left:4px;">
-                            ← {hint}
-                        </span>
-                    </div>"""
-
-            # Summary banner
-            if _all_done:
-                banner = """<div style="background:#DCFCE7;border:2px solid #16A34A;
-                            border-radius:8px;padding:10px 14px;margin:8px 0;
-                            color:#166534;font-weight:700;font-size:1.0rem;">
-                            ✅ พร้อม Download ครบทุกขั้นตอน</div>"""
-            else:
-                n_left = len(_pending)
-                banner = f"""<div style="background:#FFF7ED;border:2px solid #F59E0B;
-                            border-radius:8px;padding:10px 14px;margin:8px 0;
-                            color:#92400E;font-weight:700;font-size:1.0rem;">
-                            ⚠️ ยังไม่ครบ {n_left} ขั้นตอน — Download ได้ แต่อาจไม่สมบูรณ์
-                            </div>"""
-
-            st.markdown(rows_html + banner, unsafe_allow_html=True)
             st.divider()
 
             # ── ปุ่มเดียว ──────────────────────────────────────────────────
