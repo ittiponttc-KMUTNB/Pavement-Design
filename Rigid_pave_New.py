@@ -380,9 +380,9 @@ CSS = """
 .rp-card {
     background: #FFFFFF;
     border: 1px solid #BBDEFB;
-    border-radius: 12px;
-    padding: 16px 18px;
-    margin-bottom: 14px;
+    border-radius: 10px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
 }
 .rp-card-title {
     font-size: 13px;
@@ -868,31 +868,27 @@ def main():
                                  format='%.2f', key='so')
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # ── ESAL Summary ────────────────────────────────────
+        # ── ESAL Summary — 4 cards ตาม D ───────────────────
         if ed:
             st.markdown('<div class="rp-card">', unsafe_allow_html=True)
-            section_card('สรุป W18 (คำนวณ on-the-fly ตาม D)', '🔢')
-            st.caption('W18 จะ update อัตโนมัติเมื่อเปลี่ยน D ใน Tab 3')
-            d_jpcp = st.session_state.get('jpcp_d_cm', 30)
-            d_crcp = st.session_state.get('crcp_d_cm', 25)
-            pt_val = st.session_state.get('pt',2.0)
-            w18_j, _, _ = compute_esal_for_d(ed['traffic_data'], pt_val,
-                                              ed['lane_factor'], ed['direction_factor'], d_jpcp)
-            w18_c, _, _ = compute_esal_for_d(ed['traffic_data'], pt_val,
-                                              ed['lane_factor'], ed['direction_factor'], d_crcp)
-            mc1,mc2 = st.columns(2)
-            with mc1:
-                st.markdown(f'''<div class="rp-metric">
-                    <div class="rp-metric-label">W18 — JPCP/JRCP (D={d_jpcp} ซม.)</div>
-                    <div class="rp-metric-val">{w18_j:,}</div>
-                    <div style="font-size:11px;color:#90A4AE">{w18_j/1e6:.2f} ล้าน ESALs</div>
-                </div>''', unsafe_allow_html=True)
-            with mc2:
-                st.markdown(f'''<div class="rp-metric">
-                    <div class="rp-metric-label">W18 — CRCP (D={d_crcp} ซม.)</div>
-                    <div class="rp-metric-val">{w18_c:,}</div>
-                    <div style="font-size:11px;color:#90A4AE">{w18_c/1e6:.2f} ล้าน ESALs</div>
-                </div>''', unsafe_allow_html=True)
+            section_card('W18 ตามความหนาคอนกรีต D (คำนวณจาก ESAL JSON)', '🔢')
+            st.caption('W18 ขึ้นกับ D และ pt — แสดง 4 ค่า D ที่ใช้บ่อย')
+            pt_val = st.session_state.get('pt', 2.0)
+            D_CARDS_IN = [25, 28, 30, 32]   # หน่วย inch
+            cols = st.columns(4)
+            for i, d_in in enumerate(D_CARDS_IN):
+                d_cm = round(d_in * 2.54)
+                w18, _, _ = compute_esal_for_d(
+                    ed['traffic_data'], pt_val,
+                    ed['lane_factor'], ed['direction_factor'], d_cm)
+                with cols[i]:
+                    st.markdown(f'''<div class="rp-metric">
+                        <div class="rp-metric-label">D = {d_in} in ({d_cm} ซม.)</div>
+                        <div class="rp-metric-val" style="font-size:16px">{w18:,}</div>
+                        <div style="font-size:11px;color:#90A4AE;margin-top:2px">
+                            {w18/1e6:.2f} ล้าน ESALs
+                        </div>
+                    </div>''', unsafe_allow_html=True)
             st.markdown('</div>', unsafe_allow_html=True)
 
     # ============================================================
