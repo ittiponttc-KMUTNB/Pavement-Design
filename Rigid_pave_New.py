@@ -849,23 +849,27 @@ def main():
         # ── Serviceability & Reliability ────────────────────
         st.markdown('<div class="rp-card">', unsafe_allow_html=True)
         section_card('Serviceability & Reliability', '📉')
+        # ── reset pt จาก JSON (ต้องทำก่อน widget render) ──
+        ed_pre = st.session_state.get('esal_data')
+        if st.session_state.pop('_do_reset_pt', False) and ed_pre:
+            st.session_state['pt'] = float(ed_pre.get('pt', 2.0))
+
         c1,c2,c3 = st.columns(3)
         with c1:
             pt = st.slider('Terminal Serviceability (Pt)', 1.5, 3.0,
-                           st.session_state.get('pt',2.0), 0.1, key='pt')
+                           st.session_state.get('pt', 2.0), 0.1, key='pt')
             dpsi = 4.5 - pt
             st.caption(f'ΔPSI = 4.5 − {pt:.1f} = **{dpsi:.1f}**')
             # ── warning pt ไม่สอดคล้อง ──
-            ed_check = st.session_state.get('esal_data')
-            if ed_check:
-                pt_json = ed_check.get('pt', pt)
+            if ed_pre:
+                pt_json = float(ed_pre.get('pt', pt))
                 if abs(pt - pt_json) > 0.01:
                     st.warning(f'⚠️ pt ที่ใช้ ({pt:.1f}) ต่างจาก ESAL JSON ({pt_json:.1f})\n\nW18 จะถูกคำนวณใหม่ด้วย pt = {pt:.1f}')
                     if st.button(f'↩️ ใช้ค่าจาก ESAL JSON (pt = {pt_json:.1f})', key='reset_pt'):
-                        st.session_state['pt'] = pt_json
+                        st.session_state['_do_reset_pt'] = True
                         st.rerun()
                 else:
-                    st.success(f'✅ pt สอดคล้องกับ ESAL JSON')
+                    st.success('✅ pt สอดคล้องกับ ESAL JSON')
         with c2:
             reliability = st.select_slider('Reliability (%)',
                           options=[80,85,90,95],
