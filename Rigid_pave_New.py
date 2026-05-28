@@ -889,17 +889,16 @@ def main():
             section_card('W18 ตามความหนาคอนกรีต D (คำนวณจาก ESAL JSON)', '🔢')
             st.caption('W18 ขึ้นกับ D และ pt — แสดง 4 ค่า D ที่ใช้บ่อย')
             pt_val = st.session_state.get('pt', 2.0)
-            D_CARDS_IN = [25, 28, 30, 32]   # หน่วย inch
-            cols = st.columns(4)
-            for i, d_in in enumerate(D_CARDS_IN):
-                d_cm = round(d_in * 2.54)
+            D_CARDS = [(10,25),(11,28),(12,30),(13,32),(14,35)]  # (inch, cm)
+            cols = st.columns(5)
+            for i, (d_in, d_cm) in enumerate(D_CARDS):
                 w18, _, _ = compute_esal_for_d(
                     ed['traffic_data'], pt_val,
                     ed['lane_factor'], ed['direction_factor'], d_cm)
                 with cols[i]:
                     st.markdown(f'''<div class="rp-metric">
                         <div class="rp-metric-label">D = {d_in} in ({d_cm} ซม.)</div>
-                        <div class="rp-metric-val" style="font-size:16px">{w18:,}</div>
+                        <div class="rp-metric-val" style="font-size:15px">{w18:,}</div>
                         <div style="font-size:11px;color:#90A4AE;margin-top:2px">
                             {w18/1e6:.2f} ล้าน ESALs
                         </div>
