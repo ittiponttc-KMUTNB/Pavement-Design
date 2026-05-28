@@ -378,11 +378,11 @@ CSS = """
     color: #FFFFFF;
 }
 .rp-card {
-    background: #FFFFFF;
-    border: 1px solid #BBDEFB;
-    border-radius: 10px;
-    padding: 10px 14px;
-    margin-bottom: 8px;
+    background: #FFF8E1;
+    border: 1px solid #FFECB3;
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-bottom: 6px;
 }
 .rp-card-title {
     font-size: 13px;
@@ -855,6 +855,17 @@ def main():
                            st.session_state.get('pt',2.0), 0.1, key='pt')
             dpsi = 4.5 - pt
             st.caption(f'ΔPSI = 4.5 − {pt:.1f} = **{dpsi:.1f}**')
+            # ── warning pt ไม่สอดคล้อง ──
+            ed_check = st.session_state.get('esal_data')
+            if ed_check:
+                pt_json = ed_check.get('pt', pt)
+                if abs(pt - pt_json) > 0.01:
+                    st.warning(f'⚠️ pt ที่ใช้ ({pt:.1f}) ต่างจาก ESAL JSON ({pt_json:.1f})\n\nW18 จะถูกคำนวณใหม่ด้วย pt = {pt:.1f}')
+                    if st.button(f'↩️ ใช้ค่าจาก ESAL JSON (pt = {pt_json:.1f})', key='reset_pt'):
+                        st.session_state['pt'] = pt_json
+                        st.rerun()
+                else:
+                    st.success(f'✅ pt สอดคล้องกับ ESAL JSON')
         with c2:
             reliability = st.select_slider('Reliability (%)',
                           options=[80,85,90,95],
